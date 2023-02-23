@@ -33,6 +33,18 @@ void token_free(Token *token) {
 
 void token_print(Token *token) {
     switch (token->type) {
+        case TOKEN_ERROR:
+            fputs(token->data.error, stdout);
+            break;
+        case TOKEN_IF:
+            fputs(STR_IF, stdout);
+            break;
+        case TOKEN_ELIF:
+            fputs(STR_ELIF, stdout);
+            break;
+        case TOKEN_ELSE:
+            fputs(STR_ELSE, stdout);
+            break;
         case TOKEN_LITERAL_STRING:
             printf("\"%s\"", token->data.literal_string);
             break;

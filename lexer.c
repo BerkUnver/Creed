@@ -26,7 +26,6 @@ int lexer_char_peek(const Lexer *lexer) {
 
 int lexer_char_get(Lexer *lexer) {
     int c = fgetc(lexer->file);
-    if (c == EOF) return EOF;
     if (c == '\n') {
         lexer->line_idx++;
         lexer->char_idx = 0;
@@ -64,7 +63,7 @@ Token lexer_token_get(Lexer *lexer) {
         return token;
     }
     
-    // checking if character is an operator, if so, get all operator characters after it.
+    // checking if character is operator.
     char operator[OPERATOR_MAX_LENGTH + 1];
     int operator_len = 0; 
     
@@ -78,13 +77,11 @@ Token lexer_token_get(Lexer *lexer) {
             break;
         }
         
-        if (!is_operator) {
-            operator[operator_len] = '\0';
-            break;
-        }
+        if (!is_operator) break;
 
         operator_len++;
     }
+    operator[operator_len] = '\0';
     
     if (operator_len > 0) { // if the first character is an operator, meaning the whole string is an operator
         token.len = operator_len;
@@ -99,11 +96,41 @@ Token lexer_token_get(Lexer *lexer) {
         } else {
             token.type = TOKEN_ERROR;
             token.data.error = "Unrecognized operator.";
-        }
-        
+        }     
         return token;
     }
+    
+    
+    // check if character is identifier, similar to above.
+    char id[ID_MAX_LENGTH + 1];
+    int id_len = 0;
 
+    while (id_len < ID_MAX_LENGTH) { 
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')) break;
+        id[id_len] = c;
+        lexer_char_get(lexer);
+        c = lexer_char_peek(lexer);
+        id_len++; 
+    }
+    id[id_len] = '\0';
+    
+    if (id_len > 0) {
+        token.len = id_len;
+        if (id_len > ID_MAX_LENGTH) {
+            token.type = TOKEN_ERROR;
+            token.data.error = "Identifier is too long."; // todo: Somehow statically bake token length into the identifier.
+        } else if (!strcmp(id, STR_IF)) {
+            token.type = TOKEN_IF;
+        } else if (!strcmp(id, STR_ELIF)) {
+            token.type = TOKEN_ELIF;
+        } else if (!strcmp(id, STR_ELSE)) {
+            token.type = TOKEN_ELSE;
+        } else {
+            token.type = TOKEN_ERROR;
+            token.data.error = "Unrecognized identifier.";
+        }
+        return token;
+    }
 
     lexer_char_get(lexer); 
     token.type = TOKEN_ERROR;

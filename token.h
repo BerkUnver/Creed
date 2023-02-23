@@ -9,6 +9,10 @@
 #define STR_EQUALS "=="
 #define STR_ASSIGN "="
 
+#define STR_IF "if"
+#define STR_ELIF "elif"
+#define STR_ELSE "else"
+
 typedef enum TokenType {
     TOKEN_EOF = EOF,
 
@@ -24,26 +28,30 @@ typedef enum TokenType {
     TOKEN_SEMICOLON = ';',
     TOKEN_DOT = '.',
 
-    TOKEN_ERROR = 256,
+    TOKEN_ERROR = 256, 
+    // There must be a token with the value 256 so everything after it has a higher value.
 
-    TOKEN_EQUALS = 257,
-    TOKEN_ASSIGN = 258,
+    TOKEN_EQUALS,
+    TOKEN_ASSIGN,
     
-    TOKEN_IF = 259,
-    TOKEN_ELSE = 260,
-    TOKEN_POINTER_REFERENCE = 261,
-    TOKEN_POINTER_DEREFERENCE = 262,
-    TOKEN_ID = 263,
+    TOKEN_POINTER_REFERENCE,
+    TOKEN_POINTER_DEREFERENCE,
+   
+    TOKEN_IF,
+    TOKEN_ELIF,
+    TOKEN_ELSE,
 
-    TOKEN_LITERAL_STRING = 264,
-    TOKEN_LITERAL_INT = 265,
-    TOKEN_LITERAL_FLOAT = 266,
+    TOKEN_ID,
 
-    TOKEN_PLUS = 267,
-    TOKEN_MINUS = 268,
-    TOKEN_MULTIPLY = 269,
-    TOKEN_DIVIDE = 270,
-    TOKEN_MODULO = 271,
+    TOKEN_LITERAL_STRING,
+    TOKEN_LITERAL_INT,
+    TOKEN_LITERAL_FLOAT,
+
+    TOKEN_PLUS,
+    TOKEN_MINUS,
+    TOKEN_MULTIPLY,
+    TOKEN_DIVIDE,
+    TOKEN_MODULO,
 } TokenType;
 
 typedef union TokenData {
