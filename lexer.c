@@ -51,14 +51,13 @@ Token lexer_token_get(Lexer *lexer) {
 
    
     // check if token is a single char
-    for (int i = 0; i < sizeof(single_char_tokens) / sizeof(*single_char_tokens); i++) {
-        if (c != single_char_tokens[i]) continue;
+    if (char_is_single_char_token_type(c)) {
         lexer_char_get(lexer);
-        token.type = c; // ok because chars correspond 1:1 to token type.
+        token.type = c; // This is ok because c corresponds 1:1 to unique single-char token types.
         token.len = 1;
         return token;
     }
-    
+
     // checking if character is operator.
     char operator[OPERATOR_MAX_LENGTH + 1];
     int operator_len = 0; 
@@ -70,7 +69,7 @@ Token lexer_token_get(Lexer *lexer) {
         operator_len++;
     }
 
-    operator[operator_len] = '\0';` 
+    operator[operator_len] = '\0'; 
     if (operator_len > 0) { // if the first character is an operator, meaning the whole string is an operator
         token.len = operator_len;
         

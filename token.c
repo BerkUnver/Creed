@@ -1,19 +1,19 @@
 #include <stdlib.h>
 #include "token.h"
 
-const TokenType single_char_tokens[] = {
-    TOKEN_EOF,
-    TOKEN_PAREN_OPEN,
-    TOKEN_PAREN_CLOSE,
-    TOKEN_CURLY_BRACE_OPEN,
-    TOKEN_CURLY_BRACE_CLOSE,
-    TOKEN_BRACKET_OPEN,
-    TOKEN_BRACKET_CLOSE,
-    TOKEN_COLON,
-    TOKEN_COMMA,
-    TOKEN_SEMICOLON,
-    TOKEN_DOT
-};
+bool char_is_single_char_token_type(int c) { 
+    return c == TOKEN_EOF
+        || c == TOKEN_PAREN_OPEN
+        || c == TOKEN_PAREN_CLOSE
+        || c == TOKEN_CURLY_BRACE_OPEN
+        || c == TOKEN_CURLY_BRACE_CLOSE
+        || c == TOKEN_BRACKET_OPEN
+        || c == TOKEN_BRACKET_CLOSE
+        || c == TOKEN_COLON
+        || c == TOKEN_COMMA
+        || c == TOKEN_SEMICOLON
+        || c == TOKEN_DOT;
+}
 
 bool char_is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
@@ -66,13 +66,11 @@ void token_print(Token *token) {
         case TOKEN_EOF: // EOF is a character. Do not print out. 
             break;
         default:
-            for (int i = 0; i < sizeof(single_char_tokens); i++) {
-                if (token->type == single_char_tokens[i]) {
-                    putchar(token->type);
-                    return;
-                }
+            if (char_is_single_char_token_type(token->type)) {
+                putchar(token->type);
+            } else {
+                printf("[Unrecognized token with type id %i]", token->type);
             }
-            printf("[Unrecognized token with type id %i]", token->type);
             break;
     }
 }

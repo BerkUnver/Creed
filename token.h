@@ -73,7 +73,9 @@ typedef struct Token {
     int len;
 } Token;
 
-extern const TokenType single_char_tokens[11];
+// c is an int so you can also pass a TokenType itself in here instead of a char.
+bool char_is_single_char_token_type(int c);
+
 bool char_is_whitespace(char c);
 bool char_is_escape(char c);
 bool char_is_operator(char c);
