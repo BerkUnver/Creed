@@ -85,7 +85,7 @@ Token lexer_token_get(Lexer *lexer) {
         return token;
     }
 
-    // This is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.
+    // this is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.
     if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
         lexer_char_get(lexer);
         int literal_length;
@@ -114,20 +114,24 @@ Token lexer_token_get(Lexer *lexer) {
     // checking if character is operator.
     char operator[OPERATOR_MAX_LENGTH + 1];
     int operator_len = 0; 
-    
-    while (char_is_operator(lexer_char_peek(lexer)) && operator_len < OPERATOR_MAX_LENGTH) { 
-        operator[operator_len] = lexer_char_get(lexer);
+   
+    while (char_is_operator(lexer_char_peek(lexer))) {
+        char c = lexer_char_get(lexer);
+        if (operator_len < OPERATOR_MAX_LENGTH) operator[operator_len] = c;
         operator_len++;
     }
 
-    operator[operator_len] = '\0'; 
     if (operator_len > 0) { // if the first character is an operator, meaning the whole string is an operator
         token.len = operator_len;
         
         if (operator_len > OPERATOR_MAX_LENGTH) {
             token.type = TOKEN_ERROR;
             token.data.error = "No operator is this long.";
-        } else if (!strcmp(operator, STR_ASSIGN)) {
+            return token;
+        }
+        
+        operator[operator_len] = '\0';
+        if (!strcmp(operator, STR_ASSIGN)) {
             token.type = TOKEN_ASSIGN;
         } else if (!strcmp(operator, STR_EQUALS)) {
             token.type = TOKEN_EQUALS;
@@ -143,19 +147,21 @@ Token lexer_token_get(Lexer *lexer) {
     char id[ID_MAX_LENGTH + 1];
     int id_len = 0;
 
-    while (char_is_identifier(lexer_char_peek(lexer)) && id_len < ID_MAX_LENGTH) { 
-        id[id_len] = lexer_char_get(lexer);
+    while (char_is_identifier(lexer_char_peek(lexer))) { 
+        char c = lexer_char_get(lexer);
+        if (id_len < ID_MAX_LENGTH) id[id_len] = c;
         id_len++; 
     }
 
-    id[id_len] = '\0';
-    
     if (id_len > 0) {
         token.len = id_len;
-        if (id_len >= ID_MAX_LENGTH) {
+        
+        if (id_len > ID_MAX_LENGTH) {
             token.type = TOKEN_ERROR;
             token.data.error = "Identifier is too long."; // todo: Somehow statically bake token length into the identifier.
-        } else if (!strcmp(id, STR_IF)) {
+        } 
+        id[id_len] = '\0';
+        if (!strcmp(id, STR_IF)) {
             token.type = TOKEN_IF;
         } else if (!strcmp(id, STR_ELIF)) {
             token.type = TOKEN_ELIF;
