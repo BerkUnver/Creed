@@ -71,30 +71,22 @@ int lexer_literal_char_get(Lexer *lexer, int *length) {
 }
 
 Token lexer_token_get(Lexer *lexer) {
-    int c; // c always is the next peeked character of the lexer.
-    
     // consume whitespace
-    while (true) {
-        c = lexer_char_peek(lexer);
-        if (!char_is_whitespace(c)) break;
-        lexer_char_get(lexer);
-    }
+    while (char_is_whitespace(lexer_char_peek(lexer))) lexer_char_get(lexer);
 
     Token token;
     token.line_idx = lexer->line_idx;
     token.char_idx = lexer->char_idx;
 
    
-    // check if token is a single char
-    if (char_is_single_char_token_type(c)) {
-        lexer_char_get(lexer);
-        token.type = c; // This is ok because c corresponds 1:1 to unique single-char token types.
+    if (char_is_single_char_token_type(lexer_char_peek(lexer))) {
+        token.type = lexer_char_get(lexer); // chars corresponds 1:1 to unique single-char token types.
         token.len = 1;
         return token;
     }
 
-    // this is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.
-    if (c == DELIMITER_LITERAL_CHAR) {
+    // This is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.
+    if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
         lexer_char_get(lexer);
         int literal_length;
         int literal_char = lexer_literal_char_get(lexer, &literal_length);
@@ -106,16 +98,16 @@ Token lexer_token_get(Lexer *lexer) {
             lexer_char_get(lexer);
             return token;
         }
-        c = lexer_char_get(lexer); // ok to get b/c you will get it anyway if it is an error or not.
-        token.len = literal_length + 2; // add opening and closing delimiters.
-        if (c != DELIMITER_LITERAL_CHAR) {
+        
+        if (lexer_char_get(lexer) != DELIMITER_LITERAL_CHAR) {
             token.type = TOKEN_ERROR;
             token.data.error = "Expected \' at the end of a character literal.";
-            return token;
+        } else {
+            token.type = TOKEN_LITERAL_CHAR;
+            token.data.literal_char = literal_char;
         }
 
-        token.type = TOKEN_LITERAL_CHAR;
-        token.data.literal_char = literal_char;
+        token.len = literal_length + 2; // add opening and closing delimiters.
         return token;
     }
 
@@ -123,10 +115,8 @@ Token lexer_token_get(Lexer *lexer) {
     char operator[OPERATOR_MAX_LENGTH + 1];
     int operator_len = 0; 
     
-    while (char_is_operator(c) && operator_len < OPERATOR_MAX_LENGTH) { 
-        operator[operator_len] = c;
-        lexer_char_get(lexer);
-        c = lexer_char_peek(lexer);
+    while (char_is_operator(lexer_char_peek(lexer)) && operator_len < OPERATOR_MAX_LENGTH) { 
+        operator[operator_len] = lexer_char_get(lexer);
         operator_len++;
     }
 
@@ -153,10 +143,8 @@ Token lexer_token_get(Lexer *lexer) {
     char id[ID_MAX_LENGTH + 1];
     int id_len = 0;
 
-    while (((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') && id_len < ID_MAX_LENGTH) { 
-        id[id_len] = c;
-        lexer_char_get(lexer);
-        c = lexer_char_peek(lexer);
+    while (char_is_identifier(lexer_char_peek(lexer)) && id_len < ID_MAX_LENGTH) { 
+        id[id_len] = lexer_char_get(lexer);
         id_len++; 
     }
 
@@ -164,7 +152,7 @@ Token lexer_token_get(Lexer *lexer) {
     
     if (id_len > 0) {
         token.len = id_len;
-        if (id_len > ID_MAX_LENGTH) {
+        if (id_len >= ID_MAX_LENGTH) {
             token.type = TOKEN_ERROR;
             token.data.error = "Identifier is too long."; // todo: Somehow statically bake token length into the identifier.
         } else if (!strcmp(id, STR_IF)) {
@@ -180,7 +168,7 @@ Token lexer_token_get(Lexer *lexer) {
         return token;
     }
 
-    lexer_char_get(lexer); 
+    lexer_char_get(lexer); // consume unknown character. 
     token.type = TOKEN_ERROR;
     token.len = 1;
     token.data.error = "Unrecognized character.";

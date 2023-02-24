@@ -23,6 +23,10 @@ bool char_is_operator(char c) {
     return c == '!' || c == '%' || c == '*' || c == '/' || c == '-' || c == '>' || c == '<' || c == '/' || c == '&' || c == '|' || c == '=';
 }
 
+bool char_is_identifier(char c) {
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
+}
+
 void token_free(Token *token) {
     switch (token->type) {
         case TOKEN_LITERAL_STRING: 

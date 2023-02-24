@@ -80,6 +80,7 @@ bool char_is_single_char_token_type(int c);
 
 bool char_is_whitespace(char c);
 bool char_is_operator(char c);
+bool char_is_identifier(char c);
 
 void token_print(Token *token);
 void token_free(Token *token);
