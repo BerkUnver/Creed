@@ -29,23 +29,19 @@ int lexer_char_get(Lexer *lexer) {
     if (c == '\n') {
         lexer->line_idx++;
         lexer->char_idx = 0;
+    } else {
+        lexer->char_idx++;
     }
     return c;
 }
 
 Token lexer_token_get(Lexer *lexer) {
-    int c;
+    int c; // c always is the next peeked character of the lexer.
     
     // consume whitespace
     while (true) {
         c = lexer_char_peek(lexer);
-        bool is_whitespace = false;
-        for (int i = 0; i < sizeof(whitespace_chars); i++) {
-            if (whitespace_chars[i] != c) continue;
-            is_whitespace = true;
-            break;
-        }
-        if (!is_whitespace) break;
+        if (!char_is_whitespace(c)) break;
         lexer_char_get(lexer);
     }
 
@@ -55,7 +51,7 @@ Token lexer_token_get(Lexer *lexer) {
 
    
     // check if token is a single char
-    for (int i = 0; i < sizeof(single_char_tokens); i++) {
+    for (int i = 0; i < sizeof(single_char_tokens) / sizeof(*single_char_tokens); i++) {
         if (c != single_char_tokens[i]) continue;
         lexer_char_get(lexer);
         token.type = c; // ok because chars correspond 1:1 to token type.
@@ -67,22 +63,14 @@ Token lexer_token_get(Lexer *lexer) {
     char operator[OPERATOR_MAX_LENGTH + 1];
     int operator_len = 0; 
     
-    while (operator_len < OPERATOR_MAX_LENGTH) {
-        bool is_operator = false;
-        for (int i = 0; i < sizeof(operator_chars); i++) {
-            if (c != operator_chars[i]) continue;
-            operator[operator_len] = c;
-            lexer_char_get(lexer);
-            is_operator = true;
-            break;
-        }
-        
-        if (!is_operator) break;
-
+    while (char_is_operator(c) && operator_len < OPERATOR_MAX_LENGTH) { 
+        operator[operator_len] = c;
+        lexer_char_get(lexer);
+        c = lexer_char_peek(lexer);
         operator_len++;
     }
-    operator[operator_len] = '\0';
-    
+
+    operator[operator_len] = '\0';` 
     if (operator_len > 0) { // if the first character is an operator, meaning the whole string is an operator
         token.len = operator_len;
         
@@ -105,13 +93,13 @@ Token lexer_token_get(Lexer *lexer) {
     char id[ID_MAX_LENGTH + 1];
     int id_len = 0;
 
-    while (id_len < ID_MAX_LENGTH) { 
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')) break;
+    while (((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') && id_len < ID_MAX_LENGTH) { 
         id[id_len] = c;
         lexer_char_get(lexer);
         c = lexer_char_peek(lexer);
         id_len++; 
     }
+
     id[id_len] = '\0';
     
     if (id_len > 0) {
@@ -135,7 +123,6 @@ Token lexer_token_get(Lexer *lexer) {
     lexer_char_get(lexer); 
     token.type = TOKEN_ERROR;
     token.len = 1;
-    printf("\n%c\n", c);
     token.data.error = "Unrecognized character.";
     return token;
 }

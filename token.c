@@ -15,8 +15,17 @@ const TokenType single_char_tokens[] = {
     TOKEN_DOT
 };
 
-const char operator_chars[] = {'!', '%', '*', '/', '-', '>', '<', '/', '&', '|', '='};
-const char whitespace_chars[] = {' ', '\n', '\t', '\r'};
+bool char_is_whitespace(char c) {
+    return c == ' ' || c == '\n' || c == '\t' || c == '\r';
+}
+
+bool char_is_escape(char c) {
+    return c == '\n' || c == '\"' || c == '\'' || c == '\n' || c == '\t' || c == '\r' || c == '\0' || c == '\\';
+}
+
+bool char_is_operator(char c) {
+    return c == '!' || c == '%' || c == '*' || c == '/' || c == '-' || c == '>' || c == '<' || c == '/' || c == '&' || c == '|' || c == '=';
+}
 
 void token_free(Token *token) {
     switch (token->type) {
@@ -34,7 +43,7 @@ void token_free(Token *token) {
 void token_print(Token *token) {
     switch (token->type) {
         case TOKEN_ERROR:
-            fputs(token->data.error, stdout);
+            printf("Error at line: %i, char: %i, len: %i. Message: %s", token->line_idx + 1, token->char_idx + 1, token->len, token->data.error);
             break;
         case TOKEN_IF:
             fputs(STR_IF, stdout);

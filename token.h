@@ -2,6 +2,7 @@
 #define CREED_TOKEN_H
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #define ID_MAX_LENGTH 64
 #define OPERATOR_MAX_LENGTH 2
@@ -12,6 +13,8 @@
 #define STR_IF "if"
 #define STR_ELIF "elif"
 #define STR_ELSE "else"
+#define DELIMITER_LITERAL_STRING '"'
+#define DELIMITER_LITERAL_CHAR '\''
 
 typedef enum TokenType {
     TOKEN_EOF = EOF,
@@ -70,14 +73,10 @@ typedef struct Token {
     int len;
 } Token;
 
-#define SINGLE_CHAR_TOKENS_COUNT 11
-extern const TokenType single_char_tokens[SINGLE_CHAR_TOKENS_COUNT]; // needs to be int type because contains EOF
-
-#define OPERATOR_CHARS_COUNT 11
-extern const char operator_chars[OPERATOR_CHARS_COUNT];
-
-#define WHITESPACE_CHARS_COUNT 4
-extern const char whitespace_chars[WHITESPACE_CHARS_COUNT];
+extern const TokenType single_char_tokens[11];
+bool char_is_whitespace(char c);
+bool char_is_escape(char c);
+bool char_is_operator(char c);
 
 void token_print(Token *token);
 void token_free(Token *token);
