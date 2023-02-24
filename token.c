@@ -19,10 +19,6 @@ bool char_is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
 }
 
-bool char_is_escape(char c) {
-    return c == '\n' || c == '\"' || c == '\'' || c == '\n' || c == '\t' || c == '\r' || c == '\0' || c == '\\';
-}
-
 bool char_is_operator(char c) {
     return c == '!' || c == '%' || c == '*' || c == '/' || c == '-' || c == '>' || c == '<' || c == '/' || c == '&' || c == '|' || c == '=';
 }
@@ -40,19 +36,38 @@ void token_free(Token *token) {
     }
 }
 
+
+void print(const char *str) {
+    fputs(str, stdout);
+}
+
 void token_print(Token *token) {
     switch (token->type) {
         case TOKEN_ERROR:
             printf("Error at line: %i, char: %i, len: %i. Message: %s", token->line_idx + 1, token->char_idx + 1, token->len, token->data.error);
             break;
         case TOKEN_IF:
-            fputs(STR_IF, stdout);
+            print(STR_IF);
             break;
         case TOKEN_ELIF:
-            fputs(STR_ELIF, stdout);
+            print(STR_ELIF);
             break;
         case TOKEN_ELSE:
-            fputs(STR_ELSE, stdout);
+            print(STR_ELSE);
+            break;
+        case TOKEN_LITERAL_CHAR:
+            putchar('\'');
+            switch (token->data.literal_char) {
+                case '\\': print("\\\\"); break;
+                case '\n': print("\\n"); break;
+                case '\t': print("\\t"); break;
+                case '\0': print("\\0"); break;
+                case '\'': print("\\'"); break;
+                case '\"': print("\\\""); break;
+                case '\r': print("\\r"); break;
+                default: putchar(token->data.literal_char); break;
+            }
+            putchar('\'');
             break;
         case TOKEN_LITERAL_STRING:
             printf("\"%s\"", token->data.literal_string);

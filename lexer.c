@@ -24,6 +24,14 @@ int lexer_char_peek(const Lexer *lexer) {
     return c;
 }
 
+// peeks count characters ahead. Rounds anything lower than 1 to 1.
+int lexer_chars_peek(const Lexer *lexer, int count) {
+    int pushback = fgetc(lexer->file);
+    int c = count > 1 ? lexer_chars_peek(lexer, count - 1) : pushback;
+    ungetc(pushback, lexer->file);
+    return c;
+}
+
 int lexer_char_get(Lexer *lexer) {
     int c = fgetc(lexer->file);
     if (c == '\n') {
@@ -32,6 +40,33 @@ int lexer_char_get(Lexer *lexer) {
     } else {
         lexer->char_idx++;
     }
+    return c;
+}
+
+// returns the literal if it is found; otherwise returns a negative number.
+// length is an out-parameter that tells the length of the literal.
+int lexer_literal_char_get(Lexer *lexer, int *length) {
+    int c = lexer_char_peek(lexer);
+    if (c == '\\') { // if it is an escape sequence
+        int escape; 
+        switch (lexer_chars_peek(lexer, 2)) { // Kind of similar to how it is printed, consider consolidating.
+            case '\\': escape = '\\'; break;
+            case 'n': escape = '\n'; break;
+            case 't': escape = '\t'; break;
+            case '0': escape = '\0'; break;
+            case '\'': escape = '\''; break;
+            case '\"': escape = '\"'; break;
+            case 'r': escape = '\r'; break;
+            default: return -1; // not a valid escape sequence
+        }
+        lexer_char_get(lexer);
+        lexer_char_get(lexer);
+        *length = 2;
+        return escape;
+    }
+    if (c < ' ' || c > '~') return -1; // outside the range of valid non-escape literals.
+    *length = 1;
+    lexer_char_get(lexer);
     return c;
 }
 
@@ -55,6 +90,32 @@ Token lexer_token_get(Lexer *lexer) {
         lexer_char_get(lexer);
         token.type = c; // This is ok because c corresponds 1:1 to unique single-char token types.
         token.len = 1;
+        return token;
+    }
+
+    // this is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.
+    if (c == DELIMITER_LITERAL_CHAR) {
+        lexer_char_get(lexer);
+        int literal_length;
+        int literal_char = lexer_literal_char_get(lexer, &literal_length);
+        if (literal_char < 0) {
+            lexer_char_get(lexer);
+            token.type = TOKEN_ERROR;
+            token.data.error = "Invalid character literal.";
+            token.len = 2; // opening delimiter + character length.
+            lexer_char_get(lexer);
+            return token;
+        }
+        c = lexer_char_get(lexer); // ok to get b/c you will get it anyway if it is an error or not.
+        token.len = literal_length + 2; // add opening and closing delimiters.
+        if (c != DELIMITER_LITERAL_CHAR) {
+            token.type = TOKEN_ERROR;
+            token.data.error = "Expected \' at the end of a character literal.";
+            return token;
+        }
+
+        token.type = TOKEN_LITERAL_CHAR;
+        token.data.literal_char = literal_char;
         return token;
     }
 

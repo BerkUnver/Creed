@@ -46,6 +46,7 @@ typedef enum TokenType {
 
     TOKEN_ID,
 
+    TOKEN_LITERAL_CHAR,
     TOKEN_LITERAL_STRING,
     TOKEN_LITERAL_INT,
     TOKEN_LITERAL_FLOAT,
@@ -61,6 +62,7 @@ typedef union TokenData {
     int literal_integer;
     float literal_float;
     char *literal_string;
+    char literal_char;
     const char* error; // FOR NOW, ERRORS ARE STATIC STRINGS. DO NOT FREE!
     char *id;
 } TokenData;
@@ -77,7 +79,6 @@ typedef struct Token {
 bool char_is_single_char_token_type(int c);
 
 bool char_is_whitespace(char c);
-bool char_is_escape(char c);
 bool char_is_operator(char c);
 
 void token_print(Token *token);
