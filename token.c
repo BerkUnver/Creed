@@ -70,6 +70,9 @@ void token_print(Token *token) {
             }
             putchar('"');
             break;
+        case TOKEN_ID:
+            print(token->data.id);
+            break;
         case TOKEN_EQUALS:
             fputs(STR_EQUALS, stdout);
             break;

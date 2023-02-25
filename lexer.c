@@ -50,6 +50,8 @@ int lexer_char_get(Lexer *lexer) {
 // returns the literal if it is found; otherwise returns a negative number.
 // length is an out-parameter that tells the length of the literal if it is found.
 // If it finds a valid literal it will consume it, otherwise not.
+// Currently strings and chars have the same escape sequences.
+// In C, this is not true, as single quote is allowed in strings and double quote is allowed in chars.
 int lexer_literal_char_try_get(Lexer *lexer, int *length) {
     int c = lexer_char_peek(lexer);
     if (c == '\\') { // if it is an escape sequence
@@ -173,6 +175,9 @@ Token lexer_token_get(Lexer *lexer) {
     
     
     // check if character is identifier, similar to above.
+    // I (Berk) decided to use a static array instead of a StringBuffer.
+    // This is so we don't have to malloc a string array when the identifier is a keyword.
+    // Requires us to put a identifier maximum length so we don't overflow the buffer
     char id[ID_MAX_LENGTH + 1];
     int id_len = 0;
 
@@ -184,11 +189,12 @@ Token lexer_token_get(Lexer *lexer) {
 
     if (id_len > 0) {
         token.len = id_len;
-        
         if (id_len > ID_MAX_LENGTH) {
             token.type = TOKEN_ERROR;
-            token.data.error = "Identifier is too long."; // todo: Somehow statically bake token length into the identifier.
-        } 
+            token.data.error = "Identifier is too long."; // todo: Somehow statically bake max identifier length into the error string.
+            return token;
+        }
+
         id[id_len] = '\0';
         if (!strcmp(id, STR_IF)) {
             token.type = TOKEN_IF;
@@ -197,8 +203,11 @@ Token lexer_token_get(Lexer *lexer) {
         } else if (!strcmp(id, STR_ELSE)) {
             token.type = TOKEN_ELSE;
         } else {
-            token.type = TOKEN_ERROR;
-            token.data.error = "Unrecognized identifier.";
+            char *id_copy = malloc(sizeof(char) * (id_len + 1));
+            strcpy(id_copy, id);
+
+            token.type = TOKEN_ID;
+            token.data.id = id_copy;
         }
         return token;
     }
