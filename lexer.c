@@ -91,7 +91,45 @@ Token lexer_token_get(Lexer *lexer) {
         token.len = 1;
         return token;
     }
-
+    
+    int int_peek = lexer_char_peek(lexer);
+    if (int_peek == '0') {
+        lexer_char_get(lexer);
+        int int_peek_2 = lexer_char_peek(lexer);
+        if ('0' <= int_peek_2 && int_peek_2 <= '9') {
+            lexer_char_get(lexer);
+            token.type = TOKEN_ERROR;
+            token.data.error = "Non-zero integer literals cannot start with 0.";
+            token.len = 2; // two consumed characters
+            while (true) {
+                int peek = lexer_char_peek(lexer);
+                if (peek < '0' || '9' < peek) break;
+                lexer_char_get(lexer);
+                token.len++;
+            }
+        } else {
+            token.type = TOKEN_LITERAL_INT;
+            token.data.literal_int = 0;
+            token.len = 1;
+        }
+        return token;
+    } else if ('1' <= int_peek && int_peek <= '9') {
+        int val = int_peek - '0';
+        lexer_char_get(lexer);
+        token.len = 1;
+        token.type = TOKEN_LITERAL_INT;
+        while (true) {
+            int peek = lexer_char_peek(lexer);
+            if (peek < '0' || '9' < peek) break;
+            token.len++;
+            val *= 10;
+            val += (peek - '0'); // todo: bounds-checking.
+            lexer_char_get(lexer);
+        }
+        token.data.literal_int = val;
+        return token;
+    }
+    
     // this is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.
     if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
         lexer_char_get(lexer);

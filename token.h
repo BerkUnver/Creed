@@ -59,7 +59,7 @@ typedef enum TokenType {
 } TokenType;
 
 typedef union TokenData {
-    int literal_integer;
+    int literal_int;
     float literal_float;
     char *literal_string;
     char literal_char;

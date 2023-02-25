@@ -5,7 +5,7 @@ TEST = test.cr
 all: run
 
 build: ${SOURCE}
-	gcc ${SOURCE} -o ${APP_NAME} -Wall -Werror -std=c99 -lm
+	gcc ${SOURCE} -o ${APP_NAME} -Wall -Werror -std=c99 -lm -g
 
 run:
 	make build

@@ -70,6 +70,9 @@ void token_print(Token *token) {
             }
             putchar('"');
             break;
+        case TOKEN_LITERAL_INT:
+            printf("%i", token->data.literal_int);
+            break;
         case TOKEN_ID:
             print(token->data.id);
             break;
