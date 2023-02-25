@@ -77,6 +77,20 @@ int lexer_literal_char_try_get(Lexer *lexer, int *length) {
     return c;
 }
 
+double lexer_decimal_get(Lexer *lexer, int *length) {
+    double val = 0;
+    double digit = 0.1;
+    *length = 0;
+    while (true) {
+        int peek = lexer_char_peek(lexer);
+        if (peek < '0' || '9' < peek) return val; 
+        lexer_char_get(lexer);
+        val += (digit * (peek - '0'));
+        digit /= 10;
+        (*length)++;
+    }
+}
+
 Token lexer_token_get(Lexer *lexer) {
     // consume whitespace
     while (char_is_whitespace(lexer_char_peek(lexer))) lexer_char_get(lexer);
@@ -92,42 +106,72 @@ Token lexer_token_get(Lexer *lexer) {
         return token;
     }
     
-    int int_peek = lexer_char_peek(lexer);
-    if (int_peek == '0') {
+    if (lexer_char_peek(lexer) == '0') {
         lexer_char_get(lexer);
         int int_peek_2 = lexer_char_peek(lexer);
         if ('0' <= int_peek_2 && int_peek_2 <= '9') {
             lexer_char_get(lexer);
             token.type = TOKEN_ERROR;
-            token.data.error = "Non-zero integer literals cannot start with 0.";
             token.len = 2; // two consumed characters
             while (true) {
                 int peek = lexer_char_peek(lexer);
-                if (peek < '0' || '9' < peek) break;
+                if (peek == '.') {
+                    lexer_char_get(lexer);
+                    int decimal_length;
+                    lexer_decimal_get(lexer, &decimal_length);
+                    token.len += 1 + decimal_length;
+                    token.data.error = "Decimal literals cannot have more than 1 zero before the decimal point.";
+                    break;
+                }
+                if (peek < '0' || '9' < peek) {
+                    token.data.error = "Non-zero integer literals cannot start with 0.";
+                    break;
+                }
                 lexer_char_get(lexer);
                 token.len++;
             }
+        } else if (int_peek_2 == '.') {
+            lexer_char_get(lexer);
+            token.type = TOKEN_LITERAL_DOUBLE;
+            token.data.literal_double = lexer_decimal_get(lexer, &token.len);
+            token.len += 2; // length of "0." and length of decimal
         } else {
             token.type = TOKEN_LITERAL_INT;
             token.data.literal_int = 0;
             token.len = 1;
         }
         return token;
-    } else if ('1' <= int_peek && int_peek <= '9') {
-        int val = int_peek - '0';
-        lexer_char_get(lexer);
-        token.len = 1;
-        token.type = TOKEN_LITERAL_INT;
+    }
+
+    if ('1' <= lexer_char_peek(lexer) && lexer_char_peek(lexer) <= '9') {
+        int literal_int = lexer_char_get(lexer) - '0';
+        int literal_int_len = 1;
         while (true) {
             int peek = lexer_char_peek(lexer);
-            if (peek < '0' || '9' < peek) break;
-            token.len++;
-            val *= 10;
-            val += (peek - '0'); // todo: bounds-checking.
+            
+            if (peek == '.') {
+                lexer_char_get(lexer);
+                double literal_double = (double) literal_int;
+                int decimal_len;
+                literal_double += lexer_decimal_get(lexer, &decimal_len);
+                token.type = TOKEN_LITERAL_DOUBLE;
+                token.len = literal_int_len + 1 + decimal_len;
+                token.data.literal_double = literal_double;
+                return token;
+            }
+            
+            if (peek < '0' || '9' < peek) {
+                token.type = TOKEN_LITERAL_INT;
+                token.len = literal_int_len;
+                token.data.literal_int = literal_int;
+                return token;
+            }
+
             lexer_char_get(lexer);
+            literal_int_len++;
+            literal_int *= 10;
+            literal_int += (peek - '0'); // todo: bounds-checking.
         }
-        token.data.literal_int = val;
-        return token;
     }
     
     // this is bad. I (Berk) make alot of assumptions about how we want to handle errors that are probably bad.

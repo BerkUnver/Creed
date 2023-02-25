@@ -73,6 +73,10 @@ void token_print(Token *token) {
         case TOKEN_LITERAL_INT:
             printf("%i", token->data.literal_int);
             break;
+        case TOKEN_LITERAL_DOUBLE:
+            // todo: make so this prints out only as many chars as the token is in length.
+            printf("%lf", token->data.literal_double);
+            break;
         case TOKEN_ID:
             print(token->data.id);
             break;

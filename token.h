@@ -29,7 +29,9 @@ typedef enum TokenType {
     TOKEN_COLON = ':',
     TOKEN_COMMA = ',',
     TOKEN_SEMICOLON = ';',
-    TOKEN_DOT = '.',
+    TOKEN_DOT = '.', // when this appears in a literal float, we consume it as part of the float.
+    // To prevent the ambiguity between the '.' at the beginning of a decimal and the '.' used to access data structure members:
+    // We just don't allow having a decimal that starts only with '.', must start with "0."
 
     TOKEN_ERROR = 256, 
     // There must be a token with the value 256 so everything after it has a higher value.
@@ -49,7 +51,7 @@ typedef enum TokenType {
     TOKEN_LITERAL_CHAR,
     TOKEN_LITERAL_STRING,
     TOKEN_LITERAL_INT,
-    TOKEN_LITERAL_FLOAT,
+    TOKEN_LITERAL_DOUBLE,
 
     TOKEN_PLUS,
     TOKEN_MINUS,
@@ -60,7 +62,7 @@ typedef enum TokenType {
 
 typedef union TokenData {
     int literal_int;
-    float literal_float;
+    double literal_double;
     char *literal_string;
     char literal_char;
     const char* error; // FOR NOW, ERRORS ARE STATIC STRINGS. DO NOT FREE!
