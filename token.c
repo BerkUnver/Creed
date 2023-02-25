@@ -1,5 +1,7 @@
 #include <stdlib.h>
+
 #include "token.h"
+#include "print.h"
 
 bool char_is_single_char_token_type(int c) { 
     return c == TOKEN_EOF
@@ -40,11 +42,6 @@ void token_free(Token *token) {
     }
 }
 
-
-void print(const char *str) {
-    fputs(str, stdout);
-}
-
 void token_print(Token *token) {
     switch (token->type) {
         case TOKEN_ERROR:
@@ -61,20 +58,17 @@ void token_print(Token *token) {
             break;
         case TOKEN_LITERAL_CHAR:
             putchar('\'');
-            switch (token->data.literal_char) {
-                case '\\': print("\\\\"); break;
-                case '\n': print("\\n"); break;
-                case '\t': print("\\t"); break;
-                case '\0': print("\\0"); break;
-                case '\'': print("\\'"); break;
-                case '\"': print("\\\""); break;
-                case '\r': print("\\r"); break;
-                default: putchar(token->data.literal_char); break;
-            }
+            print_literal_char(token->data.literal_char);
             putchar('\'');
             break;
         case TOKEN_LITERAL_STRING:
-            printf("\"%s\"", token->data.literal_string);
+            putchar('"');
+            int idx = 0;
+            while (token->data.literal_string[idx] != '\0') {
+                print_literal_char(token->data.literal_string[idx]);
+                idx++;
+            }
+            putchar('"');
             break;
         case TOKEN_EQUALS:
             fputs(STR_EQUALS, stdout);

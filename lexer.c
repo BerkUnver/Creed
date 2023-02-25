@@ -1,7 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "token.h"
+
 #include "lexer.h"
+#include "print.h"
+#include "string_builder.h"
+#include "token.h"
 
 bool lexer_new(const char *path, Lexer *lexer) {
     FILE *file = fopen(path, "r+");
@@ -44,8 +48,9 @@ int lexer_char_get(Lexer *lexer) {
 }
 
 // returns the literal if it is found; otherwise returns a negative number.
-// length is an out-parameter that tells the length of the literal.
-int lexer_literal_char_get(Lexer *lexer, int *length) {
+// length is an out-parameter that tells the length of the literal if it is found.
+// If it finds a valid literal it will consume it, otherwise not.
+int lexer_literal_char_try_get(Lexer *lexer, int *length) {
     int c = lexer_char_peek(lexer);
     if (c == '\\') { // if it is an escape sequence
         int escape; 
@@ -64,7 +69,7 @@ int lexer_literal_char_get(Lexer *lexer, int *length) {
         *length = 2;
         return escape;
     }
-    if (c < ' ' || c > '~') return -1; // outside the range of valid non-escape literals.
+    if (c < ' ' || c > '~' || c == '\'' || c == '\"') return -1; // outside the range of valid non-escape literals.
     *length = 1;
     lexer_char_get(lexer);
     return c;
@@ -89,7 +94,7 @@ Token lexer_token_get(Lexer *lexer) {
     if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
         lexer_char_get(lexer);
         int literal_length;
-        int literal_char = lexer_literal_char_get(lexer, &literal_length);
+        int literal_char = lexer_literal_char_try_get(lexer, &literal_length);
         if (literal_char < 0) {
             lexer_char_get(lexer);
             token.type = TOKEN_ERROR;
@@ -108,6 +113,30 @@ Token lexer_token_get(Lexer *lexer) {
         }
 
         token.len = literal_length + 2; // add opening and closing delimiters.
+        return token;
+    }
+
+    if (lexer_char_peek(lexer) == DELIMITER_LITERAL_STRING) {
+        lexer_char_get(lexer);
+        StringBuilder builder = string_builder_new();
+        token.len = 2;
+        int literal_char_len;
+        int c;
+        while ((c = lexer_literal_char_try_get(lexer, &literal_char_len)) >= 0) {
+            string_builder_add_char(&builder, c);
+            token.len += literal_char_len;
+        }
+
+        char *string = string_builder_free(&builder); 
+        if (lexer_char_get(lexer) != DELIMITER_LITERAL_STRING) {
+            token.type = TOKEN_ERROR;
+            token.data.error = "Expected a valid character or the end delimiter \" at the end of a literal string.";
+            free(string);
+        } else {
+            token.type = TOKEN_LITERAL_STRING;
+            token.data.literal_string = string;
+        }
+
         return token;
     }
 
