@@ -13,30 +13,32 @@ bool lexer_new(const char *path, Lexer *lexer) {
     *lexer = (Lexer) {
         .file = file,
         .line_idx = 0,
-        .char_idx = 0
+        .char_idx = 0,
+        .peek_cached = false
     };
     return true;
 }
 
 void lexer_free(Lexer *lexer) {
     fclose(lexer->file);
+    if (lexer->peek_cached) token_free(&lexer->peek);
 }
 
-int lexer_char_peek(const Lexer *lexer) {
+static int lexer_char_peek(const Lexer *lexer) {
     int c = fgetc(lexer->file);
     ungetc(c, lexer->file);
     return c;
 }
 
 // peeks count characters ahead. Rounds anything lower than 1 to 1.
-int lexer_chars_peek(const Lexer *lexer, int count) {
+static int lexer_chars_peek(const Lexer *lexer, int count) {
     int pushback = fgetc(lexer->file);
     int c = count > 1 ? lexer_chars_peek(lexer, count - 1) : pushback;
     ungetc(pushback, lexer->file);
     return c;
 }
 
-int lexer_char_get(Lexer *lexer) {
+static int lexer_char_get(Lexer *lexer) {
     int c = fgetc(lexer->file);
     if (c == '\n') {
         lexer->line_idx++;
@@ -52,7 +54,7 @@ int lexer_char_get(Lexer *lexer) {
 // If it finds a valid literal it will consume it, otherwise not.
 // Currently strings and chars have the same escape sequences.
 // In C, this is not true, as single quote is allowed in strings and double quote is allowed in chars.
-int lexer_literal_char_try_get(Lexer *lexer, int *length) {
+static int lexer_literal_char_try_get(Lexer *lexer, int *length) {
     int c = lexer_char_peek(lexer);
     if (c == '\\') { // if it is an escape sequence
         int escape; 
@@ -77,7 +79,7 @@ int lexer_literal_char_try_get(Lexer *lexer, int *length) {
     return c;
 }
 
-double lexer_decimal_get(Lexer *lexer, int *length) {
+static double lexer_decimal_get(Lexer *lexer, int *length) {
     double val = 0;
     double digit = 0.1;
     *length = 0;
@@ -91,7 +93,7 @@ double lexer_decimal_get(Lexer *lexer, int *length) {
     }
 }
 
-Token lexer_token_get(Lexer *lexer) {
+static Token lexer_token_get_skip_cache(Lexer *lexer) {
     // consume whitespace
     while (char_is_whitespace(lexer_char_peek(lexer))) lexer_char_get(lexer);
 
@@ -260,6 +262,7 @@ Token lexer_token_get(Lexer *lexer) {
     // I (Berk) decided to use a static array instead of a StringBuffer.
     // This is so we don't have to malloc a string array when the identifier is a keyword.
     // Requires us to put a identifier maximum length so we don't overflow the buffer
+    // We can easily remedy this but I don't want to think about it right now.
     char id[ID_MAX_LENGTH + 1];
     int id_len = 0;
 
@@ -299,4 +302,24 @@ Token lexer_token_get(Lexer *lexer) {
     token.len = 1;
     token.data.error = "Unrecognized character.";
     return token;
+}
+
+
+TokenType lexer_token_peek_type(Lexer *lexer) {
+    if (lexer->peek_cached) return lexer->peek.type;
+   
+    lexer->peek = lexer_token_get_skip_cache(lexer);
+    lexer->peek_cached = true;
+
+    return lexer->peek.type;
+}
+
+Token lexer_token_get(Lexer *lexer) {
+    if (lexer->peek_cached) {
+        lexer->peek_cached = false;
+        return lexer->peek;
+    }
+
+    return lexer_token_get_skip_cache(lexer);
+
 }

@@ -1,66 +1,60 @@
 // Currently not included in compilation. Just an example of what the AST might look like for now.
 
-typedef struct AstFunc {
-    char *name;
-    AstVar *args;
-    int arg_count;
-    char *return_type;
-    Statement *statements;
-    int statement_count;
-} AstFunc;
-
-
-typedef enum StatementType {
-    DECLARATION;
-    ASSIGNMENT;
-    INCREMENT;
-    FUNCTION_CALL;
-} StatementType;
-
-
-typedef union StatementData {
-    struct {
-        char *assigned;
-        AstExpr expr;
-    } assignment;
-} StatementData;
-
-typedef struct Statement {
-    StatementType type;
-    StatementData data;
-} Statement;
-
-
-
-typedef enum AstExprType {
-    EXPR_ADD,
-    EXPR_SUBTRACT,
-    EXPR_MULTIPLY,
-    EXPR_DIVIDE,
-    EXPR_MODULO,
-    
-    EXPR_EQUALS,
-    EXPR_NOT_EQUALS,
-    
-    EXPR_GREATER_THAN,
-    EXPR_LESS_THAN,
-    EXPR_GREATER_OR_EQUAL_THAN,
-    EXPR_LESS_OR_EQUAL_TO,
-
-    EXPR_LOGICAL_AND,
-    EXPR_LOGICAL_OR,
-    EXPR_LOGICAL_NOT,
-    
-    EXPR_REFERENCE,
-    EXPR_DEFERENCE,
-    
-    EXPR_FUNCTION_CALL,
-} AstExprType;
-
 typedef struct AstExpr {
-   struct {
-        AstExpr *lhs;
-        AstExpr *rhs;
-   } binary;
-   AstExpr *unary;
-} AstExpr;
+    int line_start;
+    int line_end; // expr can span multiple lines
+    int char_start;
+    int char_end;
+    
+    bool parenthesized;
+
+    enum {
+        EXPR_UNARY, 
+        EXPR_BINARY,
+        EXPR_FUNCTION_CALL
+    } type;
+
+    union {
+        struct {
+            enum {
+                EXPR_UNARY_NEGATE,
+                EXPR_UNARY_NOT,
+                EXPR_UNARY_REFERENCE,
+                EXPR_UNARY_DEREFERENCE,
+            } operator;
+        
+            AstExpr *sub_expr;
+        } unary;
+
+        struct {
+            enum {            
+                EXPR_BINARY_ADD,
+                EXPR_BINARY_SUBTRACT,
+                EXPR_BINARY_MULTIPLY,
+                EXPR_BINARY_DIVIDE,
+                EXPR_BINARY_MODULO,
+                
+                EXPR_BINARY_EQUALS,
+                EXPR_BINARY_NOT_EQUALS,
+                
+                EXPR_BINARY_GT,
+                EXPR_BINARY_LT,
+                EXPR_BINARY_GE,
+                EXPR_BINARY_LE,
+
+                EXPR_BINARY_LOGICAL_AND,
+                EXPR_BINARY_LOGICAL_OR,
+            } operator;
+
+            AstExpr *lhs;
+            AstExpr *rhs;
+        } binary;
+
+        struct {
+            char *id;
+            AstExpr *params;
+            int param_count;
+        } function_call;
+
+    } data;
+}
