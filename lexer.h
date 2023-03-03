@@ -8,7 +8,6 @@
 
 typedef enum LexerErrorCode {
     LEXER_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE,
-    LEXER_ERROR_LITERAL_CHAR_EOF,
     LEXER_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER,
     LEXER_ERROR_LITERAL_CHAR_CLOSING_DELIMITER_MISSING,
     LEXER_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING,
@@ -23,7 +22,7 @@ typedef struct LexerError {
     int line_idx;
     int char_idx;
     int len;
-    LexerErrorCode error;
+    LexerErrorCode code;
 } LexerError;
 
 typedef struct Lexer {

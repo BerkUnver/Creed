@@ -25,6 +25,12 @@ int main(int argc, char **argv) {
         if (type == TOKEN_EOF) break;
     }
     putchar('\n');
+    
+    for (int i = 0; i < lexer.error_count; i++) {
+        LexerError error = lexer.errors[i];
+        printf("Error! Line: %i, char: %i, length: %i, code: %i\n", error.line_idx + 1, error.char_idx + 1, error.len, error.code);
+    }
+
     lexer_free(&lexer);
     return EXIT_SUCCESS;
 }
