@@ -33,10 +33,8 @@ typedef enum TokenType {
     // To prevent the ambiguity between the '.' at the beginning of a decimal and the '.' used to access data structure members:
     // We just don't allow having a decimal that starts only with '.', must start with "0."
 
-    TOKEN_ERROR = 256, 
     // There must be a token with the value 256 so everything after it has a higher value.
-
-    TOKEN_EQUALS,
+    TOKEN_EQUALS = 256,
     TOKEN_ASSIGN,
     
     TOKEN_POINTER_REFERENCE,

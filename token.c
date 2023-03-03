@@ -44,9 +44,6 @@ void token_free(Token *token) {
 
 void token_print(Token *token) {
     switch (token->type) {
-        case TOKEN_ERROR:
-            printf("Error at line: %i, char: %i, len: %i. Message: %s", token->line_idx + 1, token->char_idx + 1, token->len, token->data.error);
-            break;
         case TOKEN_IF:
             print(STR_IF);
             break;
