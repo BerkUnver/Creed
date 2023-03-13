@@ -59,11 +59,10 @@ typedef enum TokenType {
 } TokenType;
 
 typedef union TokenData {
-    int literal_int;
-    double literal_double;
+    int literal_int; // add types for int8, int16, int64
+    double literal_double; // add types for float, float64
     char *literal_string;
     char literal_char;
-    const char* error; // FOR NOW, ERRORS ARE STATIC STRINGS. DO NOT FREE!
     char *id;
 } TokenData;
 

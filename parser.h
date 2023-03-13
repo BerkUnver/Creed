@@ -1,4 +1,8 @@
-// Currently not included in compilation. Just an example of what the AST might look like for now.
+#ifndef CREED_PARSER_H
+#define CREED_PARSER_H
+
+#include <stdbool.h>
+#include "lexer.h"
 
 typedef struct AstExpr {
     int line_start;
@@ -11,7 +15,8 @@ typedef struct AstExpr {
     enum {
         EXPR_UNARY, 
         EXPR_BINARY,
-        EXPR_FUNCTION_CALL
+        EXPR_FUNCTION_CALL,
+        EXPR_LITERAL_INT
     } type;
 
     union {
@@ -21,9 +26,10 @@ typedef struct AstExpr {
                 EXPR_UNARY_NOT,
                 EXPR_UNARY_REFERENCE,
                 EXPR_UNARY_DEREFERENCE,
+                EXPR_UNARY_PAREN
             } operator;
         
-            AstExpr *sub_expr;
+            struct AstExpr *sub_expr;
         } unary;
 
         struct {
@@ -46,15 +52,21 @@ typedef struct AstExpr {
                 EXPR_BINARY_LOGICAL_OR,
             } operator;
 
-            AstExpr *lhs;
-            AstExpr *rhs;
+            struct AstExpr *lhs;
+            struct AstExpr *rhs;
         } binary;
 
         struct {
             char *id;
-            AstExpr *params;
+            struct AstExpr *params;
             int param_count;
         } function_call;
 
+        int literal_int;
+
     } data;
-}
+} AstExpr;
+
+bool parse_expr(Lexer *lexer, AstExpr *expr);
+void expr_free(AstExpr *expr);
+#endif
