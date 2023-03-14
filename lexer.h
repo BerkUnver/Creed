@@ -43,5 +43,5 @@ bool lexer_new(const char *path, Lexer *lexer);
 void lexer_free(Lexer *lexer);
 Token lexer_token_get(Lexer *lexer);
 TokenType lexer_token_peek_type(Lexer *lexer);
-
+void lexer_error_print(Lexer *lexer);
 #endif

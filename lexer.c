@@ -248,9 +248,11 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 token.type = TOKEN_ASSIGN;
             } else if (!strcmp(operator, STR_EQUALS)) {
                 token.type = TOKEN_EQUALS;
+            } else if (!strcmp(operator, STR_PLUS)) {
+                token.type = TOKEN_PLUS;
             } else {
                 lexer_error_push(lexer, token.len, LEXER_ERROR_OPERATOR_UNKNOWN);
-                token.type = TOKEN_PLUS; // Idk what to put if the operator is unknown
+                token = lexer_token_get_skip_cache(lexer);
             }
         }
 
@@ -279,7 +281,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         if (is_keyword) free(string); // don't need the string because the identifier is a keyword
     
     } else {
-        lexer_char_get(lexer); // consume unknown character. 
+        lexer_char_get(lexer);
         lexer_error_push(lexer, 1, LEXER_ERROR_CHARACTER_UNKNOWN);
         token = lexer_token_get_skip_cache(lexer);
     }
@@ -305,4 +307,43 @@ Token lexer_token_get(Lexer *lexer) {
 
     return lexer_token_get_skip_cache(lexer);
 
+}
+
+void lexer_error_print(Lexer *lexer) {
+    for (int i = 0; i < lexer->error_count; i++) {
+        LexerError err = lexer->errors[i];
+        printf("[Line: %i, char: %i, len: %i]: ", err.line_idx + 1, err.char_idx + 1, err.len);
+        switch (err.code) {
+            case LEXER_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE:
+                puts("This is not a valid character escape sequence.");
+                break;
+            case LEXER_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER:
+                puts("This is not a valid character literal.");
+                break;
+            case LEXER_ERROR_LITERAL_CHAR_CLOSING_DELIMITER_MISSING:
+                printf("A character literal must end with %c.\n", DELIMITER_LITERAL_CHAR);
+                break;
+            case LEXER_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING:
+                printf("A string literal must end with %c.\n", DELIMITER_LITERAL_STRING);
+                break;
+            case LEXER_ERROR_LITERAL_DOUBLE_MULTIPLE_LEADING_ZEROS:
+                puts("A literal double cannot have multiple leading zeros.");
+                break;
+            case LEXER_ERROR_LITERAL_INT_MULTIPLE_LEADING_ZEROS:
+                puts("A literal int cannot have multiple leading zeros.");
+                break;
+            case LEXER_ERROR_OPERATOR_TOO_LONG:
+                printf("No existing operator exceeds the length %i.\n", OPERATOR_MAX_LENGTH);
+                break;
+            case LEXER_ERROR_OPERATOR_UNKNOWN:
+                puts("This operator is unknown.");
+                break;
+            case LEXER_ERROR_CHARACTER_UNKNOWN:
+                puts("This character is not allowed in source files.");
+                break;
+            default:
+                printf("Unrecognized error code %i.\n", err.code);
+                break;
+        }
+    }
 }

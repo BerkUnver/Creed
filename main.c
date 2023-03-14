@@ -34,29 +34,28 @@ int main(int argc, char **argv) {
         }
         putchar('\n');
         
-        for (int i = 0; i < lexer.error_count; i++) {
-            LexerError error = lexer.errors[i];
-            printf("Error! Line: %i, char: %i, length: %i, code: %i\n", error.line_idx + 1, error.char_idx + 1, error.len, error.code);
-        }
-
+        lexer_error_print(&lexer);
         lexer_free(&lexer);
         return EXIT_SUCCESS;
     
     } else if (!strcmp(argv[1], "-test_parser")) {
         Lexer lexer;
         if (!lexer_new(PATH_TEST_PARSER, &lexer)) {
-            printf("Failed to open the file at "PATH_TEST_PARSER".");
+            printf("Failed to open the file at "PATH_TEST_PARSER".\n");
             return EXIT_FAILURE;
         }
 
-        AstExpr expr;
-        if (!parse_expr(&lexer, &expr)) {
+        Expr expr;
+        bool success = parse_expr(&lexer, &expr);
+        lexer_error_print(&lexer);
+        if (!success) {
             lexer_free(&lexer);
-            printf("Lexer test failed.");
+            puts("Lexer test failed.");
             return EXIT_FAILURE;
         }
-        
+         
         lexer_free(&lexer);
+        expr_print(&expr);
         expr_free(&expr);
         return EXIT_SUCCESS;
     }

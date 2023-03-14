@@ -4,14 +4,12 @@
 #include <stdbool.h>
 #include "lexer.h"
 
-typedef struct AstExpr {
+typedef struct Expr {
     int line_start;
     int line_end; // expr can span multiple lines
     int char_start;
     int char_end;
     
-    bool parenthesized;
-
     enum {
         EXPR_UNARY, 
         EXPR_BINARY,
@@ -22,14 +20,14 @@ typedef struct AstExpr {
     union {
         struct {
             enum {
-                EXPR_UNARY_NEGATE,
-                EXPR_UNARY_NOT,
-                EXPR_UNARY_REFERENCE,
-                EXPR_UNARY_DEREFERENCE,
-                EXPR_UNARY_PAREN
+                OP_UNARY_NEGATE,
+                OP_UNARY_NOT,
+                OP_UNARY_REFERENCE,
+                OP_UNARY_DEREFERENCE,
+                OP_UNARY_PAREN
             } operator;
         
-            struct AstExpr *sub_expr;
+            struct Expr *operand;
         } unary;
 
         struct {
@@ -52,21 +50,22 @@ typedef struct AstExpr {
                 EXPR_BINARY_LOGICAL_OR,
             } operator;
 
-            struct AstExpr *lhs;
-            struct AstExpr *rhs;
+            struct Expr *lhs;
+            struct Expr *rhs;
         } binary;
 
         struct {
             char *id;
-            struct AstExpr *params;
+            struct Expr *params;
             int param_count;
         } function_call;
 
         int literal_int;
 
     } data;
-} AstExpr;
+} Expr;
 
-bool parse_expr(Lexer *lexer, AstExpr *expr);
-void expr_free(AstExpr *expr);
+bool parse_expr(Lexer *lexer, Expr *expr);
+void expr_free(Expr *expr);
+void expr_print(Expr *expr);
 #endif

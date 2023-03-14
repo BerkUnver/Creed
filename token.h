@@ -13,6 +13,7 @@
 #define STR_IF "if"
 #define STR_ELIF "elif"
 #define STR_ELSE "else"
+#define STR_PLUS "+"
 #define DELIMITER_LITERAL_STRING '"'
 #define DELIMITER_LITERAL_CHAR '\''
 
