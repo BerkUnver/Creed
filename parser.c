@@ -5,13 +5,10 @@
 #include "parser.h"
 
 bool expr_parse_precedence(Lexer *lexer, Expr *expr, int precedence) {
-    bool success = false;
-    switch (lexer_token_peek_type(lexer))
-    {
+    switch (lexer_token_peek_type(lexer)) {
         case TOKEN_LITERAL_INT: {
             Token token_start = lexer_token_get(lexer);
-           
-            Expr lhs = {
+            *expr = (Expr) {
                 .line_start = token_start.line_idx,
                 .line_end = token_start.line_idx,
                 .char_start = token_start.char_idx,
@@ -19,46 +16,41 @@ bool expr_parse_precedence(Lexer *lexer, Expr *expr, int precedence) {
                 .type = EXPR_LITERAL_INT,
                 .data.literal_int = token_start.data.literal_int
             };
-
             token_free(&token_start);
-            TokenType op_type = lexer_token_peek_type(lexer);
 
-            int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN]; 
-            if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type || op_precedence < precedence) { 
-                *expr = lhs;
-                success = true;
-                break;
+            while (true) {
+                TokenType op_type = lexer_token_peek_type(lexer);
+                if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) break; 
+                int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
+                if (op_precedence < precedence) break;
+                Token op = lexer_token_get(lexer);
+                token_free(&op);
+
+                Expr *rhs = malloc(sizeof(Expr));
+                if (!expr_parse_precedence(lexer, rhs, op_precedence)) {
+                    expr_free(expr);
+                    free(rhs);
+                    return false;
+                }
+                
+                Expr *lhs = malloc(sizeof(Expr));
+                *lhs = *expr; // clone contents of expr to lhs
+
+                *expr = (Expr) {
+                    // line_start and char_start stay the same.
+                    .line_end = rhs->line_end,
+                    .char_end = rhs->char_end,
+                    .type = EXPR_BINARY,
+                    .data.binary.operator = op_type,
+                    .data.binary.lhs = lhs,
+                    .data.binary.rhs = rhs
+                };
             }
-           
-            Token op = lexer_token_get(lexer);
-            token_free(&op);
-            
-            Expr rhs;
-            if (!expr_parse_precedence(lexer, &rhs, op_precedence)) {
-                expr_free(&lhs);
-                success = false;
-                break;
-            }
-
-            Expr *ptr_lhs = malloc(sizeof(Expr));
-            *ptr_lhs = lhs;
-            Expr *ptr_rhs = malloc(sizeof(Expr));
-            *ptr_rhs = rhs;
-
-            *expr = (Expr) {
-                .line_start = lhs.line_start,
-                .line_end = rhs.line_end,
-                .char_start = lhs.char_start,
-                .char_end = rhs.char_end,
-                .type = EXPR_BINARY,
-                .data.binary.operator = op_type,
-                .data.binary.lhs = ptr_lhs,
-                .data.binary.rhs = ptr_rhs
-            };
-            success = true;
-        } break;
+            return true;
+        }
 
         case TOKEN_PAREN_OPEN: {
+            bool success;
             Token token_open = lexer_token_get(lexer);
             Expr operand;
             if (!expr_parse(lexer, &operand)) {
@@ -84,14 +76,11 @@ bool expr_parse_precedence(Lexer *lexer, Expr *expr, int precedence) {
                 success = true;
             }
             token_free(&token_open);
-            break;
+            return success;
         }
 
-        default: 
-            success = false; 
-            break;
+        default: return false;
     }
-    return success;
 }
 
 bool expr_parse(Lexer *lexer, Expr *expr) {
@@ -128,7 +117,7 @@ void expr_print(Expr *expr) {
             break;
         
         case EXPR_BINARY:
-            putchar('(');
+            putchar('('); // these are for debug purposes to make sure operator precedence is working properly. Remove?
             expr_print(expr->data.binary.lhs);
             printf(" %s ", string_operators[expr->data.binary.operator - TOKEN_OP_MIN]);
             expr_print(expr->data.binary.rhs);
