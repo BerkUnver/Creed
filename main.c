@@ -38,7 +38,7 @@ void test_parser(void) {
     }
 
     Expr expr;
-    bool success = parse_expr(&lexer, &expr);
+    bool success = expr_parse(&lexer, &expr);
     lexer_error_print(&lexer);
     if (!success) {
         lexer_free(&lexer);

@@ -4,7 +4,7 @@
 #include "lexer.h"
 #include "parser.h"
 
-bool parse_expr(Lexer *lexer, Expr *expr) {
+bool expr_parse_precedence(Lexer *lexer, Expr *expr, int precedence) {
     bool success = false;
     switch (lexer_token_peek_type(lexer))
     {
@@ -22,7 +22,9 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
 
             token_free(&token_start);
             TokenType op_type = lexer_token_peek_type(lexer);
-            if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) { 
+
+            int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN]; 
+            if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type || op_precedence < precedence) { 
                 *expr = lhs;
                 success = true;
                 break;
@@ -32,7 +34,7 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
             token_free(&op);
             
             Expr rhs;
-            if (!parse_expr(lexer, &rhs)) {
+            if (!expr_parse_precedence(lexer, &rhs, op_precedence)) {
                 expr_free(&lhs);
                 success = false;
                 break;
@@ -49,7 +51,7 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
                 .char_start = lhs.char_start,
                 .char_end = rhs.char_end,
                 .type = EXPR_BINARY,
-                .data.binary.operator = op_type, // this is ok because operators correspond 1:1
+                .data.binary.operator = op_type,
                 .data.binary.lhs = ptr_lhs,
                 .data.binary.rhs = ptr_rhs
             };
@@ -59,10 +61,10 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
         case TOKEN_PAREN_OPEN: {
             Token token_open = lexer_token_get(lexer);
             Expr operand;
-            if (!parse_expr(lexer, &operand)) {
+            if (!expr_parse(lexer, &operand)) {
                 success = false;
             } else if (lexer_token_peek_type(lexer) != TOKEN_PAREN_CLOSE) {
-                expr_free(expr);
+                expr_free(&operand);
                 success = false;
                 // push error
             } else {
@@ -75,7 +77,7 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
                     .char_start = token_open.char_idx,
                     .char_end =  token_close.line_idx + token_close.len,
                     .type = EXPR_UNARY,
-                    .data.unary.operator = OP_UNARY_PAREN,
+                    .data.unary.operator = EXPR_UNARY_PAREN,
                     .data.unary.operand = operand_ptr
                 };
                 token_free(&token_close);
@@ -90,6 +92,10 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
             break;
     }
     return success;
+}
+
+bool expr_parse(Lexer *lexer, Expr *expr) {
+    return expr_parse_precedence(lexer, expr, 0);
 }
 
 void expr_free(Expr *expr) {
@@ -122,9 +128,11 @@ void expr_print(Expr *expr) {
             break;
         
         case EXPR_BINARY:
+            putchar('(');
             expr_print(expr->data.binary.lhs);
-            printf(" %s ", string_operators[expr->data.binary.operator - OP_BINARY_ADD]);
+            printf(" %s ", string_operators[expr->data.binary.operator - TOKEN_OP_MIN]);
             expr_print(expr->data.binary.rhs);
+            putchar(')');
             break;
         
         case EXPR_LITERAL_INT:

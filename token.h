@@ -33,13 +33,25 @@ typedef enum TokenType {
     // TOKEN_OP_MIN and TOKEN_OP_MAX aren't real tokens. They define the range of valid operators so we can do goofy stuff.
     // Example: puts(string_operators[token_type - TOKEN_OP_MIN]);
     TOKEN_OP_MIN = 256,
-    TOKEN_OP_PLUS = TOKEN_OP_MIN,
+    TOKEN_OP_LOGICAL_AND = TOKEN_OP_MIN,
+    TOKEN_OP_LOGICAL_OR,
+    TOKEN_OP_BITWISE_AND,
+    TOKEN_OP_BITWISE_OR,
+    TOKEN_OP_BITWISE_XOR,
+    TOKEN_OP_EQ, // ==
+    TOKEN_OP_NE, // not equal
+    TOKEN_OP_LT, // less than
+    TOKEN_OP_GT, // greater than
+    TOKEN_OP_LE, // less than or equal to
+    TOKEN_OP_GE, // greater than or equal to
+    TOKEN_OP_SHIFT_LEFT,
+    TOKEN_OP_SHIFT_RIGHT,
+    TOKEN_OP_PLUS,
     TOKEN_OP_MINUS,
     TOKEN_OP_MULTIPLY,
     TOKEN_OP_DIVIDE,
     TOKEN_OP_MODULO,
-    TOKEN_OP_EQ,
-    TOKEN_OP_MAX = TOKEN_OP_EQ,
+    TOKEN_OP_MAX = TOKEN_OP_MODULO,
     // string_operators relies on these being in this order so don't change this without changing that.
 
     // Same thing for operators applies to keywords.
@@ -59,6 +71,7 @@ typedef enum TokenType {
 } TokenType;
 
 char *string_operators[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
+int operator_precedences[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
 char *string_keywords[TOKEN_KEYWORD_MAX - TOKEN_KEYWORD_MIN + 1];
 
 typedef union TokenData {
