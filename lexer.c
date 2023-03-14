@@ -112,20 +112,20 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
     token.line_idx = lexer->line_idx;
     token.char_idx = lexer->char_idx;
 
-   
-    if (char_is_single_char_token_type(lexer_char_peek(lexer))) {
+    int peek = lexer_char_peek(lexer); 
+    if (char_is_single_char_token_type(peek)) {
         token.type = lexer_char_get(lexer); // chars corresponds 1:1 to unique single-char token types.
         token.len = 1;
     
-    } else if (lexer_char_peek(lexer) == '0') { // get decimals that start with 0.
+    } else if (peek == '0') { // get decimals that start with 0.
         lexer_char_get(lexer);
         int int_peek_2 = lexer_char_peek(lexer);
         if ('0' <= int_peek_2 && int_peek_2 <= '9') { // in error state
             lexer_char_get(lexer);
             token.len = 2; // two consumed characters
             while (true) {
-                int peek = lexer_char_peek(lexer);
-                if ('0' <= peek && peek <= '9') {
+                int digit = lexer_char_peek(lexer);
+                if ('0' <= digit && digit <= '9') {
                     lexer_char_get(lexer);
                     token.len++;
                 } else break;
@@ -158,16 +158,16 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             token.len = 1;
         }
     
-    } else if ('1' <= lexer_char_peek(lexer) && lexer_char_peek(lexer) <= '9') {
+    } else if ('1' <= peek && peek <= '9') {
         token.len = 0; 
         int literal_int = lexer_char_get(lexer) - '0';
         while (true) {
-            int peek = lexer_char_peek(lexer);
-            if (peek < '0' || '9' < peek) break;
+            int digit = lexer_char_peek(lexer);
+            if (digit < '0' || '9' < digit) break;
             lexer_char_get(lexer);
             token.len++;
             literal_int *= 10;
-            literal_int += (peek - '0'); // todo: bounds-checking.
+            literal_int += (digit - '0'); // todo: bounds-checking.
         }
 
         if (lexer_char_peek(lexer) == '.') {
@@ -181,7 +181,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             token.data.literal_int = literal_int;
         }   
 
-    } else if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
+    } else if (peek == DELIMITER_LITERAL_CHAR) {
         
         lexer_char_get(lexer);
         token.len = 1;
@@ -208,7 +208,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             }
             token.data.literal_char = literal_char;
         }
-    } else if (lexer_char_peek(lexer) == DELIMITER_LITERAL_STRING) {
+    } else if (peek == DELIMITER_LITERAL_STRING) {
         lexer_char_get(lexer);
         StringBuilder builder = string_builder_new();
         token.len = 1;
@@ -228,7 +228,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING);
         }
 
-    } else if (char_is_operator(lexer_char_peek(lexer))) {
+    } else if (char_is_operator(peek)) {
 
         char operator[OPERATOR_MAX_LENGTH + 1];
         token.len = 0; 
@@ -241,22 +241,26 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         
         if (token.len > OPERATOR_MAX_LENGTH) {
             lexer_error_push(lexer, token.len, LEXER_ERROR_OPERATOR_TOO_LONG);
-            token.type = TOKEN_PLUS; // I have no idea what the value of the token should be if the operator is too long.
+            token.type = TOKEN_OP_PLUS; // I have no idea what the value of the token should be if the operator is too long.
         } else {
             operator[token.len] = '\0';
-            if (!strcmp(operator, STR_ASSIGN)) {
-                token.type = TOKEN_ASSIGN;
-            } else if (!strcmp(operator, STR_EQUALS)) {
-                token.type = TOKEN_EQUALS;
-            } else if (!strcmp(operator, STR_PLUS)) {
-                token.type = TOKEN_PLUS;
-            } else {
+            bool is_operator = false;
+            for (int i = 0; i < sizeof(string_operators) / sizeof(*string_operators); i++) {
+                if (!strcmp(operator, string_operators[i])) {
+                    token.type = TOKEN_OP_MIN + i;
+                    is_operator = true;
+                    break;
+                }
+            }
+
+            if (!is_operator) { 
                 lexer_error_push(lexer, token.len, LEXER_ERROR_OPERATOR_UNKNOWN);
                 token = lexer_token_get_skip_cache(lexer);
+                // potentially want better error-handling behavior here, i.e. insert a dummy operator where the malformed one is.
             }
         }
 
-    } else if (char_is_identifier(lexer_char_peek(lexer))) {
+    } else if (char_is_identifier(peek)) {
         StringBuilder builder = string_builder_new();
         string_builder_add_char(&builder, lexer_char_get(lexer));
         while (char_is_identifier(lexer_char_peek(lexer))) {
@@ -265,21 +269,20 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         
         token.len = builder.length; 
         char *string = string_builder_free(&builder);
-        bool is_keyword = true;
-        if (!strcmp(string, STR_IF)) {
-            token.type = TOKEN_IF;
-        } else if (!strcmp(string, STR_ELIF)) {
-            token.type = TOKEN_ELIF;
-        } else if (!strcmp(string, STR_ELSE)) {
-            token.type = TOKEN_ELSE;
-        } else {
-            is_keyword = false;
-            token.type =  TOKEN_ID;
-            token.data.id = string;
+        bool is_keyword = false;
+        for (int i = 0; i < sizeof(string_keywords) / sizeof(*string_keywords); i++) {
+            if (!strcmp(string, string_keywords[i])) {
+                token.type = TOKEN_KEYWORD_MIN + i;
+                is_keyword = true;
+                free(string);
+                break;
+            }
         }
 
-        if (is_keyword) free(string); // don't need the string because the identifier is a keyword
-    
+        if (!is_keyword) {
+            token.type = TOKEN_ID;
+            token.data.id = string;
+        }
     } else {
         lexer_char_get(lexer);
         lexer_error_push(lexer, 1, LEXER_ERROR_CHARACTER_UNKNOWN);

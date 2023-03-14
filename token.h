@@ -7,13 +7,8 @@
 #define ID_MAX_LENGTH 64
 #define OPERATOR_MAX_LENGTH 2
 
-#define STR_EQUALS "=="
 #define STR_ASSIGN "="
 
-#define STR_IF "if"
-#define STR_ELIF "elif"
-#define STR_ELSE "else"
-#define STR_PLUS "+"
 #define DELIMITER_LITERAL_STRING '"'
 #define DELIMITER_LITERAL_CHAR '\''
 
@@ -35,15 +30,24 @@ typedef enum TokenType {
     // We just don't allow having a decimal that starts only with '.', must start with "0."
 
     // There must be a token with the value 256 so everything after it has a higher value.
-    TOKEN_EQUALS = 256,
-    TOKEN_ASSIGN,
-    
-    TOKEN_POINTER_REFERENCE,
-    TOKEN_POINTER_DEREFERENCE,
-   
-    TOKEN_IF,
-    TOKEN_ELIF,
-    TOKEN_ELSE,
+    // TOKEN_OP_MIN and TOKEN_OP_MAX aren't real tokens. They define the range of valid operators so we can do goofy stuff.
+    // Example: puts(string_operators[token_type - TOKEN_OP_MIN]);
+    TOKEN_OP_MIN = 256,
+    TOKEN_OP_PLUS = TOKEN_OP_MIN,
+    TOKEN_OP_MINUS,
+    TOKEN_OP_MULTIPLY,
+    TOKEN_OP_DIVIDE,
+    TOKEN_OP_MODULO,
+    TOKEN_OP_EQ,
+    TOKEN_OP_MAX = TOKEN_OP_EQ,
+    // string_operators relies on these being in this order so don't change this without changing that.
+
+    // Same thing for operators applies to keywords.
+    TOKEN_KEYWORD_MIN,
+    TOKEN_KEYWORD_IF = TOKEN_KEYWORD_MIN,
+    TOKEN_KEYWORD_ELIF,
+    TOKEN_KEYWORD_ELSE,
+    TOKEN_KEYWORD_MAX = TOKEN_KEYWORD_ELSE,
 
     TOKEN_ID,
 
@@ -52,12 +56,10 @@ typedef enum TokenType {
     TOKEN_LITERAL_INT,
     TOKEN_LITERAL_DOUBLE,
 
-    TOKEN_PLUS,
-    TOKEN_MINUS,
-    TOKEN_MULTIPLY,
-    TOKEN_DIVIDE,
-    TOKEN_MODULO,
 } TokenType;
+
+char *string_operators[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
+char *string_keywords[TOKEN_KEYWORD_MAX - TOKEN_KEYWORD_MIN + 1];
 
 typedef union TokenData {
     int literal_int; // add types for int8, int16, int64

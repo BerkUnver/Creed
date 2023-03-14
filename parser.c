@@ -21,7 +21,8 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
             };
 
             token_free(&token_start);
-            if (lexer_token_peek_type(lexer) != TOKEN_PLUS) {
+            TokenType op_type = lexer_token_peek_type(lexer);
+            if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) { 
                 *expr = lhs;
                 success = true;
                 break;
@@ -48,7 +49,7 @@ bool parse_expr(Lexer *lexer, Expr *expr) {
                 .char_start = lhs.char_start,
                 .char_end = rhs.char_end,
                 .type = EXPR_BINARY,
-                .data.binary.operator = EXPR_BINARY_ADD,
+                .data.binary.operator = op_type, // this is ok because operators correspond 1:1
                 .data.binary.lhs = ptr_lhs,
                 .data.binary.rhs = ptr_rhs
             };
@@ -122,7 +123,7 @@ void expr_print(Expr *expr) {
         
         case EXPR_BINARY:
             expr_print(expr->data.binary.lhs);
-            printf(" + ");
+            printf(" %s ", string_operators[expr->data.binary.operator - OP_BINARY_ADD]);
             expr_print(expr->data.binary.rhs);
             break;
         

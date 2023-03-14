@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include "token.h"
 
-
 typedef enum LexerErrorCode {
     LEXER_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE,
     LEXER_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER,

@@ -3,6 +3,14 @@
 #include "token.h"
 #include "print.h"
 
+char *string_operators[] = {
+    "+", "-", "*", "/", "%", "="
+};
+
+char *string_keywords[] = {
+    "if", "elif", "else"
+};
+
 bool char_is_single_char_token_type(int c) { 
     return c == TOKEN_EOF
         || c == TOKEN_PAREN_OPEN
@@ -44,15 +52,6 @@ void token_free(Token *token) {
 
 void token_print(Token *token) {
     switch (token->type) {
-        case TOKEN_IF:
-            print(STR_IF);
-            break;
-        case TOKEN_ELIF:
-            print(STR_ELIF);
-            break;
-        case TOKEN_ELSE:
-            print(STR_ELSE);
-            break;
         case TOKEN_LITERAL_CHAR:
             putchar('\'');
             print_literal_char(token->data.literal_char);
@@ -77,17 +76,15 @@ void token_print(Token *token) {
         case TOKEN_ID:
             print(token->data.id);
             break;
-        case TOKEN_EQUALS:
-            fputs(STR_EQUALS, stdout);
-            break;
-        case TOKEN_ASSIGN: 
-            fputs(STR_ASSIGN, stdout); 
-            break;
         case TOKEN_EOF: // EOF is a character. Do not print out. 
             break;
         default:
             if (char_is_single_char_token_type(token->type)) {
                 putchar(token->type);
+            } else if (TOKEN_OP_MIN <= token->type && token->type <= TOKEN_OP_MAX) {
+                print(string_operators[token->type - TOKEN_OP_MIN]);
+            } else if (TOKEN_KEYWORD_MIN <= token->type && token->type <= TOKEN_KEYWORD_MAX) {
+                print(string_keywords[token->type - TOKEN_KEYWORD_MIN]);
             } else {
                 printf("[Unrecognized token with type id %i]", token->type);
             }

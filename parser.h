@@ -31,23 +31,23 @@ typedef struct Expr {
         } unary;
 
         struct {
-            enum {            
-                EXPR_BINARY_ADD,
-                EXPR_BINARY_SUBTRACT,
-                EXPR_BINARY_MULTIPLY,
-                EXPR_BINARY_DIVIDE,
-                EXPR_BINARY_MODULO,
+            enum { // eventually assign all as directly equal to a token type.            
+                OP_BINARY_ADD = TOKEN_OP_PLUS,
+                OP_BINARY_SUBTRACT = TOKEN_OP_MINUS,
+                OP_BINARY_MULTIPLY = TOKEN_OP_MULTIPLY,
+                OP_BINARY_DIVIDE = TOKEN_OP_DIVIDE,
+                OP_BINARY_MODULO = TOKEN_OP_MODULO,
                 
-                EXPR_BINARY_EQUALS,
-                EXPR_BINARY_NOT_EQUALS,
-                
-                EXPR_BINARY_GT,
-                EXPR_BINARY_LT,
-                EXPR_BINARY_GE,
-                EXPR_BINARY_LE,
+                OP_BINARY_GT,
+                OP_BINARY_LT,
+                OP_BINARY_GE,
+                OP_BINARY_LE,
 
-                EXPR_BINARY_LOGICAL_AND,
-                EXPR_BINARY_LOGICAL_OR,
+                OP_BINARY_LOGICAL_AND,
+                OP_BINARY_LOGICAL_OR,
+                
+                OP_BINARY_EQ = TOKEN_OP_EQ,
+                OP_BINARY_NE,
             } operator;
 
             struct Expr *lhs;
