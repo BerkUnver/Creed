@@ -27,9 +27,9 @@ void lexer_free(Lexer *lexer) {
     free(lexer->errors); // freeing a null pointer is ok
 }
 
-static int lexer_char_peek(const Lexer *lexer) {
-    int c = fgetc(lexer->file);
-    ungetc(c, lexer->file);
+static int fpeek(FILE *file) {
+    int c = fgetc(file);
+    ungetc(c, file);
     return c;
 }
 
@@ -45,7 +45,7 @@ static int lexer_char_get(Lexer *lexer) {
 }
 
 // the starting index of the error is determined by doing lexer->char_idx - len.
-static void lexer_error_push(Lexer *lexer, int len, LexerErrorCode code) {
+void lexer_error_push(Lexer *lexer, int len, LexerErrorCode code) {
     lexer->error_count++;
     lexer->errors = realloc(lexer->errors, sizeof(LexerError) * lexer->error_count); 
     lexer->errors[lexer->error_count - 1] = (LexerError) {
@@ -64,7 +64,7 @@ static void lexer_error_push(Lexer *lexer, int len, LexerErrorCode code) {
 static int lexer_literal_char_get(Lexer *lexer, int *length) {
     while (true) {
         
-        int c = lexer_char_peek(lexer);
+        int c = fpeek(lexer->file);
         if (c == '\\') { // if it is an escape sequence
             *length += 2;
             lexer_char_get(lexer);
@@ -95,7 +95,7 @@ static double lexer_decimal_get(Lexer *lexer, int *length) {
     double val = 0;
     double digit = 0.1;
     while (true) {
-        int peek = lexer_char_peek(lexer);
+        int peek = fpeek(lexer->file);
         if (peek < '0' || '9' < peek) return val; 
         lexer_char_get(lexer);
         val += (digit * (peek - '0'));
@@ -106,32 +106,32 @@ static double lexer_decimal_get(Lexer *lexer, int *length) {
 
 static Token lexer_token_get_skip_cache(Lexer *lexer) {
     // consume whitespace
-    while (char_is_whitespace(lexer_char_peek(lexer))) lexer_char_get(lexer);
+    while (char_is_whitespace(fpeek(lexer->file))) lexer_char_get(lexer);
 
     Token token;
     token.line_idx = lexer->line_idx;
     token.char_idx = lexer->char_idx;
 
-    int peek = lexer_char_peek(lexer); 
+    int peek = fpeek(lexer->file); 
     if (char_is_single_char_token_type(peek)) {
         token.type = lexer_char_get(lexer); // chars corresponds 1:1 to unique single-char token types.
         token.len = 1;
     
     } else if (peek == '0') { // get decimals that start with 0.
         lexer_char_get(lexer);
-        int int_peek_2 = lexer_char_peek(lexer);
+        int int_peek_2 = fpeek(lexer->file);
         if ('0' <= int_peek_2 && int_peek_2 <= '9') { // in error state
             lexer_char_get(lexer);
             token.len = 2; // two consumed characters
             while (true) {
-                int digit = lexer_char_peek(lexer);
+                int digit = fpeek(lexer->file);
                 if ('0' <= digit && digit <= '9') {
                     lexer_char_get(lexer);
                     token.len++;
                 } else break;
             }
             
-            if (lexer_char_peek(lexer) == '.') {
+            if (fpeek(lexer->file) == '.') {
                 lexer_char_get(lexer);
                 token.len++;
 
@@ -142,10 +142,10 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_DOUBLE_MULTIPLE_LEADING_ZEROS);
 
             } else {
-                lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_INT_MULTIPLE_LEADING_ZEROS);
-                
                 token.type = TOKEN_LITERAL_INT;
                 token.data.literal_int = 0; // maybe instead use the value after the zeros
+            
+                lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_INT_MULTIPLE_LEADING_ZEROS);
             }
         } else if (int_peek_2 == '.') {
             lexer_char_get(lexer);
@@ -162,7 +162,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         token.len = 0; 
         int literal_int = lexer_char_get(lexer) - '0';
         while (true) {
-            int digit = lexer_char_peek(lexer);
+            int digit = fpeek(lexer->file);
             if (digit < '0' || '9' < digit) break;
             lexer_char_get(lexer);
             token.len++;
@@ -170,7 +170,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             literal_int += (digit - '0'); // todo: bounds-checking.
         }
 
-        if (lexer_char_peek(lexer) == '.') {
+        if (fpeek(lexer->file) == '.') {
             lexer_char_get(lexer);
             token.len++;
             token.type = TOKEN_LITERAL_DOUBLE;
@@ -190,7 +190,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         token.type = TOKEN_LITERAL_CHAR;
         
         if (literal_char < 0) { // error condition 
-            if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
+            if (fpeek(lexer->file) == DELIMITER_LITERAL_CHAR) {
                 lexer_char_get(lexer);
                 token.len++; // length of closing delimiter
             }
@@ -200,7 +200,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             token.data.literal_char = '@'; // random character, idk what to put here
         
         } else {
-            if (lexer_char_peek(lexer) == DELIMITER_LITERAL_CHAR) {
+            if (fpeek(lexer->file) == DELIMITER_LITERAL_CHAR) {
                 lexer_char_get(lexer);
                 token.len++;
             } else {
@@ -221,7 +221,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
 
         token.data.literal_string = string_builder_free(&builder); 
         
-        if (lexer_char_peek(lexer) == DELIMITER_LITERAL_STRING) {
+        if (fpeek(lexer->file) == DELIMITER_LITERAL_STRING) {
             lexer_char_get(lexer);
             token.len++;
         } else {
@@ -233,7 +233,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         char operator[OPERATOR_MAX_LENGTH + 1];
         token.len = 0; 
    
-        while (char_is_operator(lexer_char_peek(lexer))) {
+        while (char_is_operator(fpeek(lexer->file))) {
             char c = lexer_char_get(lexer);
             if (token.len < OPERATOR_MAX_LENGTH) operator[token.len] = c;
             token.len++;
@@ -263,7 +263,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
     } else if (char_is_identifier(peek)) {
         StringBuilder builder = string_builder_new();
         string_builder_add_char(&builder, lexer_char_get(lexer));
-        while (char_is_identifier(lexer_char_peek(lexer))) {
+        while (char_is_identifier(fpeek(lexer->file))) {
             string_builder_add_char(&builder, lexer_char_get(lexer));
         }
         
@@ -294,12 +294,19 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
 
 
 TokenType lexer_token_peek_type(Lexer *lexer) {
-    if (lexer->peek_cached) return lexer->peek.type;
-   
-    lexer->peek = lexer_token_get_skip_cache(lexer);
-    lexer->peek_cached = true;
-
+    if (!lexer->peek_cached) {
+        lexer->peek = lexer_token_get_skip_cache(lexer);
+        lexer->peek_cached = true;
+    }
     return lexer->peek.type;
+}
+
+int lexer_token_peek_len(Lexer *lexer)  {
+    if (!lexer->peek_cached) {
+        lexer->peek = lexer_token_get_skip_cache(lexer);
+        lexer->peek_cached = true;
+    }
+    return lexer->peek.len;
 }
 
 Token lexer_token_get(Lexer *lexer) {
@@ -309,7 +316,6 @@ Token lexer_token_get(Lexer *lexer) {
     }
 
     return lexer_token_get_skip_cache(lexer);
-
 }
 
 void lexer_error_print(Lexer *lexer) {
@@ -343,6 +349,12 @@ void lexer_error_print(Lexer *lexer) {
                 break;
             case LEXER_ERROR_CHARACTER_UNKNOWN:
                 puts("This character is not allowed in source files.");
+                break;
+            case LEXER_ERROR_EXPECTED_PAREN_CLOSE:
+                puts("Expected a closing parenthesis to match the opening parenthesis of an expression.");
+                break;
+            case LEXER_ERROR_MISSING_EXPR:
+                puts("Expected an expression.");
                 break;
             default:
                 printf("Unrecognized error code %i.\n", err.code);

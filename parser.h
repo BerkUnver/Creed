@@ -14,7 +14,10 @@ typedef struct Expr {
         EXPR_UNARY, 
         EXPR_BINARY,
         EXPR_FUNCTION_CALL,
-        EXPR_LITERAL_INT
+        EXPR_LITERAL_INT,
+        EXPR_LITERAL_STRING,
+        EXPR_LITERAL_CHAR,
+        EXPR_LITERAL_DOUBLE
     } type;
 
     union {
@@ -43,11 +46,13 @@ typedef struct Expr {
         } function_call;
 
         int literal_int;
-
+        char literal_char;
+        char *literal_string;
+        double literal_double;
     } data;
 } Expr;
 
-bool expr_parse(Lexer *lexer, Expr *expr);
+Expr expr_parse(Lexer *lexer);
 void expr_free(Expr *expr);
 void expr_print(Expr *expr);
 #endif

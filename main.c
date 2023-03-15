@@ -37,15 +37,8 @@ void test_parser(void) {
         return;
     }
 
-    Expr expr;
-    bool success = expr_parse(&lexer, &expr);
-    lexer_error_print(&lexer);
-    if (!success) {
-        lexer_free(&lexer);
-        puts("Lexer test failed.");
-        return;
-    }
-     
+    Expr expr = expr_parse(&lexer);
+    lexer_error_print(&lexer); 
     lexer_free(&lexer);
     expr_print(&expr);
     expr_free(&expr);

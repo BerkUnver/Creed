@@ -14,7 +14,10 @@ typedef enum LexerErrorCode {
     LEXER_ERROR_LITERAL_INT_MULTIPLE_LEADING_ZEROS,
     LEXER_ERROR_OPERATOR_TOO_LONG,
     LEXER_ERROR_OPERATOR_UNKNOWN,
-    LEXER_ERROR_CHARACTER_UNKNOWN
+    LEXER_ERROR_CHARACTER_UNKNOWN,
+
+    LEXER_ERROR_EXPECTED_PAREN_CLOSE,
+    LEXER_ERROR_MISSING_EXPR
 } LexerErrorCode;
 
 typedef struct LexerError {
@@ -42,5 +45,7 @@ bool lexer_new(const char *path, Lexer *lexer);
 void lexer_free(Lexer *lexer);
 Token lexer_token_get(Lexer *lexer);
 TokenType lexer_token_peek_type(Lexer *lexer);
+int lexer_token_peek_len(Lexer *lexer);
+void lexer_error_push(Lexer *lexer, int len, LexerErrorCode code);
 void lexer_error_print(Lexer *lexer);
 #endif
