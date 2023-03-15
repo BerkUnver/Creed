@@ -14,10 +14,17 @@ typedef struct Expr {
         EXPR_UNARY, 
         EXPR_BINARY,
         EXPR_FUNCTION_CALL,
+        
         EXPR_LITERAL_INT,
         EXPR_LITERAL_STRING,
         EXPR_LITERAL_CHAR,
-        EXPR_LITERAL_DOUBLE
+        EXPR_LITERAL_DOUBLE,
+        
+        EXPR_ERROR_MIN,
+        EXPR_ERROR_NONE = EXPR_ERROR_MIN,
+        EXPR_ERROR_EXPECTED_PAREN_CLOSE,
+        EXPR_ERROR_EXPR_MISSING,
+        EXPR_ERROR_MAX = EXPR_ERROR_EXPR_MISSING
     } type;
 
     union {

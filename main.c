@@ -35,7 +35,7 @@ void test_parser(void) {
         return;
     }
 
-    Expr expr = expr_parse(&lexer);
+    Expr expr = expr_parse(&lexer); 
     lexer_free(&lexer);
     expr_print(&expr);
     expr_free(&expr);

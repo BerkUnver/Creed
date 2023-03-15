@@ -6,8 +6,8 @@
 #include "parser.h"
 
 static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
-    TokenType peek = lexer_token_peek(lexer)->type;
     Expr expr;
+    TokenType peek = lexer_token_peek(lexer)->type;
     if (TOKEN_LITERAL_MIN <= peek && peek <= TOKEN_LITERAL_MAX) {
         Token token = lexer_token_get(lexer);
         expr = (Expr) {
@@ -42,35 +42,36 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         
     } else if (peek == TOKEN_PAREN_OPEN) { 
         Token token_open = lexer_token_get(lexer);
-        int line_start = token_open.line_idx;
-        int char_start = token_open.char_idx;
+        expr.line_start = token_open.line_idx;
+        expr.char_start = token_open.char_idx;
         token_free(&token_open);
         
-        Expr *operand = malloc(sizeof(Expr));
-        *operand = expr_parse(lexer);
-        
-        int line_end;
-        int char_end;
-        if (lexer_token_peek(lexer)->type == TOKEN_PAREN_CLOSE) {
-            Token token_close = lexer_token_get(lexer);
-            line_end = token_close.line_idx;
-            char_end = token_close.char_idx + token_close.len;
-            token_free(&token_close);
-        } else {
-            line_end = operand->line_end;
-            char_end = operand->char_end;
-            // lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_EXPECTED_PAREN_CLOSE);
+        Expr operand = expr_parse(lexer);
+        if (EXPR_ERROR_MIN <= operand.type && operand.type <= EXPR_ERROR_MAX) {
+            return operand;
         }
-                    
+        
+        if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
+            expr.line_end = operand.line_end;
+            expr.char_end = operand.char_end;
+            expr.type = EXPR_ERROR_EXPECTED_PAREN_CLOSE;
+            expr_free(&operand);
+            return expr;
+        }        
+
+        Token token_close = lexer_token_get(lexer);
+        Expr *operand_ptr = malloc(sizeof(Expr));
+        *operand_ptr = operand;
+        
         expr = (Expr) {
-            .line_start = line_start,
-            .char_start = char_start,
-            .line_end = line_end,
-            .char_end = char_end,
+            .line_end = token_close.line_idx,
+            .char_end = token_close.char_idx + token_close.len,
             .type = EXPR_UNARY,
             .data.unary.operator = EXPR_UNARY_PAREN,
-            .data.unary.operand = operand
+            .data.unary.operand = operand_ptr
         };
+        
+        token_free(&token_close);
     } else {
         // TODO: Make some kind of dummy operator, this causes UNDEFINED BEHAVIOR
         // lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_MISSING_EXPR);
@@ -83,21 +84,27 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         if (op_precedence < precedence) return expr; 
         Token op = lexer_token_get(lexer);
         token_free(&op);
+
+        Expr rhs = expr_parse_precedence(lexer, op_precedence);
+        if (EXPR_ERROR_MIN <= rhs.type && rhs.type <= EXPR_ERROR_MAX) {
+            expr_free(&expr);
+            return rhs;
+        }
         
-        Expr *lhs = malloc(sizeof(Expr));
-        *lhs = expr;
+        Expr *lhs_ptr = malloc(sizeof(Expr));
+        *lhs_ptr = expr;
         
-        Expr *rhs = malloc(sizeof(Expr));
-        *rhs = expr_parse_precedence(lexer, op_precedence);
+        Expr *rhs_ptr = malloc(sizeof(Expr));
+        *rhs_ptr = rhs;
         
         expr = (Expr) {
             // line start and char start remain the same so no need to change.
-            .line_end = rhs->line_end,
-            .char_end = rhs->char_end,
+            .line_end = rhs.line_end,
+            .char_end = rhs.char_end,
             .type = EXPR_BINARY,
             .data.binary.operator = op_type,
-            .data.binary.lhs = lhs,
-            .data.binary.rhs = rhs,
+            .data.binary.lhs = lhs_ptr,
+            .data.binary.rhs = rhs_ptr,
         };
     }
 }

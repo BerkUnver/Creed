@@ -167,13 +167,15 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             string_builder_add_char(&builder, c);
         }
 
-        token.data.literal_string = string_builder_free(&builder); 
+        char *string = string_builder_free(&builder); 
         
         if (fpeek(lexer->file) == DELIMITER_LITERAL_STRING) {
             token.type = TOKEN_LITERAL_STRING;
+            token.data.literal_string = string;
             lexer_char_get(lexer);
             token.len++;
         } else {
+            free(string);
             token.type = TOKEN_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING;
         }
 
