@@ -5,11 +5,11 @@
 #include "print.h"
 
 char *string_operators[] = {
-    "&&", "||", "&", "|", "^", "==", "!=", "<", ">", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%"
+    "&&", "||", "&", "|", "==", "!=", "<", ">", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%"
 };
 
 int operator_precedences[] = {
-    0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5
+    0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5
 };
 
 char *string_keywords[] = {
@@ -24,6 +24,8 @@ bool char_is_single_char_token_type(int c) {
         || c == TOKEN_CURLY_BRACE_CLOSE
         || c == TOKEN_BRACKET_OPEN
         || c == TOKEN_BRACKET_CLOSE
+        || c == TOKEN_CARET
+        || c == TOKEN_QUESTION_MARK
         || c == TOKEN_COLON
         || c == TOKEN_COMMA
         || c == TOKEN_SEMICOLON

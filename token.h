@@ -41,6 +41,8 @@ typedef enum TokenType {
     TOKEN_BRACKET_OPEN = '[',
     TOKEN_BRACKET_CLOSE = ']',
     
+    TOKEN_CARET = '^',
+    TOKEN_QUESTION_MARK = '?',
     TOKEN_COLON = ':',
     TOKEN_COMMA = ',',
     TOKEN_SEMICOLON = ';',
@@ -55,8 +57,7 @@ typedef enum TokenType {
     TOKEN_OP_LOGICAL_AND = TOKEN_OP_MIN,
     TOKEN_OP_LOGICAL_OR,
     TOKEN_OP_BITWISE_AND,
-    TOKEN_OP_BITWISE_OR,
-    TOKEN_OP_BITWISE_XOR,
+    TOKEN_OP_BITWISE_OR, // need to come up with new operator for bitwise or because I (Berk) have ^ to mean pointer right now.
     TOKEN_OP_EQ, // ==
     TOKEN_OP_NE, // not equal
     TOKEN_OP_LT, // less than
@@ -122,5 +123,6 @@ bool char_is_identifier(char c);
 
 void token_print(Token *token);
 void token_free(Token *token);
-
+char *token_free_get_id(Token *token);
+Literal token_free_get_literal(Token *token);
 #endif

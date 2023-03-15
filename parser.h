@@ -5,6 +5,28 @@
 #include "lexer.h"
 #include "token.h"
 
+typedef struct Type {
+    int line_start;
+    int line_end;
+    int char_start;
+    int char_end;
+
+    enum {
+        TYPE_ID,
+        TYPE_PTR,
+        TYPE_PTR_NULLABLE,
+        TYPE_ARRAY,
+    } type;
+
+    union {
+        struct Type *sub_type;
+        char *id;
+    } data;
+} Type;
+
+Type type_parse(Lexer *lexer);
+void type_print(Type *type);
+
 typedef struct Expr {
     int line_start;
     int line_end; // expr can span multiple lines
@@ -14,13 +36,14 @@ typedef struct Expr {
     enum {
         EXPR_UNARY, 
         EXPR_BINARY,
+        EXPR_TYPECAST,
         EXPR_FUNCTION_CALL,
-        
+        EXPR_ID,
+
         EXPR_LITERAL,
         
         EXPR_ERROR_MIN,
-        EXPR_ERROR_NONE = EXPR_ERROR_MIN,
-        EXPR_ERROR_EXPECTED_PAREN_CLOSE,
+        EXPR_ERROR_EXPECTED_PAREN_CLOSE = EXPR_ERROR_MIN,
         EXPR_ERROR_EXPR_MISSING,
         EXPR_ERROR_MAX = EXPR_ERROR_EXPR_MISSING
     } type;
@@ -50,7 +73,13 @@ typedef struct Expr {
             int param_count;
         } function_call;
 
+        struct {
+            struct Expr *operand;
+            Type cast_to;
+        } typecast;
+
         Literal literal;
+        char *id;
     } data;
 } Expr;
 

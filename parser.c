@@ -7,64 +7,171 @@
 #include "print.h"
 #include "token.h"
 
-static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
-    Expr expr;
-    TokenType peek = lexer_token_peek(lexer)->type;
-    if (peek == TOKEN_LITERAL) {
-        Token token = lexer_token_get(lexer);
-        expr = (Expr) {
-            .line_start = token.line_idx,
-            .line_end = token.line_idx,
-            .char_start = token.char_idx,
-            .char_end = token.char_idx + token.len,
-            .type = EXPR_LITERAL,
-            .data.literal = token.data.literal
-        };
-        // TODO: what to do about freeing token? Don't technically need to free it, but it would be nice to.
-        // Cannot free it because the literal_string uses the literal from the token.
+Type type_parse(Lexer *lexer) {
+    if (lexer_token_peek(lexer)->type != TOKEN_ID) {
+        // error handling
+    }
+    
+    Token token_id = lexer_token_get(lexer); // TODO: a hack. Don't need to free as id ownership is transferred
+    Type type = {
+        .line_start = token_id.line_idx,
+        .line_end = token_id.line_idx,
+        .char_start = token_id.char_idx,
+        .char_end = token_id.char_idx + token_id.len,
+        .type = TYPE_ID,
+        .data.id = token_id.data.id
+    };
+
+    while (true) {
+        int ptr_type; // I don't wanna make the type type a named type just for this
         
-    } else if (peek == TOKEN_PAREN_OPEN) { 
-        Token token_open = lexer_token_get(lexer);
-        expr.line_start = token_open.line_idx;
-        expr.char_start = token_open.char_idx;
-        token_free(&token_open);
-        
-        Expr operand = expr_parse(lexer);
-        if (EXPR_ERROR_MIN <= operand.type && operand.type <= EXPR_ERROR_MAX) {
-            return operand;
+        switch (lexer_token_peek(lexer)->type) {
+            case TOKEN_CARET:
+                ptr_type = TYPE_PTR;
+                break;
+
+            case TOKEN_QUESTION_MARK:
+                ptr_type = TYPE_PTR_NULLABLE;
+                break;
+            
+            case TOKEN_BRACKET_OPEN: {
+                Token token_open = lexer_token_get(lexer);
+                token_free(&token_open);
+                
+                if (lexer_token_peek(lexer)->type != TOKEN_BRACKET_CLOSE) {
+                    // error handling
+                }
+                ptr_type = TYPE_ARRAY;
+            } break;
+            
+            default:
+                return type;
         }
         
-        if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
-            expr.line_end = operand.line_end;
-            expr.char_end = operand.char_end;
-            expr.type = EXPR_ERROR_EXPECTED_PAREN_CLOSE;
-            expr_free(&operand);
-            return expr;
-        }        
-
-        Token token_close = lexer_token_get(lexer);
-        Expr *operand_ptr = malloc(sizeof(Expr));
-        *operand_ptr = operand;
+        Type *sub_type = malloc(sizeof(Type));
+        *sub_type = type;
         
-        expr = (Expr) {
-            .line_end = token_close.line_idx,
-            .char_end = token_close.char_idx + token_close.len,
-            .type = EXPR_UNARY,
-            .data.unary.operator = EXPR_UNARY_PAREN,
-            .data.unary.operand = operand_ptr
+        Token token_end = lexer_token_get(lexer);
+        type = (Type) {
+            .line_end = token_end.line_idx,
+            .char_end = token_end.char_idx + token_end.len,
+            .type = ptr_type,
+            .data.sub_type = sub_type
         };
+        token_free(&token_end);
+    }
+}
+
+void type_print(Type *type) {
+    switch (type->type) {
+        case TYPE_ID:
+            print(type->data.id);
+            break;
+        case TYPE_PTR:
+            type_print(type->data.sub_type);
+            putchar(TOKEN_CARET);
+            break;
+        case TYPE_PTR_NULLABLE:
+            type_print(type->data.sub_type);
+            putchar(TOKEN_QUESTION_MARK);
+            break;
+        case TYPE_ARRAY:
+            type_print(type->data.sub_type);
+            putchar(TOKEN_BRACKET_OPEN);
+            putchar(TOKEN_BRACKET_CLOSE);
+            break;
+    }
+}
+
+static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
+    Token *peek = lexer_token_peek(lexer);
+
+    Expr expr = {
+        .line_start = peek->line_idx,
+        .char_start = peek->char_idx
+    };
+
+    switch(peek->type) {
+        case TOKEN_LITERAL: {
+            Token token = lexer_token_get(lexer);
+            expr = (Expr) {
+                .char_start = token.char_idx,
+                .char_end = token.char_idx + token.len,
+                .type = EXPR_LITERAL,
+                .data.literal = token.data.literal
+            };
+            // TODO: a hack. Don't need to free token as literal ownership is transferred.
+        } break;
+      
+        case TOKEN_PAREN_OPEN: {
+            Token token_open = lexer_token_get(lexer);
+            token_free(&token_open);
+            
+            Expr operand = expr_parse(lexer);
+            if (EXPR_ERROR_MIN <= operand.type && operand.type <= EXPR_ERROR_MAX) {
+                return operand;
+            }
+            
+            if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
+                expr.line_end = operand.line_end;
+                expr.char_end = operand.char_end;
+                expr.type = EXPR_ERROR_EXPECTED_PAREN_CLOSE;
+                expr_free(&operand);
+                return expr;
+            }        
+
+            Token token_close = lexer_token_get(lexer);
+            Expr *operand_ptr = malloc(sizeof(Expr));
+            *operand_ptr = operand;
+            
+            expr = (Expr) {
+                .line_end = token_close.line_idx,
+                .char_end = token_close.char_idx + token_close.len,
+                .type = EXPR_UNARY,
+                .data.unary.operator = EXPR_UNARY_PAREN,
+                .data.unary.operand = operand_ptr
+            };
+            
+            token_free(&token_close);
+        } break;
+
+        case TOKEN_ID: {
+            Token token_id = lexer_token_get(lexer);
+            expr = (Expr) {
+                .line_end = token_id.line_idx,
+                .char_end = token_id.char_idx + token_id.len,
+                .type = EXPR_ID,
+                .data.id = token_id.data.id // TODO: a hack, don't free tokene because the string is transferred here.
+            };
+        } break;
         
-        token_free(&token_close);
-    } else {
-        // TODO: Make some kind of dummy operator, this causes UNDEFINED BEHAVIOR
-        // lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_MISSING_EXPR);
+        default: break;// TODO: error handling
     }
     
     while (true) {     
         TokenType op_type = lexer_token_peek(lexer)->type;
+        if (op_type == TOKEN_KEYWORD_TYPECAST) {
+            Token token_as = lexer_token_get(lexer);
+            token_free(&token_as);
+
+            Type cast_to = type_parse(lexer); // TODO: error handling
+            Expr *operand = malloc(sizeof(Expr));
+            *operand = expr;
+            expr = (Expr) {
+                .line_end = cast_to.line_end,
+                .char_end = cast_to.char_end,
+                .type = EXPR_TYPECAST,
+                .data.typecast.operand = operand,
+                .data.typecast.cast_to = cast_to
+            };
+            continue;
+        }
+
         if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
+        
         int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
         if (op_precedence < precedence) return expr; 
+        
         Token op = lexer_token_get(lexer);
         token_free(&op);
 
@@ -110,6 +217,14 @@ void expr_free(Expr *expr) {
             expr_free(expr->data.binary.rhs);
             free(expr->data.binary.rhs);
             break;
+    
+        case EXPR_ID:
+            free(expr->data.id);
+            break;
+
+        case EXPR_LITERAL:
+            literal_free(&expr->data.literal);
+            break;
 
         default: break;
     }
@@ -133,8 +248,18 @@ void expr_print(Expr *expr) {
             putchar(')');
             break;
         
+        case EXPR_ID:
+            print(expr->data.id);
+            break;
+
         case EXPR_LITERAL:
             literal_print(&expr->data.literal);
+            break;
+        
+        case EXPR_TYPECAST:
+            expr_print(expr->data.typecast.operand);
+            printf(" %s ", string_keywords[TOKEN_KEYWORD_TYPECAST - TOKEN_KEYWORD_MIN]);
+            type_print(&expr->data.typecast.cast_to);
             break;
         
         default:
