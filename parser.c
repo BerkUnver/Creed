@@ -58,8 +58,8 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             token_free(&token_close);
         } else {
             line_end = operand->line_end;
-            char_end = operand->char_end; 
-            lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_EXPECTED_PAREN_CLOSE);
+            char_end = operand->char_end;
+            // lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_EXPECTED_PAREN_CLOSE);
         }
                     
         expr = (Expr) {
@@ -73,11 +73,11 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         };
     } else {
         // TODO: Make some kind of dummy operator, this causes UNDEFINED BEHAVIOR
-        lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_MISSING_EXPR);
+        // lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_MISSING_EXPR);
     }
     
     while (true) {     
-        TokenType op_type = lexer_token_peek(lexer)->type; 
+        TokenType op_type = lexer_token_peek(lexer)->type;
         if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
         int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
         if (op_precedence < precedence) return expr; 

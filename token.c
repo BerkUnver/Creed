@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 
 #include "token.h"
@@ -12,7 +13,7 @@ int operator_precedences[] = {
 };
 
 char *string_keywords[] = {
-    "if", "elif", "else"
+    "if", "elif", "else", "as"
 };
 
 bool char_is_single_char_token_type(int c) { 
@@ -80,7 +81,7 @@ void token_print(Token *token) {
         case TOKEN_ID:
             print(token->data.id);
             break;
-        case TOKEN_EOF: // EOF is a character. Do not print out. 
+        case TOKEN_EOF: // EOF is a character. Do not print out.
             break;
         default:
             if (char_is_single_char_token_type(token->type)) {
@@ -89,6 +90,38 @@ void token_print(Token *token) {
                 print(string_operators[token->type - TOKEN_OP_MIN]);
             } else if (TOKEN_KEYWORD_MIN <= token->type && token->type <= TOKEN_KEYWORD_MAX) {
                 print(string_keywords[token->type - TOKEN_KEYWORD_MIN]);
+            } else if (TOKEN_ERROR_MIN <= token->type && token->type <= TOKEN_ERROR_MAX) {    
+                printf("[Error at line %i, char %i, len %i. ", token->line_idx + 1, token->char_idx + 1, token->len);
+                switch (token->type) {
+                    case TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE:
+                        print("This is not a valid character escape sequence.");
+                        break;
+                    case TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER:
+                        print("This is not a valid character literal.");
+                        break;
+                    case TOKEN_ERROR_LITERAL_CHAR_CLOSING_DELIMITER_MISSING:
+                        printf("A character literal must end with %c.", DELIMITER_LITERAL_CHAR);
+                        break;
+                    case TOKEN_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING:
+                        printf("A string literal must end with %c.", DELIMITER_LITERAL_STRING);
+                        break;
+                    case TOKEN_ERROR_LITERAL_NUMBER_LEADING_ZERO:
+                        print("A literal number cannot have a leading zero.");
+                        break;
+                    case TOKEN_ERROR_OPERATOR_TOO_LONG:
+                        printf("No existing operator exceeds the length %i", OPERATOR_MAX_LENGTH);
+                        break;
+                    case TOKEN_ERROR_OPERATOR_UNKNOWN:
+                        print("This operator is unknown.");
+                        break;
+                    case TOKEN_ERROR_CHARACTER_UNKNOWN:
+                        print("This character is not allowed in source files.");
+                        break;
+                    default:
+                        assert(false);
+                        break;
+                }
+                putchar(']');
             } else {
                 printf("[Unrecognized token with type id %i]", token->type);
             }

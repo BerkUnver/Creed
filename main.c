@@ -18,15 +18,13 @@ void test_lexer(void) {
 
     while (true) {
         Token token = lexer_token_get(&lexer);
-        TokenType type = token.type;
         putchar(' ');
         token_print(&token);
         token_free(&token);
-        if (type == TOKEN_EOF) break;
+        if (token.type == TOKEN_EOF || (TOKEN_ERROR_MIN <= token.type && token.type <= TOKEN_ERROR_MAX)) break;
     }
     putchar('\n');
     
-    lexer_error_print(&lexer);
     lexer_free(&lexer);
 }
 
@@ -38,7 +36,6 @@ void test_parser(void) {
     }
 
     Expr expr = expr_parse(&lexer);
-    lexer_error_print(&lexer); 
     lexer_free(&lexer);
     expr_print(&expr);
     expr_free(&expr);
@@ -47,6 +44,7 @@ void test_parser(void) {
 
 int main(void) {
     test_lexer();
+    putchar('\n');
     test_parser();
     return EXIT_SUCCESS;
 }

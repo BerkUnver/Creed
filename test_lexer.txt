@@ -1,5 +1,5 @@
 [ { ] } ]]}} ;;; 
-if elif else 
+if elif else as
 '\n' '\r' '\t' '\0' '1' '2' 'a' 
 "bruh\n\t\r\"\'" 
 "unclosed_string
