@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "lexer.h"
+#include "token.h"
 
 typedef struct Expr {
     int line_start;
@@ -15,10 +16,7 @@ typedef struct Expr {
         EXPR_BINARY,
         EXPR_FUNCTION_CALL,
         
-        EXPR_LITERAL_INT,
-        EXPR_LITERAL_STRING,
-        EXPR_LITERAL_CHAR,
-        EXPR_LITERAL_DOUBLE,
+        EXPR_LITERAL,
         
         EXPR_ERROR_MIN,
         EXPR_ERROR_NONE = EXPR_ERROR_MIN,
@@ -52,10 +50,7 @@ typedef struct Expr {
             int param_count;
         } function_call;
 
-        int literal_int;
-        char literal_char;
-        char *literal_string;
-        double literal_double;
+        Literal literal;
     } data;
 } Expr;
 

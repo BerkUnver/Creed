@@ -12,6 +12,25 @@
 #define DELIMITER_LITERAL_STRING '"'
 #define DELIMITER_LITERAL_CHAR '\''
 
+typedef struct Literal {
+    enum {
+        LITERAL_STRING,
+        LITERAL_INT,
+        LITERAL_CHAR,
+        LITERAL_DOUBLE
+    } type;
+
+    union {
+        char *string;
+        int integer;
+        double double_float;
+        char character;
+    } data;
+} Literal; 
+
+void literal_print(Literal *literal);
+void literal_free(Literal *literal);
+
 typedef enum TokenType {
     TOKEN_EOF = EOF,
 
@@ -63,14 +82,7 @@ typedef enum TokenType {
     TOKEN_KEYWORD_MAX = TOKEN_KEYWORD_TYPECAST,
 
     TOKEN_ID,
-
-    // same thing here
-    TOKEN_LITERAL_MIN,
-    TOKEN_LITERAL_CHAR = TOKEN_LITERAL_MIN,
-    TOKEN_LITERAL_STRING,
-    TOKEN_LITERAL_INT,
-    TOKEN_LITERAL_DOUBLE,
-    TOKEN_LITERAL_MAX = TOKEN_LITERAL_DOUBLE,
+    TOKEN_LITERAL,
 
     TOKEN_ERROR_MIN,
     TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE,
@@ -89,10 +101,7 @@ int operator_precedences[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
 char *string_keywords[TOKEN_KEYWORD_MAX - TOKEN_KEYWORD_MIN + 1];
 
 typedef union TokenData {
-    int literal_int; // add types for int8, int16, int64
-    double literal_double; // add types for float, float64
-    char *literal_string;
-    char literal_char;
+    Literal literal;
     char *id;
 } TokenData;
 

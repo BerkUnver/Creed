@@ -4,39 +4,22 @@
 #include <stdlib.h>
 #include "lexer.h"
 #include "parser.h"
+#include "print.h"
+#include "token.h"
 
 static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     Expr expr;
     TokenType peek = lexer_token_peek(lexer)->type;
-    if (TOKEN_LITERAL_MIN <= peek && peek <= TOKEN_LITERAL_MAX) {
+    if (peek == TOKEN_LITERAL) {
         Token token = lexer_token_get(lexer);
         expr = (Expr) {
             .line_start = token.line_idx,
             .line_end = token.line_idx,
             .char_start = token.char_idx,
             .char_end = token.char_idx + token.len,
+            .type = EXPR_LITERAL,
+            .data.literal = token.data.literal
         };
-        switch (token.type) { // think of a good way to eliminate this boilerplate
-            case TOKEN_LITERAL_INT:
-                expr.type = EXPR_LITERAL_INT;
-                expr.data.literal_int = token.data.literal_int;
-                break;
-            case TOKEN_LITERAL_CHAR:
-                expr.type = EXPR_LITERAL_CHAR;
-                expr.data.literal_char = token.data.literal_char;
-                break;
-            case TOKEN_LITERAL_STRING:
-                expr.type = EXPR_LITERAL_STRING;
-                expr.data.literal_string = token.data.literal_string;
-                break;
-            case TOKEN_LITERAL_DOUBLE:
-                expr.type = EXPR_LITERAL_DOUBLE;
-                expr.data.literal_double = token.data.literal_double;
-                break;
-            default: // should never happen.
-                assert(false);
-                break;
-        }
         // TODO: what to do about freeing token? Don't technically need to free it, but it would be nice to.
         // Cannot free it because the literal_string uses the literal from the token.
         
@@ -150,8 +133,8 @@ void expr_print(Expr *expr) {
             putchar(')');
             break;
         
-        case EXPR_LITERAL_INT:
-            printf("%i", expr->data.literal_int);
+        case EXPR_LITERAL:
+            literal_print(&expr->data.literal);
             break;
         
         default:
