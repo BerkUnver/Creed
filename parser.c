@@ -6,7 +6,7 @@
 #include "parser.h"
 
 static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
-    TokenType peek = lexer_token_peek_type(lexer);
+    TokenType peek = lexer_token_peek(lexer)->type;
     Expr expr;
     if (TOKEN_LITERAL_MIN <= peek && peek <= TOKEN_LITERAL_MAX) {
         Token token = lexer_token_get(lexer);
@@ -37,7 +37,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
                 assert(false);
                 break;
         }
-        // what to do about freeing token? Don't technically need to free it, but it would be nice to.
+        // TODO: what to do about freeing token? Don't technically need to free it, but it would be nice to.
         // Cannot free it because the literal_string uses the literal from the token.
         
     } else if (peek == TOKEN_PAREN_OPEN) { 
@@ -51,7 +51,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         
         int line_end;
         int char_end;
-        if (lexer_token_peek_type(lexer) == TOKEN_PAREN_CLOSE) {
+        if (lexer_token_peek(lexer)->type == TOKEN_PAREN_CLOSE) {
             Token token_close = lexer_token_get(lexer);
             line_end = token_close.line_idx;
             char_end = token_close.char_idx + token_close.len;
@@ -59,7 +59,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         } else {
             line_end = operand->line_end;
             char_end = operand->char_end; 
-            lexer_error_push(lexer, lexer_token_peek_len(lexer), LEXER_ERROR_EXPECTED_PAREN_CLOSE);
+            lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_EXPECTED_PAREN_CLOSE);
         }
                     
         expr = (Expr) {
@@ -73,11 +73,11 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         };
     } else {
         // TODO: Make some kind of dummy operator, this causes UNDEFINED BEHAVIOR
-        lexer_error_push(lexer, lexer_token_peek_len(lexer), LEXER_ERROR_MISSING_EXPR);
+        lexer_error_push(lexer, lexer_token_peek(lexer), LEXER_ERROR_MISSING_EXPR);
     }
     
     while (true) {     
-        TokenType op_type = lexer_token_peek_type(lexer); 
+        TokenType op_type = lexer_token_peek(lexer)->type; 
         if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
         int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
         if (op_precedence < precedence) return expr; 

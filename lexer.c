@@ -45,13 +45,13 @@ static int lexer_char_get(Lexer *lexer) {
 }
 
 // the starting index of the error is determined by doing lexer->char_idx - len.
-void lexer_error_push(Lexer *lexer, int len, LexerErrorCode code) {
+void lexer_error_push(Lexer *lexer, Token *token, LexerErrorCode code) {
     lexer->error_count++;
     lexer->errors = realloc(lexer->errors, sizeof(LexerError) * lexer->error_count); 
     lexer->errors[lexer->error_count - 1] = (LexerError) {
-        .line_idx = lexer->line_idx,
-        .char_idx = lexer->char_idx - len,
-        .len = len,
+        .line_idx = token->line_idx,
+        .char_idx = token->char_idx,
+        .len = token->len,
         .code = code
     };
 }
@@ -77,7 +77,13 @@ static int lexer_literal_char_get(Lexer *lexer, int *length) {
                 case '\"': return '\"';
                 case 'r': return '\r';
                 default: {
-                    lexer_error_push(lexer, 2, LEXER_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE);
+                    // this is a hack.
+                    Token token_error = {
+                        .line_idx = lexer->line_idx,
+                        .char_idx = lexer->char_idx - 2,
+                        .len = 2
+                    };
+                    lexer_error_push(lexer, &token_error, LEXER_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE);
                 }
             }
         } else if (' ' <= c && c <= '~' && c != '\'' && c != '\"') { // normal character
@@ -139,13 +145,13 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 token.type = TOKEN_LITERAL_DOUBLE;
                 token.data.literal_double = decimal_val;
             
-                lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_DOUBLE_MULTIPLE_LEADING_ZEROS);
+                lexer_error_push(lexer, &token, LEXER_ERROR_LITERAL_DOUBLE_MULTIPLE_LEADING_ZEROS);
 
             } else {
                 token.type = TOKEN_LITERAL_INT;
                 token.data.literal_int = 0; // maybe instead use the value after the zeros
             
-                lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_INT_MULTIPLE_LEADING_ZEROS);
+                lexer_error_push(lexer, &token, LEXER_ERROR_LITERAL_INT_MULTIPLE_LEADING_ZEROS);
             }
         } else if (int_peek_2 == '.') {
             lexer_char_get(lexer);
@@ -195,18 +201,17 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 token.len++; // length of closing delimiter
             }
 
-            lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER);
-            
             token.data.literal_char = '@'; // random character, idk what to put here
-        
+            lexer_error_push(lexer, &token, LEXER_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER); 
+
         } else {
+            token.data.literal_char = literal_char;
             if (fpeek(lexer->file) == DELIMITER_LITERAL_CHAR) {
                 lexer_char_get(lexer);
                 token.len++;
             } else {
-                lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_CHAR_CLOSING_DELIMITER_MISSING);
+                lexer_error_push(lexer, &token, LEXER_ERROR_LITERAL_CHAR_CLOSING_DELIMITER_MISSING);
             }
-            token.data.literal_char = literal_char;
         }
     } else if (peek == DELIMITER_LITERAL_STRING) {
         lexer_char_get(lexer);
@@ -225,7 +230,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             lexer_char_get(lexer);
             token.len++;
         } else {
-            lexer_error_push(lexer, token.len, LEXER_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING);
+            lexer_error_push(lexer, &token, LEXER_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING);
         }
 
     } else if (char_is_operator(peek)) {
@@ -240,8 +245,8 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         }
         
         if (token.len > OPERATOR_MAX_LENGTH) {
-            lexer_error_push(lexer, token.len, LEXER_ERROR_OPERATOR_TOO_LONG);
             token.type = TOKEN_OP_PLUS; // I have no idea what the value of the token should be if the operator is too long.
+            lexer_error_push(lexer, &token, LEXER_ERROR_OPERATOR_TOO_LONG);
         } else {
             operator[token.len] = '\0';
             bool is_operator = false;
@@ -254,7 +259,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             }
 
             if (!is_operator) { 
-                lexer_error_push(lexer, token.len, LEXER_ERROR_OPERATOR_UNKNOWN);
+                lexer_error_push(lexer, &token, LEXER_ERROR_OPERATOR_UNKNOWN);
                 token = lexer_token_get_skip_cache(lexer);
                 // potentially want better error-handling behavior here, i.e. insert a dummy operator where the malformed one is.
             }
@@ -285,28 +290,19 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         }
     } else {
         lexer_char_get(lexer);
-        lexer_error_push(lexer, 1, LEXER_ERROR_CHARACTER_UNKNOWN);
+        lexer_error_push(lexer, &token, LEXER_ERROR_CHARACTER_UNKNOWN);
         token = lexer_token_get_skip_cache(lexer);
     }
     
     return token;
 }
 
-
-TokenType lexer_token_peek_type(Lexer *lexer) {
+Token *lexer_token_peek(Lexer *lexer) {
     if (!lexer->peek_cached) {
         lexer->peek = lexer_token_get_skip_cache(lexer);
         lexer->peek_cached = true;
     }
-    return lexer->peek.type;
-}
-
-int lexer_token_peek_len(Lexer *lexer)  {
-    if (!lexer->peek_cached) {
-        lexer->peek = lexer_token_get_skip_cache(lexer);
-        lexer->peek_cached = true;
-    }
-    return lexer->peek.len;
+    return &lexer->peek;
 }
 
 Token lexer_token_get(Lexer *lexer) {
@@ -314,7 +310,6 @@ Token lexer_token_get(Lexer *lexer) {
         lexer->peek_cached = false;
         return lexer->peek;
     }
-
     return lexer_token_get_skip_cache(lexer);
 }
 
