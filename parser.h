@@ -6,10 +6,7 @@
 #include "token.h"
 
 typedef struct Type {
-    int line_start;
-    int line_end;
-    int char_start;
-    int char_end;
+    Location location;
 
     enum {
         TYPE_ID,
@@ -28,10 +25,7 @@ Type type_parse(Lexer *lexer);
 void type_print(Type *type);
 
 typedef struct Expr {
-    int line_start;
-    int line_end; // expr can span multiple lines
-    int char_start;
-    int char_end;
+    Location location;
     
     enum {
         EXPR_UNARY, 

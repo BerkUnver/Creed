@@ -100,14 +100,24 @@ void token_print(Token *token) {
         literal_print(&token->data.literal);
     else if (token->type == TOKEN_ID)
         print(token->data.id);
+    else if (token->type == TOKEN_EOF) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
+        return;
     else if (char_is_single_char_token_type(token->type))
         putchar(token->type);
     else if (TOKEN_OP_MIN <= token->type && token->type <= TOKEN_OP_MAX)
         print(string_operators[token->type - TOKEN_OP_MIN]);
     else if (TOKEN_KEYWORD_MIN <= token->type && token->type <= TOKEN_KEYWORD_MAX)
         print(string_keywords[token->type - TOKEN_KEYWORD_MIN]);
-    else if (TOKEN_ERROR_MIN <= token->type && token->type <= TOKEN_ERROR_MAX) {    
-        printf("[Error at line %i, char %i, len %i. ", token->line_idx + 1, token->char_idx + 1, token->len);
+    else if (TOKEN_ERROR_MIN <= token->type && token->type <= TOKEN_ERROR_MAX) {
+        
+        Location location = token->location;
+        if (location.line_start == location.line_end) {
+            int len = location.char_end - location.char_start;
+            printf("[Error at line %i, char %i, len %i. ", location.line_start + 1, location.char_start + 1, len);
+        } else {
+            printf("[Error from line %i, char %i to line %i, char %i. ", location.line_start + 1, location.char_start + 1, location.line_end + 1, location.char_end + 1);
+        }
+
         switch (token->type) {
             case TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE:
                 print("This is not a valid character escape sequence.");
@@ -138,7 +148,7 @@ void token_print(Token *token) {
                 break;
         }
         putchar(']');
-    } else if (token->type != EOF) { // not printing EOF for now.
+    } else { // not printing EOF for now.
         printf("[Unrecognized token with type id %i]", token->type);
     }
 }

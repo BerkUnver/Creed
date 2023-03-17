@@ -12,6 +12,13 @@
 #define DELIMITER_LITERAL_STRING '"'
 #define DELIMITER_LITERAL_CHAR '\''
 
+typedef struct Location {
+    int line_start;
+    int line_end;
+    int char_start;
+    int char_end;
+} Location;
+
 typedef struct Literal {
     enum {
         LITERAL_STRING,
@@ -109,9 +116,7 @@ typedef union TokenData {
 typedef struct Token {
     TokenType type;
     TokenData data;
-    int line_idx;
-    int char_idx;
-    int len;
+    Location location;
 } Token;
 
 // c is an int so you can also pass a TokenType itself in here instead of a char.
