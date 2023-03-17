@@ -50,8 +50,7 @@ Type type_parse(Lexer *lexer) {
         
         Token token_end = lexer_token_get(lexer);
         type = (Type) {
-            .location.line_end = token_end.location.line_end,
-            .location.char_end = token_end.location.char_end,
+            .location = location_expand(type.location, token_end.location),
             .type = ptr_type,
             .data.sub_type = sub_type
         };
@@ -104,8 +103,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             }
             
             if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
-                expr.location.line_end = operand.location.line_end;
-                expr.location.char_end = operand.location.char_end;
+                expr.location = location_expand(expr.location, operand.location);
                 expr.type = EXPR_ERROR_EXPECTED_PAREN_CLOSE;
                 expr_free(&operand);
                 return expr;
@@ -116,8 +114,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             *operand_ptr = operand;
             
             expr = (Expr) {
-                .location.line_end = token_close.location.line_end,
-                .location.char_end = token_close.location.char_end,
+                .location = location_expand(expr.location, operand.location),
                 .type = EXPR_UNARY,
                 .data.unary.operator = EXPR_UNARY_PAREN,
                 .data.unary.operand = operand_ptr
@@ -129,8 +126,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         case TOKEN_ID: {
             Token token_id = lexer_token_get(lexer);
             expr = (Expr) {
-                .location.line_end = token_id.location.line_end,
-                .location.char_end = token_id.location.char_end,
+                .location = location_expand(expr.location, token_id.location),
                 .type = EXPR_ID,
                 .data.id = token_id.data.id // TODO: a hack, don't free tokene because the string is transferred here.
             };
@@ -149,8 +145,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             Expr *operand = malloc(sizeof(Expr));
             *operand = expr;
             expr = (Expr) {
-                .location.line_end = cast_to.location.line_end,
-                .location.char_end = cast_to.location.char_end,
+                .location = location_expand(expr.location, cast_to.location),
                 .type = EXPR_TYPECAST,
                 .data.typecast.operand = operand,
                 .data.typecast.cast_to = cast_to
@@ -179,9 +174,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         *rhs_ptr = rhs;
         
         expr = (Expr) {
-            // line start and char start remain the same so no need to change.
-            .location.line_end = rhs.location.line_end,
-            .location.char_end = rhs.location.char_end,
+            .location = location_expand(expr.location, rhs.location), 
             .type = EXPR_BINARY,
             .data.binary.operator = op_type,
             .data.binary.lhs = lhs_ptr,

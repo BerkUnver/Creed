@@ -19,6 +19,8 @@ typedef struct Location {
     int char_end;
 } Location;
 
+Location location_expand(Location begin, Location end);
+
 typedef struct Literal {
     enum {
         LITERAL_STRING,

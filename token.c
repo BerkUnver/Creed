@@ -4,6 +4,15 @@
 #include "token.h"
 #include "print.h"
 
+Location location_expand(Location begin, Location end) {
+    return (Location) {
+        .line_start = begin.line_start,
+        .char_start = begin.char_start,
+        .line_end = end.line_end,
+        .char_end = end.char_end
+    };
+}
+
 char *string_operators[] = {
     "&&", "||", "&", "|", "==", "!=", "<", ">", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%"
 };
