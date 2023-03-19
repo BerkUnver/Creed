@@ -109,12 +109,11 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     Token *peek = lexer_token_peek(lexer);
 
     Expr expr;
-    expr.location = peek->location;
-
     switch(peek->type) {
         case TOKEN_LITERAL: {
             Token token = lexer_token_get(lexer);
             expr.type = EXPR_LITERAL;
+            expr.location = token.location;
             expr.data.literal = token.data.literal;
             // TODO: a hack. Don't need to free token as literal ownership is transferred.
         } break;
@@ -129,7 +128,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             }
             
             if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
-                expr.location = location_expand(expr.location, operand.location);
+                expr.location = location_expand(token_open.location, operand.location);
                 expr.type = EXPR_ERROR_EXPECTED_PAREN_CLOSE;
                 expr_free(&operand);
                 return expr;
@@ -140,7 +139,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             *operand_ptr = operand;
             
             expr = (Expr) {
-                .location = location_expand(expr.location, operand.location),
+                .location = location_expand(token_open.location, token_close.location),
                 .type = EXPR_UNARY,
                 .data.unary.operator = EXPR_UNARY_PAREN,
                 .data.unary.operand = operand_ptr
@@ -151,11 +150,9 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
 
         case TOKEN_ID: {
             Token token_id = lexer_token_get(lexer);
-            expr = (Expr) {
-                .location = location_expand(expr.location, token_id.location),
-                .type = EXPR_ID,
-                .data.id = token_id.data.id // TODO: a hack, don't free token because the string is transferred here.
-            };
+            expr.type = EXPR_ID;
+            expr.data.id = token_id.data.id;
+            expr.location = token_id.location;
         } break;
         
         default: break;// TODO: error handling
@@ -164,9 +161,9 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     while (true) {     
         TokenType op_type = lexer_token_peek(lexer)->type;
         if (op_type == TOKEN_KEYWORD_TYPECAST) {
-            Token token_as = lexer_token_get(lexer);
-            token_free(&token_as);
-
+            Token token_typecast = lexer_token_get(lexer);
+            token_free(&token_typecast);
+            
             Type cast_to = type_parse(lexer); // TODO: error handling
             Expr *operand = malloc(sizeof(Expr));
             *operand = expr;
@@ -176,6 +173,55 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
                 .data.typecast.operand = operand,
                 .data.typecast.cast_to = cast_to
             };
+            continue;
+        
+        } else if (op_type == TOKEN_PAREN_OPEN) {
+            Token paren_open = lexer_token_get(lexer);
+            token_free(&paren_open);
+            
+            int param_count = 0;
+            Expr *params = NULL;
+
+            while (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
+                Expr param = expr_parse(lexer);
+                print("Expr parsed: ");
+                location_print(param.location);
+                putchar('\n');
+                if (EXPR_ERROR_MIN <= param.type && param.type <= EXPR_ERROR_MAX) {
+                    for (int i = 0; i < param_count; i++) expr_free(&params[i]);
+                    free(params);
+                    expr_free(&expr);
+                    return param;
+                
+                } else if (lexer_token_peek(lexer)->type != TOKEN_COMMA) {
+                    Token token_end = lexer_token_get(lexer); 
+                    for (int i = 0; i < param_count; i++) expr_free(&params[i]);
+                    free(params);
+                    expr_free(&param);
+                    expr_free(&expr);
+                    token_free(&token_end);
+                    return (Expr) {
+                        .location = token_end.location,
+                        .type = EXPR_ERROR_EXPECTED_COMMA
+                    };
+                
+                } else {
+                    lexer_token_get(lexer);
+                    param_count++;
+                    params = realloc(params, sizeof(Expr) * param_count);
+                    params[param_count - 1] = param;
+                }
+            }
+            
+            Token paren_close = lexer_token_get(lexer);
+            Expr *function = malloc(sizeof(Expr));
+            *function = expr;
+            expr.type = EXPR_FUNCTION_CALL;
+            expr.data.function_call.function = function;
+            expr.data.function_call.params = params;
+            expr.data.function_call.param_count = param_count;
+            expr.location = location_expand(expr.location, paren_close.location);
+            token_free(&paren_close);
             continue;
         }
 
@@ -228,6 +274,21 @@ void expr_free(Expr *expr) {
             free(expr->data.binary.rhs);
             break;
     
+        case EXPR_TYPECAST:
+            expr_free(expr->data.typecast.operand);
+            free(expr->data.typecast.operand);
+            type_free(&expr->data.typecast.cast_to);
+            break;
+        
+        case EXPR_FUNCTION_CALL:
+            for (int i = 0; i < expr->data.function_call.param_count - 1; i++) {
+                expr_free(&expr->data.function_call.params[i]);
+            }
+            free(expr->data.function_call.params);
+            expr_free(expr->data.function_call.function);
+            free(expr->data.function_call.function);
+            break;
+
         case EXPR_ID:
             free(expr->data.id);
             break;
@@ -236,15 +297,7 @@ void expr_free(Expr *expr) {
             literal_free(&expr->data.literal);
             break;
 
-        case EXPR_TYPECAST:
-            expr_free(expr->data.typecast.operand);
-            free(expr->data.typecast.operand);
-            type_free(&expr->data.typecast.cast_to);
-            break;
-
-        default: 
-            assert(false);
-            break;
+        default: break;
     }
 }
 
@@ -280,8 +333,39 @@ void expr_print(Expr *expr) {
             type_print(&expr->data.typecast.cast_to);
             break;
         
+        case EXPR_FUNCTION_CALL:
+            expr_print(expr->data.function_call.function);
+            putchar(TOKEN_PAREN_OPEN);
+            if (expr->data.function_call.param_count > 0) {
+                int last_param_idx = expr->data.function_call.param_count - 1;
+                for (int i = 0; i < last_param_idx; i++) {
+                    expr_print(&expr->data.function_call.params[i]);
+                    printf("%c ", TOKEN_COMMA);
+                }
+                expr_print(&expr->data.function_call.params[last_param_idx]);
+            }
+            putchar(TOKEN_PAREN_CLOSE);
+            break;
+
         default:
-            printf("[Unrecognized expr type %i]", expr->type);
+            if (EXPR_ERROR_MIN <= expr->type && expr->type <= EXPR_ERROR_MAX) {
+                print("[Expression error: ");
+                location_print(expr->location);
+                print("] ");
+                switch (expr->type) {
+                    case EXPR_ERROR_EXPECTED_PAREN_CLOSE:
+                        print("Expected a closing parenthesis to match the opening parenthesis of an expression instead of this.");
+                        break;
+                    case EXPR_ERROR_EXPECTED_COMMA:
+                        print("Expected a comma between function parameters.");
+                        break;
+                    default:
+                        assert(false);
+                        break;
+                }
+            } else {
+                printf("[Unrecognized expr type %i]", expr->type);
+            }
             break;
     }
 }

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "token.h"
@@ -11,6 +12,10 @@ Location location_expand(Location begin, Location end) {
         .line_end = end.line_end,
         .char_end = end.char_end
     };
+}
+
+void location_print(Location location) {
+    printf("(%i, %i) -> (%i, %i)", location.line_start + 1, location.char_start + 1, location.line_end + 1, location.char_end + 1);
 }
 
 char *string_operators[] = {
@@ -116,15 +121,10 @@ void token_print(Token *token) {
     else if (TOKEN_ASSIGN_MIN <= token->type && token->type <= TOKEN_ASSIGN_MAX)
         print(string_assigns[token->type - TOKEN_ASSIGN_MIN]);
     else if (TOKEN_ERROR_MIN <= token->type && token->type <= TOKEN_ERROR_MAX) {
+        print("[Error ");
+        location_print(token->location);
+        print(". ");
         
-        Location location = token->location;
-        if (location.line_start == location.line_end) {
-            int len = location.char_end - location.char_start;
-            printf("[Error at line %i, char %i, len %i. ", location.line_start + 1, location.char_start + 1, len);
-        } else {
-            printf("[Error from line %i, char %i to line %i, char %i. ", location.line_start + 1, location.char_start + 1, location.line_end + 1, location.char_end + 1);
-        }
-
         switch (token->type) {
             case TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE:
                 print("This is not a valid character escape sequence.");

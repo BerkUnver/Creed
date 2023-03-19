@@ -20,6 +20,7 @@ typedef struct Location {
 } Location;
 
 Location location_expand(Location begin, Location end);
+void location_print(Location location);
 
 typedef struct Literal {
     enum {

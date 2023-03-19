@@ -1,1 +1,1 @@
-(var as float + 4 as float* + (4 as int[]) * 5 as void?[]?[]***[]? + 6 * 8 + 7 / 2 >> 100 * 0.223)
+(var as float + 4 as float* + func(p1, x + z, p3) + (4 as int[]) * 5 as void?[]?[]***[]? + 6 * 8 + 7 / 2 >> 100 * 0.223)

@@ -39,8 +39,8 @@ typedef struct Expr {
         
         EXPR_ERROR_MIN,
         EXPR_ERROR_EXPECTED_PAREN_CLOSE = EXPR_ERROR_MIN,
-        EXPR_ERROR_EXPR_MISSING,
-        EXPR_ERROR_MAX = EXPR_ERROR_EXPR_MISSING
+        EXPR_ERROR_EXPECTED_COMMA,
+        EXPR_ERROR_MAX = EXPR_ERROR_EXPECTED_COMMA
     } type;
 
     union {
@@ -63,7 +63,7 @@ typedef struct Expr {
         } binary;
 
         struct {
-            char *id;
+            struct Expr *function;
             struct Expr *params;
             int param_count;
         } function_call;
