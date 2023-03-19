@@ -109,7 +109,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     Token *peek = lexer_token_peek(lexer);
 
     Expr expr;
-    switch(peek->type) {
+    switch (peek->type) {
         case TOKEN_LITERAL: {
             Token token = lexer_token_get(lexer);
             expr.type = EXPR_LITERAL;
@@ -155,7 +155,9 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             expr.location = token_id.location;
         } break;
         
-        default: break;// TODO: error handling
+        default: 
+            assert(false);
+            break;// TODO: error handling
     }
     
     while (true) {     
@@ -175,41 +177,43 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             };
             continue;
         
-        } else if (op_type == TOKEN_PAREN_OPEN) {
+        } else if (op_type == TOKEN_PAREN_OPEN) { // function call
             Token paren_open = lexer_token_get(lexer);
             token_free(&paren_open);
             
             int param_count = 0;
             Expr *params = NULL;
-
-            while (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
-                Expr param = expr_parse(lexer);
-                print("Expr parsed: ");
-                location_print(param.location);
-                putchar('\n');
-                if (EXPR_ERROR_MIN <= param.type && param.type <= EXPR_ERROR_MAX) {
-                    for (int i = 0; i < param_count; i++) expr_free(&params[i]);
-                    free(params);
-                    expr_free(&expr);
-                    return param;
-                
-                } else if (lexer_token_peek(lexer)->type != TOKEN_COMMA) {
-                    Token token_end = lexer_token_get(lexer); 
-                    for (int i = 0; i < param_count; i++) expr_free(&params[i]);
-                    free(params);
-                    expr_free(&param);
-                    expr_free(&expr);
-                    token_free(&token_end);
-                    return (Expr) {
-                        .location = token_end.location,
-                        .type = EXPR_ERROR_EXPECTED_COMMA
-                    };
-                
-                } else {
-                    lexer_token_get(lexer);
+            
+            if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
+                while (true) {
+                    Expr param = expr_parse(lexer);
+                    
+                    if (EXPR_ERROR_MIN <= param.type && param.type <= EXPR_ERROR_MAX) {
+                        for (int i = 0; i < param_count; i++) expr_free(&params[i]);
+                        free(params);
+                        expr_free(&expr);
+                        return param;
+                    }
+                    
                     param_count++;
                     params = realloc(params, sizeof(Expr) * param_count);
                     params[param_count - 1] = param;
+                    
+                    if (lexer_token_peek(lexer)->type == TOKEN_PAREN_CLOSE) break;
+                    if (lexer_token_peek(lexer)->type == TOKEN_COMMA) {
+                        lexer_token_get(lexer);
+                    } else {
+                        Token token_end = lexer_token_get(lexer);
+                        for (int i = 0; i < param_count; i++) expr_free(&params[i]);
+                        free(params);
+                        expr_free(&expr);
+                        token_free(&token_end);
+                        return (Expr) {
+                            .location = token_end.location,
+                            .type = EXPR_ERROR_EXPECTED_COMMA
+                        };
+                    }
+                    
                 }
             }
             
