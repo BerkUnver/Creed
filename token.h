@@ -33,7 +33,7 @@ typedef struct Literal {
         char *string;
         int integer;
         double double_float;
-        int character; // can be -1 for a dummy character
+        char character;
     } data;
 } Literal; 
 
@@ -63,8 +63,7 @@ typedef enum TokenType {
     // TOKEN_OP_MIN and TOKEN_OP_MAX aren't real tokens. They define the range of valid operators so we can do goofy stuff.
     // Example: puts(string_operators[token_type - TOKEN_OP_MIN]);
     TOKEN_OP_MIN = 256,
-    TOKEN_OP_DUMMY = TOKEN_OP_MIN,
-    TOKEN_OP_LOGICAL_AND,
+    TOKEN_OP_LOGICAL_AND = TOKEN_OP_MIN,
     TOKEN_OP_LOGICAL_OR,
     TOKEN_OP_BITWISE_AND,
     TOKEN_OP_BITWISE_OR, // need to come up with new operator for bitwise or because I (Berk) have ^ to mean pointer right now.
@@ -84,14 +83,6 @@ typedef enum TokenType {
     TOKEN_OP_MAX = TOKEN_OP_MODULO,
     // string_operators relies on these being in this order so don't change this without changing that.
 
-    TOKEN_ASSIGN,
-    TOKEN_ASSIGN_PLUS,
-    TOKEN_ASSIGN_MINUS,
-    TOKEN_ASSIGN_TIMES,
-    TOKEN_ASSIGN_DIVIDE,
-    TOKEN_ASSIGN_SHIFT_LEFT,
-    TOKEN_ASSIGN_SHIFT_RIGHT,
-
     // Same thing for operators applies to keywords.
     TOKEN_KEYWORD_MIN,
     TOKEN_KEYWORD_IF = TOKEN_KEYWORD_MIN,
@@ -102,6 +93,17 @@ typedef enum TokenType {
 
     TOKEN_ID,
     TOKEN_LITERAL,
+
+    TOKEN_ERROR_MIN,
+    TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE,
+    TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER,
+    TOKEN_ERROR_LITERAL_CHAR_CLOSING_DELIMITER_MISSING,
+    TOKEN_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING,
+    TOKEN_ERROR_LITERAL_NUMBER_LEADING_ZERO,
+    TOKEN_ERROR_OPERATOR_TOO_LONG,
+    TOKEN_ERROR_OPERATOR_UNKNOWN,
+    TOKEN_ERROR_CHARACTER_UNKNOWN,
+    TOKEN_ERROR_MAX = TOKEN_ERROR_CHARACTER_UNKNOWN
 } TokenType;
 
 char *string_operators[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];

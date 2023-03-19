@@ -4,7 +4,6 @@
 #include "lexer.h"
 #include "token.h"
 #include "parser.h"
-#include "print.h"
 
 #define PATH_TEST_LEXER "test_lexer.txt"
 #define PATH_TEST_PARSER "test_parser.txt"
@@ -19,14 +18,11 @@ void test_lexer(void) {
 
     while (true) {
         Token token = lexer_token_get(&lexer);
-        if (token.type == TOKEN_EOF) return;
-        Location location = token.location;
+        putchar(' ');
         token_print(&token);
-        printf(" (%i, %i) -> (%i, %i)}\n", location.line_start + 1, location.char_start + 1, location.line_end + 1, location.char_end + 1);
         token_free(&token);
+        if (token.type == TOKEN_EOF || (TOKEN_ERROR_MIN <= token.type && token.type <= TOKEN_ERROR_MAX)) break;
     }
-
-    lexer_error_print(&lexer);
     putchar('\n');
     
     lexer_free(&lexer);
