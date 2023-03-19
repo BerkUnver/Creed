@@ -5,6 +5,16 @@
 #include "lexer.h"
 #include "token.h"
 
+typedef enum ParserError {
+    PARSER_ERROR_NO_TYPE_ID,
+    PARSER_ERROR_NO_ARRAY_CLOSING_BRACKET,
+    PARSER_ERROR_NO_PAREN_CLOSE,
+    PARSER_ERROR_NO_FUNCTION_PARAM_COMMA,
+    PARSER_ERROR_NO_EXPR
+} ParserError;
+
+void parser_error_print(ParserError error, Location location);
+
 typedef struct Type {
     Location location;
 
@@ -13,11 +23,13 @@ typedef struct Type {
         TYPE_PTR,
         TYPE_PTR_NULLABLE,
         TYPE_ARRAY,
+        TYPE_ERROR
     } type;
 
     union {
         struct Type *sub_type;
         char *id;
+        ParserError error;
     } data;
 } Type;
 
@@ -34,13 +46,8 @@ typedef struct Expr {
         EXPR_TYPECAST,
         EXPR_FUNCTION_CALL,
         EXPR_ID,
-
         EXPR_LITERAL,
-        
-        EXPR_ERROR_MIN,
-        EXPR_ERROR_EXPECTED_PAREN_CLOSE = EXPR_ERROR_MIN,
-        EXPR_ERROR_EXPECTED_COMMA,
-        EXPR_ERROR_MAX = EXPR_ERROR_EXPECTED_COMMA
+        EXPR_ERROR
     } type;
 
     union {
@@ -75,6 +82,7 @@ typedef struct Expr {
 
         Literal literal;
         char *id;
+        ParserError error;
     } data;
 } Expr;
 
