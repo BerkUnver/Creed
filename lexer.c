@@ -41,6 +41,14 @@ static int lexer_char_get(Lexer *lexer) {
     return c;
 }
 
+static bool lexer_char_get_if(Lexer *lexer, char c) {
+    if (fpeek(lexer->file) == c) {
+        lexer_char_get(lexer);
+        return true;
+    }
+    return false;
+}
+
 // returns the literal if it is found; otherwise returns a negative number.
 // If it finds a valid literal it will consume it, otherwise not.
 // Currently strings and chars have the same escape sequences.
@@ -70,18 +78,6 @@ static int lexer_literal_char_get(Lexer *lexer) {
     }
 }
 
-static double lexer_decimal_get(Lexer *lexer) {
-    double val = 0;
-    double digit = 0.1;
-    while (true) {
-        int peek = fpeek(lexer->file);
-        if (peek < '0' || '9' < peek) return val; 
-        lexer_char_get(lexer);
-        val += (digit * (peek - '0'));
-        digit /= 10;
-    }
-}
-
 static Token lexer_token_get_skip_cache(Lexer *lexer) {
     // consume whitespace
     while (char_is_whitespace(fpeek(lexer->file))) lexer_char_get(lexer);
@@ -93,54 +89,11 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         .char_start = lexer->char_idx,
     };
 
-    int peek = fpeek(lexer->file); 
-    if (char_is_single_char_token_type(peek)) {
-        token.type = lexer_char_get(lexer); // chars corresponds 1:1 to unique single-char token types.
+    char char_first = lexer_char_get(lexer);
     
-    } else if (peek == '0') { // get decimals that start with 0.
-        lexer_char_get(lexer);
-        int int_peek_2 = fpeek(lexer->file);
-        if ('0' <= int_peek_2 && int_peek_2 <= '9') { // in error state
-            token.type = TOKEN_ERROR_LITERAL_NUMBER_LEADING_ZERO;
-        } else if (int_peek_2 == '.') {
-            lexer_char_get(lexer);
-            token.type = TOKEN_LITERAL;
-            token.data.literal.type = LITERAL_DOUBLE;
-            token.data.literal.data.double_float = lexer_decimal_get(lexer);
-        } else {
-            token.type = TOKEN_LITERAL;
-            token.data.literal.type = LITERAL_INT;
-            token.data.literal.data.integer = 0;
-        }
-    
-    } else if ('1' <= peek && peek <= '9') {
-        int literal_int = lexer_char_get(lexer) - '0';
-        while (true) {
-            int digit = fpeek(lexer->file);
-            if (digit < '0' || '9' < digit) break;
-            lexer_char_get(lexer);
-            literal_int *= 10;
-            literal_int += (digit - '0'); // todo: bounds-checking.
-        }
-
-        if (fpeek(lexer->file) == '.') {
-            lexer_char_get(lexer);
-            token.type = TOKEN_LITERAL;
-            token.data.literal.type = LITERAL_DOUBLE;
-            token.data.literal.data.double_float = ((double) literal_int) + lexer_decimal_get(lexer);
-        
-        } else {
-            token.type = TOKEN_LITERAL;
-            token.data.literal.type = LITERAL_INT;
-            token.data.literal.data.integer = literal_int;
-        }   
-
-    } else if (peek == DELIMITER_LITERAL_CHAR) {
-        
-        lexer_char_get(lexer);
+    switch (char_first) {
+    case DELIMITER_LITERAL_CHAR: { 
         int literal_char = lexer_literal_char_get(lexer);
-        
-        
         if (literal_char < 0) { // error condition
             token.type = TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_CHARACTER;
         } else if (fpeek(lexer->file) != DELIMITER_LITERAL_CHAR) {
@@ -151,8 +104,9 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             token.data.literal.data.character = literal_char;
             lexer_char_get(lexer);
         }
-    } else if (peek == DELIMITER_LITERAL_STRING) {
-        lexer_char_get(lexer);
+    } break;
+
+    case DELIMITER_LITERAL_STRING: {
         StringBuilder builder = string_builder_new();
         
         int c;
@@ -171,63 +125,148 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             free(string);
             token.type = TOKEN_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING;
         }
+    } break;
 
-    } else if (char_is_operator(peek)) {
+    case '=':
+        token.type = lexer_char_get_if(lexer, '=') ? TOKEN_OP_EQ : TOKEN_ASSIGN;
+        break;
+    case '<':
+        if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_OP_LE;
+        else if (lexer_char_get_if(lexer, '<'))
+            token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_SHIFT_LEFT : TOKEN_OP_SHIFT_LEFT;
+        else
+            token.type = TOKEN_OP_LT;
+        break;
+    case '>':
+        if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_OP_GE;
+        else if (lexer_char_get_if(lexer, '>'))
+            token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_SHIFT_RIGHT : TOKEN_OP_SHIFT_RIGHT;
+        else 
+            token.type = TOKEN_OP_GT;
+        break;
+    
+    case '!':
+        token.type = (lexer_char_get_if(lexer, '=')) ? TOKEN_OP_NE : TOKEN_UNARY_LOGICAL_NOT;
+        break;
 
-        char operator[OPERATOR_MAX_LENGTH + 1];
-   
-        int operator_length = 0;
-        while (char_is_operator(fpeek(lexer->file))) {
-            char c = lexer_char_get(lexer);
-            if (operator_length < OPERATOR_MAX_LENGTH) operator[operator_length] = c;
-            operator_length++;
-        }
+    case '+':
+        if (lexer_char_get_if(lexer, '+'))
+            token.type = TOKEN_INCREMENT;
+        else if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_ASSIGN_PLUS;
+        else
+            token.type = TOKEN_OP_PLUS;
+        break;
+    
+    case '-':
+        if (lexer_char_get_if(lexer, '-'))
+            token.type = TOKEN_DEINCREMENT;
+        else if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_ASSIGN_MINUS;
+        else
+            token.type = TOKEN_OP_MINUS;
+        break;
+    
+    case '/': // todo: add multiline comments
+        if (lexer_char_get_if(lexer, '/')) { // is a comment, skip
+            while (fpeek(lexer->file) != '\n') lexer_char_get(lexer);
+            return lexer_token_get_skip_cache(lexer);
+        } else if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_ASSIGN_DIVIDE;
+        else 
+            token.type = TOKEN_OP_DIVIDE;
+        break;
 
-        if (operator_length > OPERATOR_MAX_LENGTH) {
-            token.type = TOKEN_ERROR_OPERATOR_TOO_LONG;
-        } else {
-            operator[operator_length] = '\0';
-            bool is_operator = false;
-            for (int i = 0; i < sizeof(string_operators) / sizeof(*string_operators); i++) {
-                if (!strcmp(operator, string_operators[i])) {
-                    token.type = TOKEN_OP_MIN + i;
-                    is_operator = true;
+    case '*':
+        token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_MULTIPLY : TOKEN_OP_MULTIPLY;
+        break;
+
+    case '%':
+        token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_MODULO : TOKEN_OP_MODULO;
+        break;
+    
+    case '&':
+        if (lexer_char_get_if(lexer, '&'))
+            token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_LOGICAL_AND : TOKEN_OP_LOGICAL_AND;
+        else if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_ASSIGN_BITWISE_AND;
+        else
+            token.type = TOKEN_OP_BITWISE_AND;
+        break;
+    
+    case '|':
+        if (lexer_char_get_if(lexer, '|'))
+            token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_LOGICAL_OR : TOKEN_OP_LOGICAL_OR;
+        else if (lexer_char_get_if(lexer, '='))
+            token.type = TOKEN_ASSIGN_BITWISE_OR;
+        else
+            token.type = TOKEN_OP_BITWISE_OR;
+        break;
+    
+    case '^':
+        token.type = lexer_char_get_if(lexer, '=') ? TOKEN_ASSIGN_BITWISE_XOR : TOKEN_OP_BITWISE_XOR;
+        break;
+
+    default:
+        if (char_is_single_char_token_type(char_first)) 
+            token.type = char_first;
+        else if ('0' <= char_first && char_first <= '9') {
+            token.type = TOKEN_LITERAL;
+            int literal_int = char_first - '0';
+            
+            while (true) {
+                int digit = fpeek(lexer->file);
+                if (digit < '0' || '9' < digit) break;
+                lexer_char_get(lexer);
+                literal_int *= 10;
+                literal_int += (digit - '0');
+            }
+            
+            if (lexer_char_get_if(lexer, '.')) {
+                token.data.literal.type = LITERAL_DOUBLE;
+                token.data.literal.data.double_float = (double) literal_int;
+                double digit = 0.1;
+                while (true) {
+                    int digit_char = fpeek(lexer->file);
+                    if (digit_char < '0' || '9' < digit_char) break;
+                    lexer_char_get(lexer);
+                    token.data.literal.data.double_float += (digit * (digit_char - '0'));
+                    digit /= 10;
+                }
+            } else {
+                token.data.literal.type = LITERAL_INT;
+                token.data.literal.data.integer = literal_int;
+            }
+        } else if (char_is_identifier(char_first)) {
+            StringBuilder builder = string_builder_new();
+            string_builder_add_char(&builder, char_first);
+            while (char_is_identifier(fpeek(lexer->file))) {
+                string_builder_add_char(&builder, lexer_char_get(lexer));
+            }
+            
+            char *string = string_builder_free(&builder);
+            bool is_keyword = false;
+            for (int i = 0; i < sizeof(string_keywords) / sizeof(*string_keywords); i++) {
+                if (!strcmp(string, string_keywords[i])) {
+                    token.type = TOKEN_KEYWORD_MIN + i;
+                    is_keyword = true;
+                    free(string);
                     break;
                 }
             }
 
-            if (!is_operator) {
-                token.type = TOKEN_ERROR_OPERATOR_UNKNOWN;
+            if (!is_keyword) {
+                token.type = TOKEN_ID;
+                token.data.id = string;
             }
+        } else {
+            token.type = TOKEN_ERROR_CHARACTER_UNKNOWN;
         }
-
-    } else if (char_is_identifier(peek)) {
-        StringBuilder builder = string_builder_new();
-        string_builder_add_char(&builder, lexer_char_get(lexer));
-        while (char_is_identifier(fpeek(lexer->file))) {
-            string_builder_add_char(&builder, lexer_char_get(lexer));
-        }
-        
-        char *string = string_builder_free(&builder);
-        bool is_keyword = false;
-        for (int i = 0; i < sizeof(string_keywords) / sizeof(*string_keywords); i++) {
-            if (!strcmp(string, string_keywords[i])) {
-                token.type = TOKEN_KEYWORD_MIN + i;
-                is_keyword = true;
-                free(string);
-                break;
-            }
-        }
-
-        if (!is_keyword) {
-            token.type = TOKEN_ID;
-            token.data.id = string;
-        }
-    } else {
-        lexer_char_get(lexer);
-        token.type = TOKEN_ERROR_CHARACTER_UNKNOWN;
+        break;
     }
-    
+
     token.location.char_end = lexer->char_idx;
     return token;
 }

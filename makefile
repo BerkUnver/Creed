@@ -1,5 +1,5 @@
 APP_NAME = creed
-SOURCE = print.c print.h string_builder.c string_builder.h token.c token.h lexer.c lexer.h parser.c parser.h main.c
+SOURCE = print.c string_builder.c token.c lexer.c parser.c parser.h main.c
 
 all: run
 

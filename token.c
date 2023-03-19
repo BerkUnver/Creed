@@ -14,15 +14,19 @@ Location location_expand(Location begin, Location end) {
 }
 
 char *string_operators[] = {
-    "&&", "||", "&", "|", "==", "!=", "<", ">", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%"
+    "&&", "||", "&", "|", "^", "==", "!=", "<", ">", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%"
 };
 
 int operator_precedences[] = {
-    0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5
+    0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 5
 };
 
 char *string_keywords[] = {
     "if", "elif", "else", "as"
+};
+
+char *string_assigns[] = {
+    "=", "&&=" , "||=", "&=", "|=", "^=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="
 };
 
 bool char_is_single_char_token_type(int c) { 
@@ -33,7 +37,7 @@ bool char_is_single_char_token_type(int c) {
         || c == TOKEN_CURLY_BRACE_CLOSE
         || c == TOKEN_BRACKET_OPEN
         || c == TOKEN_BRACKET_CLOSE
-        || c == TOKEN_CARET
+        || c == TOKEN_BITWISE_NOT
         || c == TOKEN_QUESTION_MARK
         || c == TOKEN_COLON
         || c == TOKEN_COMMA
@@ -43,10 +47,6 @@ bool char_is_single_char_token_type(int c) {
 
 bool char_is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
-}
-
-bool char_is_operator(char c) {
-    return c == '!' || c == '%' || c == '*' || c == '/' || c == '+' || c == '-' || c == '>' || c == '<' || c == '/' || c == '&' || c == '|' || c == '=';
 }
 
 bool char_is_identifier(char c) {
@@ -110,13 +110,15 @@ void token_print(Token *token) {
     else if (token->type == TOKEN_ID)
         print(token->data.id);
     else if (token->type == TOKEN_EOF) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
-        return;
+        print("EOF");
     else if (char_is_single_char_token_type(token->type))
         putchar(token->type);
     else if (TOKEN_OP_MIN <= token->type && token->type <= TOKEN_OP_MAX)
         print(string_operators[token->type - TOKEN_OP_MIN]);
     else if (TOKEN_KEYWORD_MIN <= token->type && token->type <= TOKEN_KEYWORD_MAX)
         print(string_keywords[token->type - TOKEN_KEYWORD_MIN]);
+    else if (TOKEN_ASSIGN_MIN <= token->type && token->type <= TOKEN_ASSIGN_MAX)
+        print(string_assigns[token->type - TOKEN_ASSIGN_MIN]);
     else if (TOKEN_ERROR_MIN <= token->type && token->type <= TOKEN_ERROR_MAX) {
         
         Location location = token->location;

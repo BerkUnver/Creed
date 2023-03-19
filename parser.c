@@ -23,7 +23,7 @@ Type type_parse(Lexer *lexer) {
         int ptr_type; // I don't wanna make the type type a named type just for this
         
         switch (lexer_token_peek(lexer)->type) {
-            case TOKEN_CARET:
+            case TOKEN_OP_MULTIPLY:
                 ptr_type = TYPE_PTR;
                 break;
 
@@ -65,7 +65,7 @@ void type_print(Type *type) {
             break;
         case TYPE_PTR:
             type_print(type->data.sub_type);
-            putchar(TOKEN_CARET);
+            putchar(TOKEN_OP_MULTIPLY);
             break;
         case TYPE_PTR_NULLABLE:
             type_print(type->data.sub_type);

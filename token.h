@@ -50,12 +50,13 @@ typedef enum TokenType {
     TOKEN_BRACKET_OPEN = '[',
     TOKEN_BRACKET_CLOSE = ']',
     
-    TOKEN_CARET = '^',
+    TOKEN_BITWISE_NOT = '~',
     TOKEN_QUESTION_MARK = '?',
     TOKEN_COLON = ':',
     TOKEN_COMMA = ',',
     TOKEN_SEMICOLON = ';',
-    TOKEN_DOT = '.', // when this appears in a literal float, we consume it as part of the float.
+    TOKEN_DOT = '.', 
+    // when this appears in a literal float, we consume it as part of the float.
     // To prevent the ambiguity between the '.' at the beginning of a decimal and the '.' used to access data structure members:
     // We just don't allow having a decimal that starts only with '.', must start with "0."
 
@@ -66,7 +67,8 @@ typedef enum TokenType {
     TOKEN_OP_LOGICAL_AND = TOKEN_OP_MIN,
     TOKEN_OP_LOGICAL_OR,
     TOKEN_OP_BITWISE_AND,
-    TOKEN_OP_BITWISE_OR, // need to come up with new operator for bitwise or because I (Berk) have ^ to mean pointer right now.
+    TOKEN_OP_BITWISE_OR, 
+    TOKEN_OP_BITWISE_XOR,
     TOKEN_OP_EQ, // ==
     TOKEN_OP_NE, // not equal
     TOKEN_OP_LT, // less than
@@ -82,6 +84,29 @@ typedef enum TokenType {
     TOKEN_OP_MODULO,
     TOKEN_OP_MAX = TOKEN_OP_MODULO,
     // string_operators relies on these being in this order so don't change this without changing that.
+
+    TOKEN_UNARY_LOGICAL_NOT,
+    TOKEN_UNARY_BITWISE_NOT,
+    
+    TOKEN_INCREMENT,
+    TOKEN_DEINCREMENT,
+
+    TOKEN_ASSIGN_MIN,
+    TOKEN_ASSIGN = TOKEN_ASSIGN_MIN,
+    TOKEN_ASSIGN_LOGICAL_AND,
+    TOKEN_ASSIGN_LOGICAL_OR,
+    TOKEN_ASSIGN_BITWISE_AND,
+    TOKEN_ASSIGN_BITWISE_OR,
+    TOKEN_ASSIGN_BITWISE_XOR,
+    TOKEN_ASSIGN_SHIFT_LEFT,
+    TOKEN_ASSIGN_SHIFT_RIGHT,
+    TOKEN_ASSIGN_PLUS,
+    TOKEN_ASSIGN_MINUS,
+    TOKEN_ASSIGN_MULTIPLY,
+    TOKEN_ASSIGN_DIVIDE,
+    TOKEN_ASSIGN_MODULO,
+    TOKEN_ASSIGN_MAX = TOKEN_ASSIGN_MODULO,
+    // string_assigns relies on this order so don't change.
 
     // Same thing for operators applies to keywords.
     TOKEN_KEYWORD_MIN,
@@ -109,6 +134,7 @@ typedef enum TokenType {
 char *string_operators[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
 int operator_precedences[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
 char *string_keywords[TOKEN_KEYWORD_MAX - TOKEN_KEYWORD_MIN + 1];
+char *string_assigns[TOKEN_ASSIGN_MAX - TOKEN_ASSIGN_MIN + 1];
 
 typedef union TokenData {
     Literal literal;
@@ -125,8 +151,8 @@ typedef struct Token {
 bool char_is_single_char_token_type(int c);
 
 bool char_is_whitespace(char c);
-bool char_is_operator(char c);
 bool char_is_identifier(char c);
+bool char_is_operator(char c);
 
 void token_print(Token *token);
 void token_free(Token *token);
