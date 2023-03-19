@@ -49,10 +49,6 @@ bool char_is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
 }
 
-bool char_is_identifier(char c) {
-    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
-}
-
 void literal_free(Literal *literal) {
     if (literal->type == LITERAL_STRING) free(literal->data.string);
 }

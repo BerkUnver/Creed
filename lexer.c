@@ -89,7 +89,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         .char_start = lexer->char_idx,
     };
 
-    char char_first = lexer_char_get(lexer);
+    int char_first = lexer_char_get(lexer);
     
     switch (char_first) {
     case DELIMITER_LITERAL_CHAR: { 
@@ -239,11 +239,15 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 token.data.literal.type = LITERAL_INT;
                 token.data.literal.data.integer = literal_int;
             }
-        } else if (char_is_identifier(char_first)) {
+        } else if (('a' <= char_first && char_first <= 'z') || ('A' <= char_first && char_first <= 'Z') || char_first == '_') {
             StringBuilder builder = string_builder_new();
             string_builder_add_char(&builder, char_first);
-            while (char_is_identifier(fpeek(lexer->file))) {
-                string_builder_add_char(&builder, lexer_char_get(lexer));
+
+            while (true) {
+                char c = fpeek(lexer->file);
+                if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (c == '_') || ('0' <= c && c <= '9'))
+                    string_builder_add_char(&builder, lexer_char_get(lexer));
+                else break;
             }
             
             char *string = string_builder_free(&builder);
