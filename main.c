@@ -45,9 +45,7 @@ void test_parser(void) {
 int main(void) {
     test_lexer();
     putchar('\n');
-    /*
     test_parser();
     putchar('\n');
-    */
     return EXIT_SUCCESS;
 }

@@ -58,23 +58,49 @@ Type type_parse(Lexer *lexer) {
     }
 }
 
+void type_free(Type *type) {
+    switch (type->type) {
+        case TYPE_ID:
+            free(type->data.id);
+            break;
+        
+        case TYPE_PTR:
+        case TYPE_PTR_NULLABLE:
+        case TYPE_ARRAY:
+            type_free(type->data.sub_type);
+            free(type->data.sub_type);
+            break;
+
+        default:
+            assert(false);
+            break;
+    }
+}
+
 void type_print(Type *type) {
     switch (type->type) {
         case TYPE_ID:
             print(type->data.id);
             break;
+        
         case TYPE_PTR:
             type_print(type->data.sub_type);
-            putchar(TOKEN_OP_MULTIPLY);
+            print(string_operators[TOKEN_OP_MULTIPLY - TOKEN_OP_MIN]);
             break;
+        
         case TYPE_PTR_NULLABLE:
             type_print(type->data.sub_type);
             putchar(TOKEN_QUESTION_MARK);
             break;
+
         case TYPE_ARRAY:
             type_print(type->data.sub_type);
             putchar(TOKEN_BRACKET_OPEN);
             putchar(TOKEN_BRACKET_CLOSE);
+            break;
+        
+        default:
+            assert(false);
             break;
     }
 }
@@ -128,7 +154,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             expr = (Expr) {
                 .location = location_expand(expr.location, token_id.location),
                 .type = EXPR_ID,
-                .data.id = token_id.data.id // TODO: a hack, don't free tokene because the string is transferred here.
+                .data.id = token_id.data.id // TODO: a hack, don't free token because the string is transferred here.
             };
         } break;
         
@@ -210,7 +236,15 @@ void expr_free(Expr *expr) {
             literal_free(&expr->data.literal);
             break;
 
-        default: break;
+        case EXPR_TYPECAST:
+            expr_free(expr->data.typecast.operand);
+            free(expr->data.typecast.operand);
+            type_free(&expr->data.typecast.cast_to);
+            break;
+
+        default: 
+            assert(false);
+            break;
     }
 }
 

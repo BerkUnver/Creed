@@ -23,6 +23,7 @@ typedef struct Type {
 
 Type type_parse(Lexer *lexer);
 void type_print(Type *type);
+void type_free(Type *type);
 
 typedef struct Expr {
     Location location;
