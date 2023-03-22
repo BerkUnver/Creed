@@ -100,10 +100,8 @@ void type_print(Type *type) {
 }
 
 static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
-    Token *peek = lexer_token_peek(lexer);
-
     Expr expr;
-    switch (peek->type) {
+    switch (lexer_token_peek(lexer)->type) {
         case TOKEN_LITERAL: {
             Token token = lexer_token_get(lexer);
             expr.type = EXPR_LITERAL;
@@ -250,7 +248,7 @@ void expr_free(Expr *expr) {
             break;
         
         case EXPR_FUNCTION_CALL:
-            for (int i = 0; i < expr->data.function_call.param_count - 1; i++) {
+            for (int i = 0; i < expr->data.function_call.param_count; i++) {
                 expr_free(&expr->data.function_call.params[i]);
             }
             free(expr->data.function_call.params);
