@@ -1,6 +1,8 @@
 #include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "print.h"
+#include "token.h"
 
 void print(const char *str) {
     fputs(str, stdout);
@@ -17,4 +19,11 @@ void print_literal_char(char c) {
         case '\r': print("\\r"); break;
         default: putchar(c); break;
     }
+}
+
+void error_exit(Location location, const char *error) {
+    location_print(location);
+    print(": ");
+    puts(error);
+    exit(0);
 }

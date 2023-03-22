@@ -7,41 +7,9 @@
 #include "print.h"
 #include "token.h"
 
-void parser_error_print(ParserError error, Location location) {
-    location_print(location);
-    print(": ");
-    switch (error) {
-        case PARSER_ERROR_NO_TYPE_ID:
-            print("Expected a type id at the beginning of a type signature.");
-            break;
-        case PARSER_ERROR_NO_ARRAY_CLOSING_BRACKET:
-            print("Expected a closing bracket to match the opening bracket of an array type signature.");
-            break;
-        case PARSER_ERROR_NO_PAREN_CLOSE:
-            print("Expected a closing parenthesis to match the opening parenthesis of a parenthesied expression.");
-            break;
-        case PARSER_ERROR_NO_FUNCTION_PARAM_COMMA:
-            print("Expected a comma separating consecutive arguments of a function.");
-            break;
-        case PARSER_ERROR_NO_EXPR:
-            print("Expected an expression here.");
-            break;
-        default:
-            assert(false);
-            return;
-    }
-}
-
 Type type_parse(Lexer *lexer) {
     if (lexer_token_peek(lexer)->type != TOKEN_ID) {
-        Token token_err = lexer_token_get(lexer);
-        Type type_err = {
-            .location = token_err.location,
-            .type = TYPE_ERROR,
-            .data.error = PARSER_ERROR_NO_TYPE_ID
-        };
-        token_free(&token_err);
-        return type_err;
+        error_exit(lexer_token_get(lexer).location, "Expected a type id at the beginning of a type signature.");
     }
     
     Token token_id = lexer_token_get(lexer); // TODO: a hack. Don't need to free as id ownership is transferred
@@ -65,19 +33,11 @@ Type type_parse(Lexer *lexer) {
             
             case TOKEN_BRACKET_OPEN: {
                 Token token_open = lexer_token_get(lexer);
-                token_free(&token_open);
-                
                 if (lexer_token_peek(lexer)->type != TOKEN_BRACKET_CLOSE) {
-                    Token token_error = lexer_token_get(lexer);
-                    type_free(&type);
-                    Type type_err = {
-                        .location = token_error.location,
-                        .type = TYPE_ERROR,
-                        .data.error = PARSER_ERROR_NO_ARRAY_CLOSING_BRACKET,
-                    };
-                    token_free(&token_error);
-                    return type_err;
+                    Location location = location_expand(type.location, token_open.location);
+                    error_exit(location, "Expected a closing bracket after the opening bracket of an array declaration.");
                 }
+                
                 ptr_type = TYPE_ARRAY;
             } break;
             
@@ -136,13 +96,6 @@ void type_print(Type *type) {
             putchar(TOKEN_BRACKET_OPEN);
             putchar(TOKEN_BRACKET_CLOSE);
             break;
-       
-        case TYPE_ERROR:
-            print("Type error: ");
-            parser_error_print(type->data.error, type->location);
-            break;
-
-        default: break;
     }
 }
 
@@ -164,16 +117,10 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             token_free(&token_open);
             
             Expr operand = expr_parse(lexer);
-            if (operand.type == EXPR_ERROR) return operand;
             
             if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
-                expr = (Expr) {
-                    .location = location_expand(token_open.location, operand.location),
-                    .type = EXPR_ERROR,
-                    .data.error = PARSER_ERROR_NO_PAREN_CLOSE
-                };
-                expr_free(&operand);
-                return expr;
+                Location location = location_expand(token_open.location, operand.location);
+                error_exit(location, "Expected a closing parenthesis at the end of a parenthesized expression."); 
             }        
 
             Token token_close = lexer_token_get(lexer);
@@ -197,14 +144,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             expr.location = token_id.location;
         } break;
         
-        default: {
-            Token token_err = lexer_token_get(lexer);
-            expr.location = token_err.location;
-            expr.type = EXPR_ERROR;
-            expr.data.error = PARSER_ERROR_NO_EXPR;
-            token_free(&token_err);
-            return expr;
-        }
+        default: error_exit(lexer_token_get(lexer).location, "Expected an expression here.");
     }
     
     while (true) {     
@@ -234,12 +174,6 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
                 while (true) {
                     Expr param = expr_parse(lexer);
-                    if (param.type == EXPR_ERROR) { 
-                        for (int i = 0; i < param_count; i++) expr_free(&params[i]);
-                        free(params);
-                        expr_free(&expr);
-                        return param;
-                    }
                     
                     param_count++;
                     params = realloc(params, sizeof(Expr) * param_count);
@@ -249,18 +183,8 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
                     if (lexer_token_peek(lexer)->type == TOKEN_COMMA) {
                         lexer_token_get(lexer);
                     } else {
-                        Token token_end = lexer_token_get(lexer);
-                        for (int i = 0; i < param_count; i++) expr_free(&params[i]);
-                        free(params);
-                        expr_free(&expr);
-                        token_free(&token_end);
-                        return (Expr) {
-                            .location = token_end.location,
-                            .type = EXPR_ERROR,
-                            .data.error = PARSER_ERROR_NO_FUNCTION_PARAM_COMMA
-                        };
-                    }
-                    
+                        error_exit(expr.location, "Expected a comma after a function parameter.");
+                    }    
                 }
             }
             
@@ -284,24 +208,18 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         Token op = lexer_token_get(lexer);
         token_free(&op);
 
-        Expr rhs = expr_parse_precedence(lexer, op_precedence);
-        if (rhs.type == EXPR_ERROR) {
-            expr_free(&expr);
-            return rhs;
-        }
+        Expr *lhs = malloc(sizeof(Expr));
+        *lhs = expr;
         
-        Expr *lhs_ptr = malloc(sizeof(Expr));
-        *lhs_ptr = expr;
-        
-        Expr *rhs_ptr = malloc(sizeof(Expr));
-        *rhs_ptr = rhs;
+        Expr *rhs = malloc(sizeof(Expr));
+        *rhs = expr_parse_precedence(lexer, op_precedence);
         
         expr = (Expr) {
-            .location = location_expand(expr.location, rhs.location), 
+            .location = location_expand(expr.location, rhs->location), 
             .type = EXPR_BINARY,
             .data.binary.operator = op_type,
-            .data.binary.lhs = lhs_ptr,
-            .data.binary.rhs = rhs_ptr,
+            .data.binary.lhs = lhs,
+            .data.binary.rhs = rhs,
         };
     }
 }
@@ -396,16 +314,6 @@ void expr_print(Expr *expr) {
                 expr_print(&expr->data.function_call.params[last_param_idx]);
             }
             putchar(TOKEN_PAREN_CLOSE);
-            break;
-
-        case EXPR_ERROR:
-            print("[Expression error: ");
-            parser_error_print(expr->data.error, expr->location);
-            putchar(']');
-            break;
-
-        default:
-            assert(false);
             break;
     }
 }
