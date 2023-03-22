@@ -81,13 +81,15 @@ typedef struct Statement {
     Location location;
     
     enum {
-        STATEMENT_VAR_DECLARE
+        STATEMENT_VAR_DECLARE,
     } type;
 
     union {
         struct {
             Type type;
             char *id;
+            bool has_assign;
+            Expr assign;
         } var_declare;
     } data;
 } Statement;

@@ -31,10 +31,10 @@ typedef struct Literal {
     } type;
 
     union {
-        char *string;
-        int integer;
-        double double_float;
-        char character;
+        char *l_string;
+        int l_int;
+        double l_double;
+        char l_char;
     } data;
 } Literal; 
 

@@ -55,34 +55,34 @@ bool char_is_whitespace(char c) {
 }
 
 void literal_free(Literal *literal) {
-    if (literal->type == LITERAL_STRING) free(literal->data.string);
+    if (literal->type == LITERAL_STRING) free(literal->data.l_string);
 }
 
 void literal_print(Literal *literal) {
     switch (literal->type) {
         case LITERAL_CHAR:
             putchar('\'');
-            print_literal_char(literal->data.character);
+            print_literal_char(literal->data.l_char);
             putchar('\'');
             break;
 
         case LITERAL_STRING:
             putchar('"');
             int idx = 0;
-            while (literal->data.string[idx] != '\0') {
-                print_literal_char(literal->data.string[idx]);
+            while (literal->data.l_string[idx] != '\0') {
+                print_literal_char(literal->data.l_string[idx]);
                 idx++;
             }
             putchar('"');
             break;
 
         case LITERAL_INT:
-            printf("%i", literal->data.integer);
+            printf("%i", literal->data.l_int);
             break;
 
         case LITERAL_DOUBLE:
             // todo: make so this prints out only as many chars as the token is in length.
-            printf("%lf", literal->data.double_float);
+            printf("%lf", literal->data.l_double);
             break;
 
         default:

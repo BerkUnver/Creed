@@ -1,3 +1,4 @@
 { 
-    i: int; 
+    i: int;
+    j: bool = false;
 }

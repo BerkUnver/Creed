@@ -21,7 +21,7 @@ void print_literal_char(char c) {
     }
 }
 
-void error_exit(Location location, const char *error) {
+_Noreturn void error_exit(Location location, const char *error) {
     location_print(location);
     print(": ");
     puts(error);

@@ -101,7 +101,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         } else {
             token.type = TOKEN_LITERAL;
             token.data.literal.type = LITERAL_CHAR;
-            token.data.literal.data.character = literal_char;
+            token.data.literal.data.l_char = literal_char;
             lexer_char_get(lexer);
         }
     } break;
@@ -119,7 +119,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         if (fpeek(lexer->file) == DELIMITER_LITERAL_STRING) {
             token.type = TOKEN_LITERAL;
             token.data.literal.type = LITERAL_STRING;
-            token.data.literal.data.string = string;
+            token.data.literal.data.l_string = string;
             lexer_char_get(lexer);
         } else {
             free(string);
@@ -226,18 +226,18 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
             
             if (lexer_char_get_if(lexer, '.')) {
                 token.data.literal.type = LITERAL_DOUBLE;
-                token.data.literal.data.double_float = (double) literal_int;
+                token.data.literal.data.l_double = (double) literal_int;
                 double digit = 0.1;
                 while (true) {
                     int digit_char = fpeek(lexer->file);
                     if (digit_char < '0' || '9' < digit_char) break;
                     lexer_char_get(lexer);
-                    token.data.literal.data.double_float += (digit * (digit_char - '0'));
+                    token.data.literal.data.l_double += (digit * (digit_char - '0'));
                     digit /= 10;
                 }
             } else {
                 token.data.literal.type = LITERAL_INT;
-                token.data.literal.data.integer = literal_int;
+                token.data.literal.data.l_int = literal_int;
             }
         } else if (('a' <= char_first && char_first <= 'z') || ('A' <= char_first && char_first <= 'Z') || char_first == '_') {
             StringBuilder builder = string_builder_new();

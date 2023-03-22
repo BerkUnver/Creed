@@ -327,19 +327,27 @@ Statement statement_parse(Lexer *lexer) {
     }
     lexer_token_get(lexer);
 
+    Statement statement;
+
     Type type = type_parse(lexer);
-    if (lexer_token_peek(lexer)->type != TOKEN_SEMICOLON) {
-        error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a statement.");
+    if (lexer_token_peek(lexer)->type == TOKEN_ASSIGN) {
+        lexer_token_get(lexer);
+        statement.data.var_declare.assign = expr_parse(lexer);
+        statement.data.var_declare.has_assign = true;
+    } else {
+        statement.data.var_declare.has_assign = false;
     }
-    lexer_token_get(lexer);
+
+    if (lexer_token_peek(lexer)->type != TOKEN_SEMICOLON) {
+        error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a variable declaration.");
+    }
+    Token token_semicolon = lexer_token_get(lexer); 
     
-   
-    return (Statement) {
-        .location = location_expand(token_var.location, type.location),
-        .type = STATEMENT_VAR_DECLARE,
-        .data.var_declare.id = token_var.data.id,
-        .data.var_declare.type = type
-    };
+    statement.location = location_expand(token_var.location, token_semicolon.location);
+    statement.type = STATEMENT_VAR_DECLARE;
+    statement.data.var_declare.id = token_var.data.id;
+    statement.data.var_declare.type = type;
+    return statement;
 }
 
 void statement_free(Statement *statement) {
@@ -347,6 +355,9 @@ void statement_free(Statement *statement) {
         case STATEMENT_VAR_DECLARE:
             free(statement->data.var_declare.id);
             type_free(&statement->data.var_declare.type);
+            if (statement->data.var_declare.has_assign) {
+                expr_free(&statement->data.var_declare.assign);
+            }
             break;
     }
 }
@@ -358,6 +369,11 @@ void statement_print(Statement *statement) {
             putchar(TOKEN_COLON);
             putchar(' ');
             type_print(&statement->data.var_declare.type);
+            if (statement->data.var_declare.has_assign) {
+                printf(" = ");
+                expr_print(&statement->data.var_declare.assign);
+            }
+            putchar(TOKEN_SEMICOLON);
             break;
     }
 }
@@ -398,7 +414,7 @@ void scope_print(Scope *scope, int indentation) {
         printf("%c %c", TOKEN_CURLY_BRACE_OPEN, TOKEN_CURLY_BRACE_CLOSE);
         return;
     }
-
+    
     putchar(TOKEN_CURLY_BRACE_OPEN);
     putchar('\n');
     for (int i = 0; i < scope->statement_count; i++) {
