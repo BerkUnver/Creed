@@ -9,7 +9,7 @@
 
 Type type_parse(Lexer *lexer) {
     if (lexer_token_peek(lexer)->type != TOKEN_ID) {
-        error_exit(lexer_token_get(lexer).location, "Expected a type id at the beginning of a type signature.");
+        error_exit(lexer_token_peek(lexer)->location, "Expected a type id at the beginning of a type signature.");
     }
     
     Token token_id = lexer_token_get(lexer); // TODO: a hack. Don't need to free as id ownership is transferred
@@ -314,4 +314,103 @@ void expr_print(Expr *expr) {
             putchar(TOKEN_PAREN_CLOSE);
             break;
     }
+}
+
+Statement statement_parse(Lexer *lexer) {
+    if (lexer_token_peek(lexer)->type != TOKEN_ID) {
+        error_exit(lexer_token_peek(lexer)->location, "Expected a variable declaration statement to start with the name of the variable.");
+    }
+    Token token_var = lexer_token_get(lexer);
+
+    if (lexer_token_peek(lexer)->type != TOKEN_COLON) {
+        error_exit(lexer_token_peek(lexer)->location, "Expected a colon after a variable name in a variable declaration."); 
+    }
+    lexer_token_get(lexer);
+
+    Type type = type_parse(lexer);
+    if (lexer_token_peek(lexer)->type != TOKEN_SEMICOLON) {
+        error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a statement.");
+    }
+    lexer_token_get(lexer);
+    
+   
+    return (Statement) {
+        .location = location_expand(token_var.location, type.location),
+        .type = STATEMENT_VAR_DECLARE,
+        .data.var_declare.id = token_var.data.id,
+        .data.var_declare.type = type
+    };
+}
+
+void statement_free(Statement *statement) {
+    switch (statement->type) {
+        case STATEMENT_VAR_DECLARE:
+            free(statement->data.var_declare.id);
+            type_free(&statement->data.var_declare.type);
+            break;
+    }
+}
+
+void statement_print(Statement *statement) {
+    switch (statement->type) {
+        case STATEMENT_VAR_DECLARE:
+            print(statement->data.var_declare.id);
+            putchar(TOKEN_COLON);
+            putchar(' ');
+            type_print(&statement->data.var_declare.type);
+            break;
+    }
+}
+
+Scope scope_parse(Lexer *lexer) {
+    if (lexer_token_peek(lexer)->type != TOKEN_CURLY_BRACE_OPEN) {
+        error_exit(lexer_token_peek(lexer)->location, "Expected an opening curly brace at the beginning of a scope.");
+    }
+    Token token_start = lexer_token_get(lexer);
+
+    int statement_count = 0;
+    Statement *statements = NULL;
+
+    while (lexer_token_peek(lexer)->type != TOKEN_CURLY_BRACE_CLOSE) {
+        statement_count++;
+        statements = realloc(statements, sizeof(Statement) * statement_count);
+        statements[statement_count - 1] = statement_parse(lexer);
+    }
+
+    Token token_end = lexer_token_get(lexer);
+    
+    return (Scope) {
+        .location = location_expand(token_start.location, token_end.location),
+        .statement_count = statement_count,
+        .statements = statements
+    };
+}
+
+void scope_free(Scope *scope) {
+    for (int i = 0; i < scope->statement_count; i++) {
+        statement_free(scope->statements + i);
+    }
+    free(scope->statements);
+}
+
+void scope_print(Scope *scope, int indentation) {
+    if (scope->statement_count == 0) {
+        printf("%c %c", TOKEN_CURLY_BRACE_OPEN, TOKEN_CURLY_BRACE_CLOSE);
+        return;
+    }
+
+    putchar(TOKEN_CURLY_BRACE_OPEN);
+    putchar('\n');
+    for (int i = 0; i < scope->statement_count; i++) {
+        for (int j = 0; j < indentation + 1; j++) {
+            print(STR_INDENTATION);
+        }
+        statement_print(&scope->statements[i]);
+        putchar('\n');
+    }
+    for (int i = 0; i < indentation - 1; i++) {
+        print(STR_INDENTATION);
+    }
+    putchar(TOKEN_CURLY_BRACE_CLOSE);
+    putchar('\n');
 }

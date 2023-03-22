@@ -7,7 +7,8 @@
 #include "print.h"
 
 #define PATH_TEST_LEXER "test_lexer.txt"
-#define PATH_TEST_PARSER "test_parser.txt"
+#define PATH_TEST_EXPR "test_expr.txt"
+#define PATH_TEST_SCOPE "test_scope.txt"
 
 void test_lexer(void) {
     Lexer lexer;
@@ -31,10 +32,10 @@ void test_lexer(void) {
     lexer_free(&lexer);
 }
 
-void test_parser(void) {
+void test_expr(void) {
     Lexer lexer;
-    if (!lexer_new(PATH_TEST_PARSER, &lexer)) {
-        printf("Failed to open the file at "PATH_TEST_PARSER".\n");
+    if (!lexer_new(PATH_TEST_EXPR, &lexer)) {
+        printf("Failed to open the file at "PATH_TEST_EXPR".\n");
         return;
     }
 
@@ -45,10 +46,26 @@ void test_parser(void) {
     return;
 }
 
+void test_scope(void) {
+    Lexer lexer;
+    if (!lexer_new(PATH_TEST_SCOPE, &lexer)) {
+        printf("Failed to open the file at "PATH_TEST_SCOPE".\n");
+        return;
+    }
+
+    Scope scope = scope_parse(&lexer);
+    lexer_free(&lexer);
+    scope_print(&scope, 0);
+    scope_free(&scope);
+    return;
+}
+
 int main(void) {
     test_lexer();
     putchar('\n');
-    test_parser();
+    test_expr();
+    putchar('\n');
+    test_scope();
     putchar('\n');
     return EXIT_SUCCESS;
 }

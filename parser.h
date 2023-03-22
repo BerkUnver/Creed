@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include "token.h"
 
+#define STR_INDENTATION "   "
 typedef struct Type {
     Location location;
 
@@ -75,5 +76,34 @@ typedef struct Expr {
 Expr expr_parse(Lexer *lexer);
 void expr_free(Expr *expr);
 void expr_print(Expr *expr);
+
+typedef struct Statement {
+    Location location;
+    
+    enum {
+        STATEMENT_VAR_DECLARE
+    } type;
+
+    union {
+        struct {
+            Type type;
+            char *id;
+        } var_declare;
+    } data;
+} Statement;
+
+Statement statement_parse(Lexer *lexer);
+void statement_free(Statement *statement);
+void statement_print(Statement *statement);
+
+typedef struct Scope {
+    Location location;
+    int statement_count;
+    Statement *statements;
+} Scope;
+
+Scope scope_parse(Lexer *lexer);
+void scope_free(Scope *scope);
+void scope_print(Scope *scope, int indentation);
 
 #endif
