@@ -5,6 +5,7 @@
 #include "token.h"
 #include "parser.h"
 #include "print.h"
+#include "string_cache.h"
 
 #define PATH_TEST_LEXER "test_lexer.txt"
 #define PATH_TEST_EXPR "test_expr.txt"
@@ -61,11 +62,15 @@ void test_scope(void) {
 }
 
 int main(void) {
+    string_cache_init();
+
     test_lexer();
     putchar('\n');
     test_expr();
     putchar('\n');
     test_scope();
     putchar('\n');
+  
+    string_cache_free();
     return EXIT_SUCCESS;
 }
