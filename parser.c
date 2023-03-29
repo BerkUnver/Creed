@@ -8,11 +8,11 @@
 #include "token.h"
 
 Type type_parse(Lexer *lexer) {
-    if (lexer_token_peek(lexer)->type != TOKEN_ID) {
-        error_exit(lexer_token_peek(lexer)->location, "Expected a type id at the beginning of a type signature.");
+    Token token_id = lexer_token_get(lexer);
+    if (token_id.type != TOKEN_ID) {
+        error_exit(token_id.location, "Expected a type id at the beginning of a type signature.");
     }
     
-    Token token_id = lexer_token_get(lexer); // TODO: a hack. Don't need to free as id ownership is transferred
     Type type = {
         .location = token_id.location,
         .type = TYPE_ID,
@@ -22,7 +22,7 @@ Type type_parse(Lexer *lexer) {
     while (true) {
         int ptr_type; // I don't wanna make the type type a named type just for this
         
-        switch (lexer_token_peek(lexer)->type) {
+        switch (lexer_token_peek(lexer).type) {
             case TOKEN_OP_MULTIPLY:
                 ptr_type = TYPE_PTR;
                 break;
@@ -33,7 +33,7 @@ Type type_parse(Lexer *lexer) {
             
             case TOKEN_BRACKET_OPEN: {
                 Token token_open = lexer_token_get(lexer);
-                if (lexer_token_peek(lexer)->type != TOKEN_BRACKET_CLOSE) {
+                if (lexer_token_peek(lexer).type != TOKEN_BRACKET_CLOSE) {
                     Location location = location_expand(type.location, token_open.location);
                     error_exit(location, "Expected a closing bracket after the opening bracket of an array declaration.");
                 }
@@ -54,16 +54,11 @@ Type type_parse(Lexer *lexer) {
             .type = ptr_type,
             .data.sub_type = sub_type
         };
-        token_free(&token_end);
     }
 }
 
 void type_free(Type *type) {
-    switch (type->type) {
-        case TYPE_ID:
-            free(type->data.id);
-            break;
-        
+    switch (type->type) {   
         case TYPE_PTR:
         case TYPE_PTR_NULLABLE:
         case TYPE_ARRAY:
@@ -78,7 +73,7 @@ void type_free(Type *type) {
 void type_print(Type *type) {
     switch (type->type) {
         case TYPE_ID:
-            print(type->data.id);
+            print(string_cache_get(type->data.id));
             break;
         
         case TYPE_PTR:
@@ -101,22 +96,19 @@ void type_print(Type *type) {
 
 static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     Expr expr;
-    switch (lexer_token_peek(lexer)->type) {
+    switch (lexer_token_peek(lexer).type) {
         case TOKEN_LITERAL: {
             Token token = lexer_token_get(lexer);
             expr.type = EXPR_LITERAL;
             expr.location = token.location;
             expr.data.literal = token.data.literal;
-            // TODO: a hack. Don't need to free token as literal ownership is transferred.
         } break;
       
         case TOKEN_PAREN_OPEN: {
             Token token_open = lexer_token_get(lexer);
-            token_free(&token_open);
-            
             Expr operand = expr_parse(lexer);
             
-            if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
+            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
                 Location location = location_expand(token_open.location, operand.location);
                 error_exit(location, "Expected a closing parenthesis at the end of a parenthesized expression."); 
             }        
@@ -131,8 +123,6 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
                 .data.unary.operator = EXPR_UNARY_PAREN,
                 .data.unary.operand = operand_ptr
             };
-            
-            token_free(&token_close);
         } break;
 
         case TOKEN_ID: {
@@ -146,10 +136,9 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     }
     
     while (true) {     
-        TokenType op_type = lexer_token_peek(lexer)->type;
+        TokenType op_type = lexer_token_peek(lexer).type;
         if (op_type == TOKEN_KEYWORD_TYPECAST) {
-            Token token_typecast = lexer_token_get(lexer);
-            token_free(&token_typecast);
+            lexer_token_get(lexer);
             
             Type cast_to = type_parse(lexer); // TODO: error handling
             Expr *operand = malloc(sizeof(Expr));
@@ -163,13 +152,11 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             continue;
         
         } else if (op_type == TOKEN_PAREN_OPEN) { // function call
-            Token paren_open = lexer_token_get(lexer);
-            token_free(&paren_open);
-            
+            lexer_token_get(lexer); 
             int param_count = 0;
             Expr *params = NULL;
             
-            if (lexer_token_peek(lexer)->type != TOKEN_PAREN_CLOSE) {
+            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
                 while (true) {
                     Expr param = expr_parse(lexer);
                     
@@ -177,8 +164,8 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
                     params = realloc(params, sizeof(Expr) * param_count);
                     params[param_count - 1] = param;
                     
-                    if (lexer_token_peek(lexer)->type == TOKEN_PAREN_CLOSE) break;
-                    if (lexer_token_peek(lexer)->type == TOKEN_COMMA) {
+                    if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
+                    if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
                         lexer_token_get(lexer);
                     } else {
                         error_exit(expr.location, "Expected a comma after a function parameter.");
@@ -194,7 +181,6 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             expr.data.function_call.params = params;
             expr.data.function_call.param_count = param_count;
             expr.location = location_expand(expr.location, paren_close.location);
-            token_free(&paren_close);
             continue;
         }
 
@@ -203,8 +189,7 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
         if (op_precedence < precedence) return expr; 
         
-        Token op = lexer_token_get(lexer);
-        token_free(&op);
+        lexer_token_get(lexer); // get the operator
 
         Expr *lhs = malloc(sizeof(Expr));
         *lhs = expr;
@@ -256,14 +241,6 @@ void expr_free(Expr *expr) {
             free(expr->data.function_call.function);
             break;
 
-        case EXPR_ID:
-            free(expr->data.id);
-            break;
-
-        case EXPR_LITERAL:
-            literal_free(&expr->data.literal);
-            break;
-
         default: break;
     }
 }
@@ -287,7 +264,7 @@ void expr_print(Expr *expr) {
             break;
         
         case EXPR_ID:
-            print(expr->data.id);
+            print(string_cache_get(expr->data.id));
             break;
 
         case EXPR_LITERAL:
@@ -317,20 +294,22 @@ void expr_print(Expr *expr) {
 }
 
 Statement statement_parse(Lexer *lexer) {
-    if (lexer_token_peek(lexer)->type != TOKEN_ID) {
-        error_exit(lexer_token_peek(lexer)->location, "Expected a variable declaration statement to start with the name of the variable.");
-    }
-    Token token_var = lexer_token_get(lexer);
+    Token token_var = lexer_token_peek(lexer);
 
-    if (lexer_token_peek(lexer)->type != TOKEN_COLON) {
-        error_exit(lexer_token_peek(lexer)->location, "Expected a colon after a variable name in a variable declaration."); 
+    if (token_var.type != TOKEN_ID) {
+        error_exit(token_var.location, "Expected a variable declaration statement to start with the name of the variable.");
+    }
+    lexer_token_get(lexer);
+
+    if (lexer_token_peek(lexer).type != TOKEN_COLON) {
+        error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
     }
     lexer_token_get(lexer);
 
     Statement statement;
 
     Type type = type_parse(lexer);
-    if (lexer_token_peek(lexer)->type == TOKEN_ASSIGN) {
+    if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
         lexer_token_get(lexer);
         statement.data.var_declare.assign = expr_parse(lexer);
         statement.data.var_declare.has_assign = true;
@@ -338,7 +317,7 @@ Statement statement_parse(Lexer *lexer) {
         statement.data.var_declare.has_assign = false;
     }
 
-    if (lexer_token_peek(lexer)->type != TOKEN_SEMICOLON) {
+    if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
         error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a variable declaration.");
     }
     Token token_semicolon = lexer_token_get(lexer); 
@@ -353,7 +332,6 @@ Statement statement_parse(Lexer *lexer) {
 void statement_free(Statement *statement) {
     switch (statement->type) {
         case STATEMENT_VAR_DECLARE:
-            free(statement->data.var_declare.id);
             type_free(&statement->data.var_declare.type);
             if (statement->data.var_declare.has_assign) {
                 expr_free(&statement->data.var_declare.assign);
@@ -365,7 +343,7 @@ void statement_free(Statement *statement) {
 void statement_print(Statement *statement) {
     switch (statement->type) {
         case STATEMENT_VAR_DECLARE:
-            print(statement->data.var_declare.id);
+            print(string_cache_get(statement->data.var_declare.id));
             putchar(TOKEN_COLON);
             putchar(' ');
             type_print(&statement->data.var_declare.type);
@@ -379,15 +357,16 @@ void statement_print(Statement *statement) {
 }
 
 Scope scope_parse(Lexer *lexer) {
-    if (lexer_token_peek(lexer)->type != TOKEN_CURLY_BRACE_OPEN) {
-        error_exit(lexer_token_peek(lexer)->location, "Expected an opening curly brace at the beginning of a scope.");
+    Token token_start = lexer_token_peek(lexer);
+    if (token_start.type != TOKEN_CURLY_BRACE_OPEN) {
+        error_exit(token_start.location, "Expected an opening curly brace at the beginning of a scope.");
     }
-    Token token_start = lexer_token_get(lexer);
+    lexer_token_get(lexer);
 
     int statement_count = 0;
     Statement *statements = NULL;
 
-    while (lexer_token_peek(lexer)->type != TOKEN_CURLY_BRACE_CLOSE) {
+    while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
         statement_count++;
         statements = realloc(statements, sizeof(Statement) * statement_count);
         statements[statement_count - 1] = statement_parse(lexer);

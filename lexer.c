@@ -21,7 +21,6 @@ bool lexer_new(const char *path, Lexer *lexer) {
 
 void lexer_free(Lexer *lexer) {
     fclose(lexer->file);
-    if (lexer->peek_cached) token_free(&lexer->peek);
 }
 
 static int fpeek(FILE *file) {
@@ -113,16 +112,14 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         while ((c = lexer_literal_char_get(lexer)) >= 0) {
             string_builder_add_char(&builder, c);
         }
+        StringId literal_string = string_cache_insert(string_builder_free(&builder));
 
-        char *string = string_builder_free(&builder); 
-        
         if (fpeek(lexer->file) == DELIMITER_LITERAL_STRING) {
             token.type = TOKEN_LITERAL;
             token.data.literal.type = LITERAL_STRING;
-            token.data.literal.data.l_string = string;
+            token.data.literal.data.l_string = literal_string;
             lexer_char_get(lexer);
         } else {
-            free(string);
             token.type = TOKEN_ERROR_LITERAL_STRING_CLOSING_DELIMITER_MISSING;
         }
     } break;
@@ -263,7 +260,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
 
             if (!is_keyword) {
                 token.type = TOKEN_ID;
-                token.data.id = string;
+                token.data.id = string_cache_insert(string);
             }
         } else {
             token.type = TOKEN_ERROR_CHARACTER_UNKNOWN;
@@ -275,12 +272,12 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
     return token;
 }
 
-Token *lexer_token_peek(Lexer *lexer) {
+Token lexer_token_peek(Lexer *lexer) {
     if (!lexer->peek_cached) {
         lexer->peek = lexer_token_get_skip_cache(lexer);
         lexer->peek_cached = true;
     }
-    return &lexer->peek;
+    return lexer->peek;
 }
 
 Token lexer_token_get(Lexer *lexer) {

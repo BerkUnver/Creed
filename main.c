@@ -25,7 +25,6 @@ void test_lexer(void) {
         print("\t\t\t[");
         location_print(token.location);
         printf(". type %i]\n", token.type);
-        token_free(&token);
         if (token.type == TOKEN_EOF || (TOKEN_ERROR_MIN <= token.type && token.type <= TOKEN_ERROR_MAX)) break;
     }
     putchar('\n');
@@ -63,6 +62,7 @@ void test_scope(void) {
 
 int main(void) {
     string_cache_init();
+
     test_lexer();
     putchar('\n');
     test_expr();
@@ -70,10 +70,6 @@ int main(void) {
     test_scope();
     putchar('\n');
  
-
-    StringId id = string_cache_insert("bruh");
-    printf("string id: %i\n", id.idx);
-    printf("string: %s\n", string_cache_get(id));
     string_cache_free();
     return EXIT_SUCCESS;
 }

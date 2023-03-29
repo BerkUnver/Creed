@@ -19,5 +19,5 @@ typedef struct Lexer {
 bool lexer_new(const char *path, Lexer *lexer);
 void lexer_free(Lexer *lexer);
 Token lexer_token_get(Lexer *lexer);
-Token *lexer_token_peek(Lexer *lexer); // do not let this pointer live after this function call.
+Token lexer_token_peek(Lexer *lexer);
 #endif

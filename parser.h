@@ -18,7 +18,7 @@ typedef struct Type {
 
     union {
         struct Type *sub_type;
-        char *id;
+        StringId id;
     } data;
 } Type;
 
@@ -69,7 +69,7 @@ typedef struct Expr {
         } typecast;
 
         Literal literal;
-        char *id;
+        StringId id;
     } data;
 } Expr;
 
@@ -87,7 +87,7 @@ typedef struct Statement {
     union {
         struct {
             Type type;
-            char *id;
+            StringId id;
             bool has_assign;
             Expr assign;
         } var_declare;

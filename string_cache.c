@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "string_cache.h"
@@ -40,8 +41,44 @@ void string_cache_free(void) {
     free(strings);
 }
 
-// string is cloned into the hash table.
-StringId string_cache_insert(const char *string) {
+// the string cache takes ownership of the string (It is responsible for freeing it.) Don't pass literal strings into this!
+StringId string_cache_insert(char *string) {
+    
+    unsigned long hash = string_hash_djb2(string);
+    int idx = (int) (hash % (unsigned long) STRING_TABLE_LENGTH);
+    
+    for (int i = 0; i < string_table[idx].node_count; i++) {
+        if (string_table[idx].nodes[i].hash == hash && !strcmp(string_table[idx].nodes[i].string, string)) {
+            free(string);
+            return string_table[idx].nodes[i].id;
+        }
+    }
+
+    // insert the string into the StringId -> char* array;
+    StringId id = { .idx = strings_length};
+    strings_length++;
+    if (strings_length > strings_length_alloc) {
+        strings_length_alloc = (int) (strings_length_alloc * STRINGS_REALLOC_MULTIPLIER);
+        strings = realloc(strings, strings_length_alloc * sizeof(char *));
+    }
+
+    strings[id.idx] = string;
+    
+    // insert the string into the hashtable
+    string_table[idx].node_count++;
+    string_table[idx].nodes = realloc(string_table[idx].nodes, sizeof(StringNode) * string_table[idx].node_count);
+    string_table[idx].nodes[string_table[idx].node_count - 1] = (StringNode) {
+        .string = string,
+        .hash = hash,
+        .id = id
+    };
+
+    return id;
+
+}
+
+/*
+StringId string_cache_insert_clone(const char *string) {
 
     unsigned long hash = string_hash_djb2(string);
     int idx = (int) (hash % (unsigned long) STRING_TABLE_LENGTH);
@@ -74,6 +111,7 @@ StringId string_cache_insert(const char *string) {
 
     return id;
 }
+*/
 
 char *string_cache_get(StringId id) {
     return strings[id.idx];

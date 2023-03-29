@@ -54,10 +54,6 @@ bool char_is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
 }
 
-void literal_free(Literal *literal) {
-    if (literal->type == LITERAL_STRING) free(literal->data.l_string);
-}
-
 void literal_print(Literal *literal) {
     switch (literal->type) {
         case LITERAL_CHAR:
@@ -69,8 +65,9 @@ void literal_print(Literal *literal) {
         case LITERAL_STRING:
             putchar('"');
             int idx = 0;
-            while (literal->data.l_string[idx] != '\0') {
-                print_literal_char(literal->data.l_string[idx]);
+            char *string = string_cache_get(literal->data.l_string);
+            while (string[idx] != '\0') {
+                print_literal_char(string[idx]);
                 idx++;
             }
             putchar('"');
@@ -92,24 +89,11 @@ void literal_print(Literal *literal) {
 
 }
 
-void token_free(Token *token) {
-    switch (token->type) {
-        case TOKEN_LITERAL: 
-            literal_free(&token->data.literal);
-            break;
-        case TOKEN_ID:
-            free(token->data.id);
-            break;
-
-        default: break; 
-    }
-}
-
 void token_print(Token *token) {
     if (token->type == TOKEN_LITERAL)
         literal_print(&token->data.literal);
     else if (token->type == TOKEN_ID)
-        print(token->data.id);
+        print(string_cache_get(token->data.id));
     else if (token->type == TOKEN_EOF) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
         print("EOF");
     else if (char_is_single_char_token_type(token->type))

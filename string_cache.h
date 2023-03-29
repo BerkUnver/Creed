@@ -13,7 +13,7 @@ typedef struct StringNode {
 
 void string_cache_init(void);
 void string_cache_free(void);
-StringId string_cache_insert(const char *string);
+StringId string_cache_insert(char *string);
 char *string_cache_get(StringId id);
 
 #endif

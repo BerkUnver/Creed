@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include "string_cache.h"
 
 #define ID_MAX_LENGTH 64
 #define OPERATOR_MAX_LENGTH 2
@@ -31,7 +32,7 @@ typedef struct Literal {
     } type;
 
     union {
-        char *l_string;
+        StringId l_string;
         int l_int;
         double l_double;
         char l_char;
@@ -39,7 +40,6 @@ typedef struct Literal {
 } Literal; 
 
 void literal_print(Literal *literal);
-void literal_free(Literal *literal);
 
 typedef enum TokenType {
     TOKEN_EOF = EOF,
@@ -139,7 +139,7 @@ char *string_assigns[TOKEN_ASSIGN_MAX - TOKEN_ASSIGN_MIN + 1];
 
 typedef union TokenData {
     Literal literal;
-    char *id;
+    StringId id;
 } TokenData;
 
 typedef struct Token {
@@ -154,7 +154,6 @@ bool char_is_single_char_token_type(int c);
 bool char_is_whitespace(char c);
 
 void token_print(Token *token);
-void token_free(Token *token);
 char *token_free_get_id(Token *token);
 Literal token_free_get_literal(Token *token);
 #endif
