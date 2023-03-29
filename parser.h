@@ -33,6 +33,7 @@ typedef struct Expr {
         EXPR_UNARY, 
         EXPR_BINARY,
         EXPR_TYPECAST,
+        EXPR_MEMBER_ACCESS,
         EXPR_FUNCTION_CALL,
         EXPR_ID,
         EXPR_LITERAL,
@@ -67,6 +68,11 @@ typedef struct Expr {
             struct Expr *operand;
             Type cast_to;
         } typecast;
+
+        struct {
+            struct Expr *operand;
+            StringId member;
+        } member_access;
 
         Literal literal;
         StringId id;
@@ -108,4 +114,23 @@ Scope scope_parse(Lexer *lexer);
 void scope_free(Scope *scope);
 void scope_print(Scope *scope, int indentation);
 
+typedef struct Constant {
+    Location location;
+
+    enum {
+        CONSTANT_FUNCTION
+    } type;
+
+    union {
+        struct {
+            StringId name;
+            int parameter_count;
+            struct {StringId name; Type type; } *parameters;
+            Scope scope;
+        } function;
+    } data;
+} Constant;
+
+Constant constant_parse(Lexer *lexer);
+void constant_free(Constant *constant);
 #endif

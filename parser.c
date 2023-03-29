@@ -137,73 +137,94 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
     
     while (true) {     
         TokenType op_type = lexer_token_peek(lexer).type;
-        if (op_type == TOKEN_KEYWORD_TYPECAST) {
-            lexer_token_get(lexer);
-            
-            Type cast_to = type_parse(lexer); // TODO: error handling
-            Expr *operand = malloc(sizeof(Expr));
-            *operand = expr;
-            expr = (Expr) {
-                .location = location_expand(expr.location, cast_to.location),
-                .type = EXPR_TYPECAST,
-                .data.typecast.operand = operand,
-                .data.typecast.cast_to = cast_to
-            };
-            continue;
+
+        switch (op_type) {
+            case TOKEN_KEYWORD_TYPECAST:
+                lexer_token_get(lexer);
+                
+                Type cast_to = type_parse(lexer); // TODO: error handling
+                Expr *operand = malloc(sizeof(Expr));
+                *operand = expr;
+                expr = (Expr) {
+                    .location = location_expand(expr.location, cast_to.location),
+                    .type = EXPR_TYPECAST,
+                    .data.typecast.operand = operand,
+                    .data.typecast.cast_to = cast_to
+                };
+                break;
         
-        } else if (op_type == TOKEN_PAREN_OPEN) { // function call
-            lexer_token_get(lexer); 
-            int param_count = 0;
-            Expr *params = NULL;
-            
-            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
-                while (true) {
-                    Expr param = expr_parse(lexer);
-                    
-                    param_count++;
-                    params = realloc(params, sizeof(Expr) * param_count);
-                    params[param_count - 1] = param;
-                    
-                    if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
-                    if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
-                        lexer_token_get(lexer);
-                    } else {
-                        error_exit(expr.location, "Expected a comma after a function parameter.");
-                    }    
+            case TOKEN_PAREN_OPEN: // function call
+                lexer_token_get(lexer); 
+                int param_count = 0;
+                Expr *params = NULL;
+                
+                if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
+                    while (true) {
+                        Expr param = expr_parse(lexer);
+                        
+                        param_count++;
+                        params = realloc(params, sizeof(Expr) * param_count);
+                        params[param_count - 1] = param;
+                        
+                        if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
+                        if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
+                            lexer_token_get(lexer);
+                        } else {
+                            error_exit(expr.location, "Expected a comma after a function parameter.");
+                        }    
+                    }
                 }
-            }
+                
+                Token paren_close = lexer_token_get(lexer);
+                Expr *function = malloc(sizeof(Expr));
+                *function = expr;
+                expr.type = EXPR_FUNCTION_CALL;
+                expr.data.function_call.function = function;
+                expr.data.function_call.params = params;
+                expr.data.function_call.param_count = param_count;
+                expr.location = location_expand(expr.location, paren_close.location);
+                break;
+           
             
-            Token paren_close = lexer_token_get(lexer);
-            Expr *function = malloc(sizeof(Expr));
-            *function = expr;
-            expr.type = EXPR_FUNCTION_CALL;
-            expr.data.function_call.function = function;
-            expr.data.function_call.params = params;
-            expr.data.function_call.param_count = param_count;
-            expr.location = location_expand(expr.location, paren_close.location);
-            continue;
+            case TOKEN_DOT: // member access
+                lexer_token_get(lexer);
+                Token member = lexer_token_get(lexer);
+                if (member.type != TOKEN_ID) {
+                    error_exit(member.location, "Expected the name of a member in a member-access expression.");
+                }
+                
+                Expr *op = malloc(sizeof(Expr));
+                *op = expr;
+
+                expr.type = EXPR_MEMBER_ACCESS;
+                expr.data.member_access.operand = op;
+                expr.data.member_access.member = member.data.id;
+                expr.location = location_expand(expr.location, member.location);
+                break;
+
+            default:
+                if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
+                
+                int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
+                if (op_precedence < precedence) return expr; 
+                
+                lexer_token_get(lexer); // get the operator
+
+                Expr *lhs = malloc(sizeof(Expr));
+                *lhs = expr;
+                
+                Expr *rhs = malloc(sizeof(Expr));
+                *rhs = expr_parse_precedence(lexer, op_precedence);
+                
+                expr = (Expr) {
+                    .location = location_expand(expr.location, rhs->location), 
+                    .type = EXPR_BINARY,
+                    .data.binary.operator = op_type,
+                    .data.binary.lhs = lhs,
+                    .data.binary.rhs = rhs,
+                };
+                break;
         }
-
-        if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
-        
-        int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
-        if (op_precedence < precedence) return expr; 
-        
-        lexer_token_get(lexer); // get the operator
-
-        Expr *lhs = malloc(sizeof(Expr));
-        *lhs = expr;
-        
-        Expr *rhs = malloc(sizeof(Expr));
-        *rhs = expr_parse_precedence(lexer, op_precedence);
-        
-        expr = (Expr) {
-            .location = location_expand(expr.location, rhs->location), 
-            .type = EXPR_BINARY,
-            .data.binary.operator = op_type,
-            .data.binary.lhs = lhs,
-            .data.binary.rhs = rhs,
-        };
     }
 }
 
@@ -232,6 +253,11 @@ void expr_free(Expr *expr) {
             type_free(&expr->data.typecast.cast_to);
             break;
         
+        case EXPR_MEMBER_ACCESS:
+            expr_free(expr->data.member_access.operand);
+            free(expr->data.member_access.operand);
+            break;
+
         case EXPR_FUNCTION_CALL:
             for (int i = 0; i < expr->data.function_call.param_count; i++) {
                 expr_free(&expr->data.function_call.params[i]);
@@ -272,11 +298,21 @@ void expr_print(Expr *expr) {
             break;
         
         case EXPR_TYPECAST:
+            putchar('(');
             expr_print(expr->data.typecast.operand);
             printf(" %s ", string_keywords[TOKEN_KEYWORD_TYPECAST - TOKEN_KEYWORD_MIN]);
             type_print(&expr->data.typecast.cast_to);
+            putchar(')');
             break;
         
+        case EXPR_MEMBER_ACCESS:
+            putchar('(');
+            expr_print(expr->data.member_access.operand);
+            putchar(')');
+            putchar(TOKEN_DOT);
+            print(string_cache_get(expr->data.member_access.member));
+            break;
+
         case EXPR_FUNCTION_CALL:
             expr_print(expr->data.function_call.function);
             putchar(TOKEN_PAREN_OPEN);
@@ -409,4 +445,35 @@ void scope_print(Scope *scope, int indentation) {
     }
     putchar(TOKEN_CURLY_BRACE_CLOSE);
     putchar('\n');
+}
+
+
+
+Constant constant_parse(Lexer *lexer) {
+    Token constant_name = lexer_token_get(lexer);
+    if (constant_name.type != TOKEN_ID) {
+        error_exit(constant_name.location, "Expected the name of a constant in a top-level declaration.");
+    }
+    Token paren_open = lexer_token_get(lexer);
+    if (paren_open.type != TOKEN_PAREN_OPEN) {
+        error_exit(paren_open.location, "Expected the opening parenthesis of a function declaration list.");
+    }
+
+    while (true) {
+        // parse parameters
+    }
+
+    // parse scope
+}
+
+void constant_free(Constant *constant) {
+    switch (constant->type) {
+        case CONSTANT_FUNCTION:
+            for (int i = 0; i < constant->data.function.parameter_count; i++) {
+                type_free(&constant->data.function.parameters[i].type);
+            }
+            free(constant->data.function.parameters);
+            scope_free(&constant->data.function.scope);
+            break;
+    }
 }
