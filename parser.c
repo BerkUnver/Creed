@@ -134,97 +134,99 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         default: error_exit(lexer_token_get(lexer).location, "Expected an expression here.");
     }
     
-    while (true) {     
-        TokenType op_type = lexer_token_peek(lexer).type;
-
-        switch (op_type) {
-            case TOKEN_KEYWORD_TYPECAST:
-                lexer_token_get(lexer);
-                
-                Type cast_to = type_parse(lexer); // TODO: error handling
-                Expr *operand = malloc(sizeof(Expr));
-                *operand = expr;
-                expr = (Expr) {
-                    .location = location_expand(expr.location, cast_to.location),
-                    .type = EXPR_TYPECAST,
-                    .data.typecast.operand = operand,
-                    .data.typecast.cast_to = cast_to
-                };
-                break;
-        
-            case TOKEN_PAREN_OPEN: // function call
-                lexer_token_get(lexer); 
-                int param_count = 0;
-                Expr *params = NULL;
-                
-                if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
-                    while (true) {
-                        Expr param = expr_parse(lexer);
-                        
-                        param_count++;
-                        params = realloc(params, sizeof(Expr) * param_count);
-                        params[param_count - 1] = param;
-                        
-                        if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
-                        if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
-                            lexer_token_get(lexer);
-                        } else {
-                            error_exit(expr.location, "Expected a comma after a function parameter.");
-                        }    
-                    }
-                }
-                
-                Token paren_close = lexer_token_get(lexer);
-                Expr *function = malloc(sizeof(Expr));
-                *function = expr;
-                expr.type = EXPR_FUNCTION_CALL;
-                expr.data.function_call.function = function;
-                expr.data.function_call.params = params;
-                expr.data.function_call.param_count = param_count;
-                expr.location = location_expand(expr.location, paren_close.location);
-                break;
-           
+    // parse function calls and member accesses.
+    while (true) {
+        if (lexer_token_peek(lexer).type == TOKEN_PAREN_OPEN) {
+            lexer_token_get(lexer); 
+            int param_count = 0;
+            Expr *params = NULL;
             
-            case TOKEN_DOT: // member access
-                lexer_token_get(lexer);
-                Token member = lexer_token_get(lexer);
-                if (member.type != TOKEN_ID) {
-                    error_exit(member.location, "Expected the name of a member in a member-access expression.");
+            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
+                while (true) {
+                    Expr param = expr_parse(lexer);
+                    
+                    param_count++;
+                    params = realloc(params, sizeof(Expr) * param_count);
+                    params[param_count - 1] = param;
+                    
+                    if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
+                    if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
+                        lexer_token_get(lexer);
+                    } else {
+                        error_exit(expr.location, "Expected a comma after a function parameter.");
+                    }    
                 }
-                
-                Expr *op = malloc(sizeof(Expr));
-                *op = expr;
+            }
+            
+            Token paren_close = lexer_token_get(lexer);
+            Expr *function = malloc(sizeof(Expr));
+            *function = expr;
+            expr.type = EXPR_FUNCTION_CALL;
+            expr.data.function_call.function = function;
+            expr.data.function_call.params = params;
+            expr.data.function_call.param_count = param_count;
+            expr.location = location_expand(expr.location, paren_close.location);
+        
+        } else if (lexer_token_peek(lexer).type == TOKEN_DOT) {
+            lexer_token_get(lexer);
+            Token token_id = lexer_token_get(lexer);
+            if (token_id.type != TOKEN_ID) {
+                error_exit(token_id.location, "Expected the name of a member in a member-access expression.");
+            }
 
-                expr.type = EXPR_MEMBER_ACCESS;
-                expr.data.member_access.operand = op;
-                expr.data.member_access.member = member.data.id;
-                expr.location = location_expand(expr.location, member.location);
-                break;
+            Expr *operand = malloc(sizeof(Expr));
+            *operand = expr;
 
-            default:
-                if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
-                
-                int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
-                if (op_precedence < precedence) return expr; 
-                
-                lexer_token_get(lexer); // get the operator
-
-                Expr *lhs = malloc(sizeof(Expr));
-                *lhs = expr;
-                
-                Expr *rhs = malloc(sizeof(Expr));
-                *rhs = expr_parse_precedence(lexer, op_precedence);
-                
-                expr = (Expr) {
-                    .location = location_expand(expr.location, rhs->location), 
-                    .type = EXPR_BINARY,
-                    .data.binary.operator = op_type,
-                    .data.binary.lhs = lhs,
-                    .data.binary.rhs = rhs,
-                };
-                break;
-        }
+            expr.type = EXPR_MEMBER_ACCESS;
+            expr.data.member_access.operand = operand;
+            expr.data.member_access.member = token_id.data.id;
+            expr.location = location_expand(expr.location, token_id.location);
+        
+        } else break;
     }
+    
+    // parse typecasts
+    while (lexer_token_peek(lexer).type == TOKEN_KEYWORD_TYPECAST) {
+        lexer_token_get(lexer);
+        Type type = type_parse(lexer);
+        
+        Expr *operand = malloc(sizeof(Expr));
+        *operand = expr;
+
+        expr = (Expr) {
+            .location = location_expand(expr.location, type.location),
+            .type = EXPR_TYPECAST,
+            .data.typecast.operand = operand,
+            .data.typecast.cast_to = type
+        };
+    }
+   
+
+    // parse operators
+    while (true) {
+        TokenType op_type = lexer_token_peek(lexer).type;
+        if (op_type < TOKEN_OP_MIN || TOKEN_OP_MAX < op_type) return expr;
+        int op_precedence = operator_precedences[op_type - TOKEN_OP_MIN];
+        if (op_precedence < precedence) return expr; 
+        
+        lexer_token_get(lexer); // get the operator
+
+        Expr *lhs = malloc(sizeof(Expr));
+        *lhs = expr;
+        
+        Expr *rhs = malloc(sizeof(Expr));
+        *rhs = expr_parse_precedence(lexer, op_precedence);
+        
+        expr = (Expr) {
+            .location = location_expand(expr.location, rhs->location), 
+            .type = EXPR_BINARY,
+            .data.binary.operator = op_type,
+            .data.binary.lhs = lhs,
+            .data.binary.rhs = rhs,
+        };
+    }
+
+    return expr;
 }
 
 Expr expr_parse(Lexer *lexer) {
