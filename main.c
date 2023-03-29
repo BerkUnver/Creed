@@ -63,14 +63,17 @@ void test_scope(void) {
 
 int main(void) {
     string_cache_init();
-
     test_lexer();
     putchar('\n');
     test_expr();
     putchar('\n');
     test_scope();
     putchar('\n');
-  
+ 
+
+    StringId id = string_cache_insert("bruh");
+    printf("string id: %i\n", id.idx);
+    printf("string: %s\n", string_cache_get(id));
     string_cache_free();
     return EXIT_SUCCESS;
 }
