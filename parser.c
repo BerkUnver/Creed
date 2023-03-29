@@ -294,6 +294,7 @@ void expr_print(Expr *expr) {
 }
 
 Statement statement_parse(Lexer *lexer) {
+    // TODO: add conditionals, loops, ect. (tom)
     Token token_var = lexer_token_peek(lexer);
 
     if (token_var.type != TOKEN_ID) {

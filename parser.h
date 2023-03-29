@@ -81,7 +81,7 @@ typedef struct Statement {
     Location location;
     
     enum {
-        STATEMENT_VAR_DECLARE,
+        STATEMENT_VAR_DECLARE, // TODO: add conditionals, loops, matches ect. (tom)
     } type;
 
     union {
