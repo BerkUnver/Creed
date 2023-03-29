@@ -10,6 +10,7 @@ typedef struct Type {
     Location location;
 
     enum {
+        TYPE_PRIMITIVE,
         TYPE_ID,
         TYPE_PTR,
         TYPE_PTR_NULLABLE,
@@ -17,6 +18,7 @@ typedef struct Type {
     } type;
 
     union {
+        TokenType primitive;
         struct Type *sub_type;
         StringId id;
     } data;

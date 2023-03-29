@@ -8,53 +8,48 @@
 #include "token.h"
 
 Type type_parse(Lexer *lexer) {
-    Token token_id = lexer_token_get(lexer);
-    if (token_id.type != TOKEN_ID) {
-        error_exit(token_id.location, "Expected a type id at the beginning of a type signature.");
+    Token token = lexer_token_peek(lexer);
+
+    int type_modifier;
+    switch (token.type) {
+        case TOKEN_OP_MULTIPLY:
+            type_modifier = TYPE_PTR; 
+            break;
+
+        case TOKEN_QUESTION_MARK:
+            type_modifier = TYPE_PTR_NULLABLE;
+            break;
+
+        case TOKEN_BRACKET_OPEN: {
+            lexer_token_get(lexer);
+            if (lexer_token_peek(lexer).type != TOKEN_BRACKET_CLOSE) {
+                error_exit(token.location, "Expected a closing bracket after the opening bracket of an array declaration.");
+            } 
+            type_modifier = TYPE_ARRAY;
+        } break;
+
+        case TOKEN_ID:
+            lexer_token_get(lexer);
+            return (Type) {
+                .location = token.location,
+                .type = TYPE_ID,
+                .data.id = token.data.id
+            };
+
+        default: 
+            // TODO: Insert checking for primitive token types.
+            error_exit(token.location, "Expected type signature here.");
     }
+
+    lexer_token_get(lexer);
+    Type *sub_type = malloc(sizeof(Type));
+    *sub_type = type_parse(lexer);
     
-    Type type = {
-        .location = token_id.location,
-        .type = TYPE_ID,
-        .data.id = token_id.data.id
+    return (Type) {
+        .location = location_expand(token.location, sub_type->location),
+        .type = type_modifier,
+        .data.sub_type = sub_type 
     };
-
-    while (true) {
-        int ptr_type; // I don't wanna make the type type a named type just for this
-        
-        switch (lexer_token_peek(lexer).type) {
-            case TOKEN_OP_MULTIPLY:
-                ptr_type = TYPE_PTR;
-                break;
-
-            case TOKEN_QUESTION_MARK:
-                ptr_type = TYPE_PTR_NULLABLE;
-                break;
-            
-            case TOKEN_BRACKET_OPEN: {
-                Token token_open = lexer_token_get(lexer);
-                if (lexer_token_peek(lexer).type != TOKEN_BRACKET_CLOSE) {
-                    Location location = location_expand(type.location, token_open.location);
-                    error_exit(location, "Expected a closing bracket after the opening bracket of an array declaration.");
-                }
-                
-                ptr_type = TYPE_ARRAY;
-            } break;
-            
-            default:
-                return type;
-        }
-        
-        Type *sub_type = malloc(sizeof(Type));
-        *sub_type = type;
-        
-        Token token_end = lexer_token_get(lexer);
-        type = (Type) {
-            .location = location_expand(type.location, token_end.location),
-            .type = ptr_type,
-            .data.sub_type = sub_type
-        };
-    }
 }
 
 void type_free(Type *type) {
@@ -77,19 +72,23 @@ void type_print(Type *type) {
             break;
         
         case TYPE_PTR:
-            type_print(type->data.sub_type);
             print(string_operators[TOKEN_OP_MULTIPLY - TOKEN_OP_MIN]);
+            type_print(type->data.sub_type);
             break;
         
         case TYPE_PTR_NULLABLE:
-            type_print(type->data.sub_type);
             putchar(TOKEN_QUESTION_MARK);
+            type_print(type->data.sub_type);
             break;
 
         case TYPE_ARRAY:
-            type_print(type->data.sub_type);
             putchar(TOKEN_BRACKET_OPEN);
             putchar(TOKEN_BRACKET_CLOSE);
+            type_print(type->data.sub_type);
+            break;
+
+        case TYPE_PRIMITIVE:
+            // TODO: Add printing primitives here.
             break;
     }
 }
