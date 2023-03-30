@@ -13,9 +13,6 @@
 #define DELIMITER_LITERAL_STRING '"'
 #define DELIMITER_LITERAL_CHAR '\''
 
-#define NUM_INT_TYPE_SPECS 8
-#define NUM_FLOAT_TYPE_SPECS 2
-
 typedef struct Location {
     int line_start;
     int line_end;
@@ -29,19 +26,20 @@ void location_print(Location location);
 typedef struct Literal {
     enum {
         LITERAL_STRING,
-        LITERAL_INT_MIN,
-        LITERAL_INT8 = LITERAL_INT_MIN,
+        LITERAL_CHAR,
+
+        LITERAL_INT8,
         LITERAL_INT16,
         LITERAL_INT,
         LITERAL_INT64,
+        
         LITERAL_UINT8,
         LITERAL_UINT16,
         LITERAL_UINT,
         LITERAL_UINT64,
-        LITERAL_FLOAT_MIN,
-        LITERAL_FLOAT = LITERAL_FLOAT_MIN,
-        LITERAL_FLOAT64,
-        LITERAL_CHAR
+        
+        LITERAL_FLOAT,
+        LITERAL_FLOAT64
     } type;
 
     union {
@@ -186,9 +184,6 @@ char *string_operators[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
 int operator_precedences[TOKEN_OP_MAX - TOKEN_OP_MIN + 1];
 char *string_keywords[TOKEN_KEYWORD_MAX - TOKEN_KEYWORD_MIN + 1];
 char *string_assigns[TOKEN_ASSIGN_MAX - TOKEN_ASSIGN_MIN + 1];
-
-char *int_type_specs[NUM_INT_TYPE_SPECS];
-char *float_type_specs[NUM_FLOAT_TYPE_SPECS];
 
 typedef union TokenData {
     Literal literal;

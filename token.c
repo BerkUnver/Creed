@@ -79,44 +79,44 @@ void literal_print(Literal *literal) {
             break;
 
         case LITERAL_INT8:
-            printf("%d", literal->data.l_int8);
+            printf("%di8", literal->data.l_int8);
             break;
 
         case LITERAL_INT16:
-            printf("%hi", literal->data.l_int16);
+            printf("%hii16", literal->data.l_int16);
             break;
         
         case LITERAL_INT:
-            printf("%d", literal->data.l_int);
+            printf("%di", literal->data.l_int);
             break;
         
         case LITERAL_INT64:
-            printf("%ld", literal->data.l_int64);
+            printf("%ldi64", literal->data.l_int64);
             break;
         
         case LITERAL_UINT8:
-            printf("%u", literal->data.l_uint8);
+            printf("%uu8", literal->data.l_uint8);
             break;
 
         case LITERAL_UINT16:
-            printf("%hu", literal->data.l_uint16);
+            printf("%huu16", literal->data.l_uint16);
             break;
         
         case LITERAL_UINT:
-            printf("%u", literal->data.l_uint);
+            printf("%uu", literal->data.l_uint);
             break;
         
         case LITERAL_UINT64:
-            printf("%lu", literal->data.l_uint64);
+            printf("%luu64", literal->data.l_uint64);
             break;
 
         case LITERAL_FLOAT:
             // todo: make so this prints out only as many chars as the token is in length.
-            printf("%f", literal->data.l_float);
+            printf("%ff", literal->data.l_float);
             break;
         
         case LITERAL_FLOAT64:
-            printf("%lf", literal->data.l_float64);
+            printf("%lff64", literal->data.l_float64);
             break;
 
         case LITERAL_CHAR:

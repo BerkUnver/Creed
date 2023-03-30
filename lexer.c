@@ -222,9 +222,9 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 literal_int += (digit - '0');
             }
             
+            literal_float = (double) literal_int; // need to set in case the format specifier is float
             if (lexer_char_get_if(lexer, '.')) {
                 double digit = 0.1;
-                literal_float = (double) literal_int;
                 while (true) {
                     int digit_char = fpeek(lexer->file);
                     if (digit_char < '0' || '9' < digit_char) break;
@@ -234,97 +234,68 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                 }
 
                 token.data.literal.type = LITERAL_FLOAT;
+                token.data.literal.data.l_float = (float) literal_float;
             } else {
                 token.data.literal.type = LITERAL_INT;
                 token.data.literal.data.l_int = literal_int;
             }
-
+            
             // Check for number literal type specifier 
             char c = fpeek(lexer->file);
-            if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (c == '_') || ('0' <= c && c <= '9')) {
+            if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (c == '_')) {
                 StringBuilder builder = string_builder_new();
+                string_builder_add_char(&builder, lexer_char_get(lexer));
+                
                 while (true) {
                     c = fpeek(lexer->file);
                     if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || (c == '_') || ('0' <= c && c <= '9'))
                         string_builder_add_char(&builder, lexer_char_get(lexer));
                     else break;
                 }
+                
                 char *string = string_builder_free(&builder);
 
                 if (token.data.literal.type == LITERAL_FLOAT) {
-                    for (int i = 0; i < NUM_FLOAT_TYPE_SPECS; i++) {
-                        if (!strcmp(string, "f")) {
-                            token.data.literal.type = LITERAL_FLOAT;
-                            token.data.literal.data.l_float = (float) literal_float;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "f64")) {
-                            token.data.literal.type = LITERAL_FLOAT64;
-                            token.data.literal.data.l_float64 = (double) literal_float;
-                            free(string);
-                            break;
-                        }
-                        else {
-                            token.type = TOKEN_ERROR_LITERAL_NUMBER_ILLEGAL_TYPE_SPEC;
-                        }
+                    if (!strcmp(string, "f")) {
+                        token.data.literal.type = LITERAL_FLOAT;
+                        token.data.literal.data.l_float = (float) literal_float;
+                    } else if (!strcmp(string, "f64")) {
+                        token.data.literal.type = LITERAL_FLOAT64;
+                        token.data.literal.data.l_float64 = (double) literal_float;
+                    } else {
+                        token.type = TOKEN_ERROR_LITERAL_NUMBER_ILLEGAL_TYPE_SPEC;
+                    }
+                } else if (token.data.literal.type == LITERAL_INT) {
+                    if (!strcmp(string, "i8")) {
+                        token.data.literal.type = LITERAL_INT8;
+                        token.data.literal.data.l_int8 = (char) literal_int;
+                    } else if (!strcmp(string, "i16")) {
+                        token.data.literal.type = LITERAL_INT16;
+                        token.data.literal.data.l_int16 = (short) literal_int;
+                    } else if (!strcmp(string, "i")) {
+                        token.data.literal.type = LITERAL_INT8;
+                        token.data.literal.data.l_int = (int) literal_int;
+                    } else if (!strcmp(string, "i64")) {
+                        token.data.literal.type = LITERAL_INT64;
+                        token.data.literal.data.l_int64 = (long) literal_int;
+                    } else if (!strcmp(string, "u8")) {
+                        token.data.literal.type = LITERAL_UINT8;
+                        token.data.literal.data.l_int64 = (unsigned char) literal_int;
+                    } else if (!strcmp(string, "u16")) {
+                        token.data.literal.type = LITERAL_UINT16;
+                        token.data.literal.data.l_int64 = (unsigned short) literal_int;
+                    } else if (!strcmp(string, "u")) {
+                        token.data.literal.type = LITERAL_UINT;
+                        token.data.literal.data.l_int64 = (unsigned int) literal_int;
+                    } else if (!strcmp(string, "u64")) {
+                        token.data.literal.type = LITERAL_UINT64;
+                        token.data.literal.data.l_int64 = (unsigned long) literal_int;
+                    } else {
+                        token.type = TOKEN_ERROR_LITERAL_NUMBER_ILLEGAL_TYPE_SPEC;
                     }
                 }
-                else if (token.data.literal.type == LITERAL_INT) {
-                    for (int i = 0; i < NUM_INT_TYPE_SPECS; i++) {
-                        if (!strcmp(string, "i8")) {
-                            token.data.literal.type = LITERAL_INT8;
-                            token.data.literal.data.l_int8 = (char) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "i16")) {
-                            token.data.literal.type = LITERAL_INT16;
-                            token.data.literal.data.l_int16 = (short) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "i")) {
-                            token.data.literal.type = LITERAL_INT8;
-                            token.data.literal.data.l_int = (int) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "i64")) {
-                            token.data.literal.type = LITERAL_INT64;
-                            token.data.literal.data.l_int64 = (long) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "u8")) {
-                            token.data.literal.type = LITERAL_UINT8;
-                            token.data.literal.data.l_int64 = (unsigned char) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "u16")) {
-                            token.data.literal.type = LITERAL_UINT16;
-                            token.data.literal.data.l_int64 = (unsigned short) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "u")) {
-                            token.data.literal.type = LITERAL_UINT;
-                            token.data.literal.data.l_int64 = (unsigned int) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else if (!strcmp(string, "u64")) {
-                            token.data.literal.type = LITERAL_UINT64;
-                            token.data.literal.data.l_int64 = (unsigned long) literal_int;
-                            free(string);
-                            break;
-                        }
-                        else {
-                            token.type = TOKEN_ERROR_LITERAL_NUMBER_ILLEGAL_TYPE_SPEC;
-                        }
-                    }
-                }
+
+                free(string);
             }
 
         } else if (('a' <= char_first && char_first <= 'z') || ('A' <= char_first && char_first <= 'Z') || char_first == '_') {
