@@ -27,11 +27,21 @@ int operator_precedences[] = {
 };
 
 char *string_keywords[] = {
-    "if", "elif", "else", "as"
+    "if", "elif", "else", "as", "for", "while", "in", "break", "continue", "const", "void", "char", "int8", "int16", "int", "int64", \
+    "uint8", "uint16", "uint", "uint64", "float", "float64", "bool", "file", "regex", "enum", "struct", "union", "sum", "match", \
+    "goto", "label", "return"
 };
 
 char *string_assigns[] = {
     "=", "&&=" , "||=", "&=", "|=", "^=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="
+};
+
+char *int_type_specs[] = {
+    "i8", "i16", "i", "i64", "u8", "u16", "u", "u64"
+};
+
+char *float_type_specs[] = {
+    "f", "f64"
 };
 
 bool char_is_single_char_token_type(int c) { 
@@ -56,12 +66,7 @@ bool char_is_whitespace(char c) {
 
 void literal_print(Literal *literal) {
     switch (literal->type) {
-        case LITERAL_CHAR:
-            putchar('\'');
-            print_literal_char(literal->data.l_char);
-            putchar('\'');
-            break;
-
+        
         case LITERAL_STRING:
             putchar('"');
             int idx = 0;
@@ -73,13 +78,51 @@ void literal_print(Literal *literal) {
             putchar('"');
             break;
 
-        case LITERAL_INT:
-            printf("%i", literal->data.l_int);
+        case LITERAL_INT8:
+            printf("%d", literal->data.l_int8);
             break;
 
-        case LITERAL_DOUBLE:
+        case LITERAL_INT16:
+            printf("%hi", literal->data.l_int16);
+            break;
+        
+        case LITERAL_INT:
+            printf("%d", literal->data.l_int);
+            break;
+        
+        case LITERAL_INT64:
+            printf("%ld", literal->data.l_int64);
+            break;
+        
+        case LITERAL_UINT8:
+            printf("%u", literal->data.l_uint8);
+            break;
+
+        case LITERAL_UINT16:
+            printf("%hu", literal->data.l_uint16);
+            break;
+        
+        case LITERAL_UINT:
+            printf("%u", literal->data.l_uint);
+            break;
+        
+        case LITERAL_UINT64:
+            printf("%lu", literal->data.l_uint64);
+            break;
+
+        case LITERAL_FLOAT:
             // todo: make so this prints out only as many chars as the token is in length.
-            printf("%lf", literal->data.l_double);
+            printf("%f", literal->data.l_float);
+            break;
+        
+        case LITERAL_FLOAT64:
+            printf("%lf", literal->data.l_float64);
+            break;
+
+        case LITERAL_CHAR:
+            putchar('\'');
+            print_literal_char(literal->data.l_char);
+            putchar('\'');
             break;
 
         default:
@@ -126,6 +169,9 @@ void token_print(Token *token) {
                 break;
             case TOKEN_ERROR_LITERAL_NUMBER_LEADING_ZERO:
                 print("A literal number cannot have a leading zero.");
+                break;
+            case TOKEN_ERROR_LITERAL_NUMBER_ILLEGAL_TYPE_SPEC:
+                print("This is not a valid type specification for a literal number.");
                 break;
             case TOKEN_ERROR_OPERATOR_TOO_LONG:
                 printf("No existing operator exceeds the length %i", OPERATOR_MAX_LENGTH);

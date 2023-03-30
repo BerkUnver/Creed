@@ -10,7 +10,7 @@
 Type type_parse(Lexer *lexer) {
     Token token = lexer_token_peek(lexer);
 
-    int type_modifier;
+    int type_modifier = 0;
     switch (token.type) {
         case TOKEN_OP_MULTIPLY:
             type_modifier = TYPE_PTR; 
