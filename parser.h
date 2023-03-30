@@ -90,24 +90,11 @@ Expr expr_parse(Lexer *lexer);
 void expr_free(Expr *expr);
 void expr_print(Expr *expr);
 
-struct Statement;
-
-typedef struct Scope {
-    Location location;
-    int statement_count;
-    struct Statement *statements;
-} Scope;
-
-Scope scope_parse(Lexer *lexer);
-void scope_free(Scope *scope);
-void scope_print(Scope *scope, int indentation);
-
 typedef struct Statement {
     Location location;
     
     enum {
         STATEMENT_VAR_DECLARE, 
-        STATEMENT_LOOP_FOR// TODO: add conditionals, loops, matches ect. (tom)
     } type;
 
     union {
@@ -117,20 +104,42 @@ typedef struct Statement {
             bool has_assign;
             Expr assign;
         } var_declare;
-
-        struct {
-            struct Statement *init;
-            Expr expr;
-            struct Statement *step;
-            struct Scope scope;
-        } loop_for;
-
     } data;
 } Statement;
 
+
 Statement statement_parse(Lexer *lexer);
 void statement_free(Statement *statement);
-void statement_print(Statement *statement, int indentation);
+void statement_print(Statement *statement);
+
+typedef struct Scope {
+    Location location;
+    enum {
+        SCOPE_BLOCK,
+        SCOPE_STATEMENT,
+        SCOPE_LOOP_FOR
+    } type;
+
+    union {
+        Statement statement;
+        
+        struct {
+            Statement init;
+            Expr expr;
+            Statement step;
+            struct Scope *scope;
+        } loop_for;
+        
+        struct {
+            struct Scope *scopes;
+            int scope_count;
+        } block;
+    } data;
+} Scope;
+
+Scope scope_parse(Lexer *lexer);
+void scope_free(Scope *scope);
+void scope_print(Scope *scope, int indentation);
 
 typedef struct Constant {
     Location location;

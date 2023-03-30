@@ -400,73 +400,33 @@ void expr_print(Expr *expr) {
 }
 
 Statement statement_parse(Lexer *lexer) {
-    switch (lexer_token_peek(lexer).type) {
-        case TOKEN_ID: {
-            Token token_var = lexer_token_get(lexer);
-            if (lexer_token_peek(lexer).type != TOKEN_COLON) {
-                error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
-            }
-            lexer_token_get(lexer);
-
-            Statement statement;
-
-            Type type = type_parse(lexer);
-            if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
-                lexer_token_get(lexer);
-                statement.data.var_declare.assign = expr_parse(lexer);
-                statement.data.var_declare.has_assign = true;
-            } else {
-                statement.data.var_declare.has_assign = false;
-            }
-
-            if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
-                error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a variable declaration.");
-            }
-            Token token_semicolon = lexer_token_get(lexer); 
-            
-            statement.location = location_expand(token_var.location, token_semicolon.location);
-            statement.type = STATEMENT_VAR_DECLARE;
-            statement.data.var_declare.id = token_var.data.id;
-            statement.data.var_declare.type = type;
-            return statement;
-        }
-        
-        // TODO: add conditionals, loops, ect. (tom)
-        
-        case TOKEN_KEYWORD_FOR: {
-            Token token_for = lexer_token_get(lexer);
-            
-            Statement *init = malloc(sizeof(Statement));
-            *init = statement_parse(lexer);
-            Expr expr = expr_parse(lexer);
-            
-            if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
-                error_exit(expr.location, "Expected a semicolon after the expression in a for loop.");
-            }
-            lexer_token_get(lexer);
-            
-            Statement *step = malloc(sizeof(Statement));
-            *step = statement_parse(lexer);
-            
-            Scope scope = scope_parse(lexer);
-            
-            return (Statement) {
-                .location = location_expand(token_for.location, scope.location),
-                .type = STATEMENT_LOOP_FOR,
-                .data.loop_for.init = init,
-                .data.loop_for.expr = expr,
-                .data.loop_for.step = step,
-                .data.loop_for.scope = scope
-            };
-        }
-
-        default: {
-            Token token_error = lexer_token_get(lexer);
-            error_exit(token_error.location, "Not the valid start of a statement");
-            Statement dummy = {0};
-            return dummy;
-        }
+    Token token_var = lexer_token_peek(lexer);
+    if (token_var.type != TOKEN_ID) {
+        error_exit(token_var.location, "Expected a variable name at the start of a statement.");    
     }
+    lexer_token_get(lexer);
+    
+    if (lexer_token_peek(lexer).type != TOKEN_COLON) {
+        error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
+    }
+    lexer_token_get(lexer);
+
+    Statement statement;
+
+    Type type = type_parse(lexer);
+    if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
+        lexer_token_get(lexer);
+        statement.data.var_declare.assign = expr_parse(lexer);
+        statement.data.var_declare.has_assign = true;
+    } else {
+        statement.data.var_declare.has_assign = false;
+    }
+
+    statement.location = location_expand(token_var.location, type.location);
+    statement.type = STATEMENT_VAR_DECLARE;
+    statement.data.var_declare.id = token_var.data.id;
+    statement.data.var_declare.type = type;
+    return statement;
 }
 
 void statement_free(Statement *statement) {
@@ -477,19 +437,10 @@ void statement_free(Statement *statement) {
                 expr_free(&statement->data.var_declare.assign);
             }
             break;
-        
-        case STATEMENT_LOOP_FOR:
-            statement_free(statement->data.loop_for.init);
-            free(statement->data.loop_for.init);
-            expr_free(&statement->data.loop_for.expr);
-            statement_free(statement->data.loop_for.step);
-            free(statement->data.loop_for.step);
-            scope_free(&statement->data.loop_for.scope);
-            break;
     }
 }
 
-void statement_print(Statement *statement, int indentation) {
+void statement_print(Statement *statement) {
     switch (statement->type) {
         case STATEMENT_VAR_DECLARE:
             print(string_cache_get(statement->data.var_declare.id));
@@ -500,76 +451,127 @@ void statement_print(Statement *statement, int indentation) {
                 printf(" = ");
                 expr_print(&statement->data.var_declare.assign);
             }
-            putchar(TOKEN_SEMICOLON);
-            break;
-
-        case STATEMENT_LOOP_FOR:
-            print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
-            putchar(' ');
-            statement_print(statement->data.loop_for.init, indentation);
-            putchar(' ');
-            expr_print(&statement->data.loop_for.expr);
-            putchar(TOKEN_SEMICOLON);
-            putchar(' ');
-            statement_print(statement->data.loop_for.step, indentation);
-            putchar(' ');
-            scope_print(&statement->data.loop_for.scope, indentation);
             break;
     }
 }
 
 Scope scope_parse(Lexer *lexer) {
-    Token token_start = lexer_token_peek(lexer);
-    if (token_start.type != TOKEN_CURLY_BRACE_OPEN) {
-        error_exit(token_start.location, "Expected an opening curly brace at the beginning of a scope.");
+    switch (lexer_token_peek(lexer).type) {
+        case TOKEN_CURLY_BRACE_OPEN: {
+            Token token_open = lexer_token_get(lexer);
+
+            int scope_count = 0;
+            Scope *scopes = NULL;
+            
+            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                scope_count++;
+                scopes = realloc(scopes, sizeof(Scope) * scope_count);
+                scopes[scope_count - 1] = scope_parse(lexer);
+            }
+
+            Token token_close = lexer_token_get(lexer);
+            
+            return (Scope) {
+                .location = location_expand(token_open.location, token_close.location),
+                .type = SCOPE_BLOCK,
+                .data.block.scope_count = scope_count,
+                .data.block.scopes = scopes
+            };
+        }
+        
+        case TOKEN_KEYWORD_FOR: {
+            Token token_for = lexer_token_get(lexer);
+            Statement init = statement_parse(lexer);
+            
+            if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) error_exit(init.location, "Expected a semicolon after the initialization condition of a for loop.");
+            lexer_token_get(lexer);
+            
+            Expr expr = expr_parse(lexer);
+
+            if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) error_exit(expr.location, "Expected a semicolon after the condition in a for loop.");
+            lexer_token_get(lexer);
+
+            Statement step = statement_parse(lexer);
+            
+            Scope *scope = malloc(sizeof(Scope));
+            *scope = scope_parse(lexer);
+            
+            return (Scope) {
+                .location = location_expand(token_for.location, scope->location),
+                .type = SCOPE_LOOP_FOR,
+                .data.loop_for.init = init,
+                .data.loop_for.expr = expr,
+                .data.loop_for.step = step,
+                .data.loop_for.scope = scope
+            };
+        }
+
+        default: {
+            Statement statement = statement_parse(lexer);
+            Token token_semicolon = lexer_token_peek(lexer);
+            if (token_semicolon.type != TOKEN_SEMICOLON) {
+                error_exit(statement.location, "Expected a semicolon after a statement.");
+            }
+            lexer_token_get(lexer);
+
+            return (Scope) {
+                .location = location_expand(statement.location, token_semicolon.location),
+                .type = SCOPE_STATEMENT,
+                .data.statement = statement
+            };
+        }
     }
-    lexer_token_get(lexer);
-
-    int statement_count = 0;
-    Statement *statements = NULL;
-
-    while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
-        statement_count++;
-        statements = realloc(statements, sizeof(Statement) * statement_count);
-        statements[statement_count - 1] = statement_parse(lexer);
-    }
-
-    Token token_end = lexer_token_get(lexer);
-    
-    return (Scope) {
-        .location = location_expand(token_start.location, token_end.location),
-        .statement_count = statement_count,
-        .statements = statements
-    };
 }
 
 void scope_free(Scope *scope) {
-    for (int i = 0; i < scope->statement_count; i++) {
-        statement_free(scope->statements + i);
+    switch (scope->type) {
+        case SCOPE_STATEMENT:
+            statement_free(&scope->data.statement);
+            break;
+        case SCOPE_LOOP_FOR:
+            statement_free(&scope->data.loop_for.init);
+            expr_free(&scope->data.loop_for.expr);
+            statement_free(&scope->data.loop_for.step);
+            scope_free(scope->data.loop_for.scope);
+            free(scope->data.loop_for.scope);
+            break;
+        case SCOPE_BLOCK:
+            for (int i = 0; i < scope->data.block.scope_count; i++) scope_free(scope->data.block.scopes + i);
+            free(scope->data.block.scopes);
+            break;
     }
-    free(scope->statements);
 }
 
 void scope_print(Scope *scope, int indentation) {
-    if (scope->statement_count == 0) {
-        printf("%c %c", TOKEN_CURLY_BRACE_OPEN, TOKEN_CURLY_BRACE_CLOSE);
-        return;
+    switch (scope->type) {
+        case SCOPE_STATEMENT:
+            statement_print(&scope->data.statement);
+            putchar(TOKEN_SEMICOLON);
+            putchar('\n');
+            break;
+
+        case SCOPE_LOOP_FOR:
+            print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            statement_print(&scope->data.loop_for.init);
+            printf("%c ", TOKEN_SEMICOLON);
+            expr_print(&scope->data.loop_for.expr);
+            printf("%c ", TOKEN_SEMICOLON);
+            statement_print(&scope->data.loop_for.step);
+            putchar(' ');
+            scope_print(scope->data.loop_for.scope, indentation);
+            break;
+        
+        case SCOPE_BLOCK:
+            printf("%c\n", TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < scope->data.block.scope_count; i++) {
+                for (int j = 0; j <= indentation; j++) print(STR_INDENTATION);
+                scope_print(scope->data.block.scopes + i, indentation + 1);
+            }
+            for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
+            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
+            break;
     }
-    
-    putchar(TOKEN_CURLY_BRACE_OPEN);
-    putchar('\n');
-    for (int i = 0; i < scope->statement_count; i++) {
-        for (int j = 0; j < indentation + 1; j++) {
-            print(STR_INDENTATION);
-        }
-        statement_print(&scope->statements[i], indentation + 1);
-        putchar('\n');
-    }
-    for (int i = 0; i < indentation; i++) {
-        print(STR_INDENTATION);
-    }
-    putchar(TOKEN_CURLY_BRACE_CLOSE);
-    putchar('\n');
 }
 
 
