@@ -96,6 +96,8 @@ void token_print(Token *token) {
         print(string_cache_get(token->data.id));
     else if (token->type == TOKEN_EOF) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
         print("EOF");
+    else if (token->type == TOKEN_UNARY_LOGICAL_NOT)
+        putchar('!');
     else if (char_is_single_char_token_type(token->type))
         putchar(token->type);
     else if (TOKEN_OP_MIN <= token->type && token->type <= TOKEN_OP_MAX)

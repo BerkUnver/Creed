@@ -87,7 +87,6 @@ typedef enum TokenType {
     // string_operators relies on these being in this order so don't change this without changing that.
 
     TOKEN_UNARY_LOGICAL_NOT,
-    TOKEN_UNARY_BITWISE_NOT,
     
     TOKEN_INCREMENT,
     TOKEN_DEINCREMENT,

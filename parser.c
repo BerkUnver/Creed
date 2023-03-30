@@ -93,7 +93,7 @@ void type_print(Type *type) {
     }
 }
 
-static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
+static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, function calls, and member accesses
     Expr expr;
     switch (lexer_token_peek(lexer).type) {
         case TOKEN_LITERAL: {
@@ -102,25 +102,24 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             expr.location = token.location;
             expr.data.literal = token.data.literal;
         } break;
-      
+     
+        int unary_type;
         case TOKEN_PAREN_OPEN: {
             Token token_open = lexer_token_get(lexer);
-            Expr operand = expr_parse(lexer);
+
+            Expr *parenthesized = malloc(sizeof(Expr));
+            *parenthesized = expr_parse(lexer);
             
             if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
-                Location location = location_expand(token_open.location, operand.location);
+                Location location = location_expand(token_open.location, parenthesized->location);
                 error_exit(location, "Expected a closing parenthesis at the end of a parenthesized expression."); 
             }        
-
             Token token_close = lexer_token_get(lexer);
-            Expr *operand_ptr = malloc(sizeof(Expr));
-            *operand_ptr = operand;
             
             expr = (Expr) {
                 .location = location_expand(token_open.location, token_close.location),
-                .type = EXPR_UNARY,
-                .data.unary.operator = EXPR_UNARY_PAREN,
-                .data.unary.operand = operand_ptr
+                .type = EXPR_PAREN,
+                .data.parenthesized = parenthesized
             };
         } break;
 
@@ -131,6 +130,39 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
             expr.location = token_id.location;
         } break;
         
+
+        case TOKEN_UNARY_LOGICAL_NOT:
+            unary_type = EXPR_UNARY_LOGICAL_NOT;
+            goto unary;
+        
+        case TOKEN_BITWISE_NOT:
+            unary_type = EXPR_UNARY_BITWISE_NOT;
+            goto unary;
+        
+        case TOKEN_OP_MINUS:
+            unary_type = EXPR_UNARY_NEGATE;
+            goto unary;
+
+        case TOKEN_OP_MULTIPLY:
+            unary_type = EXPR_UNARY_DEREF;
+            goto unary;
+
+        case TOKEN_OP_BITWISE_AND: {
+            unary_type = EXPR_UNARY_REF;
+
+            unary: {
+                Token token_not = lexer_token_get(lexer);
+                Expr *operand = malloc(sizeof(Expr));
+                *operand = expr_parse_modifiers(lexer);
+                return (Expr) {
+                    .type = EXPR_UNARY,
+                    .data.unary.type = unary_type,
+                    .data.unary.operand = operand,
+                    .location = location_expand(token_not.location, operand->location)
+                };
+            }
+        }
+
         default: error_exit(lexer_token_get(lexer).location, "Expected an expression here.");
     }
     
@@ -184,6 +216,13 @@ static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
         
         } else break;
     }
+
+    return expr;
+}
+
+static Expr expr_parse_precedence(Lexer *lexer, int precedence) {
+
+    Expr expr = expr_parse_modifiers(lexer);
     
     // parse typecasts
     while (lexer_token_peek(lexer).type == TOKEN_KEYWORD_TYPECAST) {
@@ -236,6 +275,12 @@ Expr expr_parse(Lexer *lexer) {
 void expr_free(Expr *expr) {
     // currently only frees things that are actually implemented.
     switch (expr->type) {
+
+        case EXPR_PAREN:
+            expr_free(expr->data.parenthesized);
+            free(expr->data.parenthesized);
+            break;
+
         case EXPR_UNARY:
             expr_free(expr->data.unary.operand);
             free(expr->data.unary.operand);
@@ -276,10 +321,15 @@ void expr_print(Expr *expr) {
     
     // currently only prints things that are actually implemented.
     switch (expr->type) {
+        case EXPR_PAREN:
+            putchar(TOKEN_PAREN_OPEN);
+            expr_print(expr->data.parenthesized);
+            putchar(TOKEN_PAREN_CLOSE);
+            break;
+
         case EXPR_UNARY:
-            putchar('(');
+            putchar(expr->data.unary.type);
             expr_print(expr->data.unary.operand);
-            putchar(')');
             break;
         
         case EXPR_BINARY:
