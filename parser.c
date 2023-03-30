@@ -452,6 +452,14 @@ void statement_print(Statement *statement) {
                 expr_print(&statement->data.var_declare.assign);
             }
             break;
+
+        case STATEMENT_LOOP_WHILE:
+            print(string_keywords[TOKEN_KEYWORD_WHILE - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            expr_print(&statement->data.loop_while.condition);
+            putchar(' ');
+            scope_print(&statement->data.loop_while.body, indentation);
+            break;
     }
 }
 

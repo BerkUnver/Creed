@@ -4,4 +4,8 @@
     for i: int = 0; i < 0; p: int = 0 {
         z: int = 0;
     }
+
+    while i > 4 {
+        i: int = 1;
+    }
 }
