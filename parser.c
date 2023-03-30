@@ -400,33 +400,59 @@ void expr_print(Expr *expr) {
 }
 
 Statement statement_parse(Lexer *lexer) {
-    Token token_var = lexer_token_peek(lexer);
-    if (token_var.type != TOKEN_ID) {
-        error_exit(token_var.location, "Expected a variable name at the start of a statement.");    
-    }
-    lexer_token_get(lexer);
+    switch (lexer_token_peek(lexer).type) {
+        case TOKEN_ID: {
+            Token token_var = lexer_token_get(lexer);
     
-    if (lexer_token_peek(lexer).type != TOKEN_COLON) {
-        error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
+            if (lexer_token_peek(lexer).type != TOKEN_COLON) {
+                error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
+            }
+            lexer_token_get(lexer);
+
+            Statement statement;
+
+            Type type = type_parse(lexer);
+            if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
+                lexer_token_get(lexer);
+                statement.data.var_declare.assign = expr_parse(lexer);
+                statement.data.var_declare.has_assign = true;
+            } else {
+                statement.data.var_declare.has_assign = false;
+            }
+
+            statement.location = location_expand(token_var.location, type.location);
+            statement.type = STATEMENT_VAR_DECLARE;
+            statement.data.var_declare.id = token_var.data.id;
+            statement.data.var_declare.type = type;
+            return statement;
+        }
+        
+        case TOKEN_INCREMENT: {
+            Token token_increment = lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            return (Statement) {
+                .location = location_expand(token_increment.location, expr.location),
+                .type = STATEMENT_INCREMENT,
+                .data.increment = expr
+            };
+        }
+
+        case TOKEN_DEINCREMENT: {
+            Token token_deincrement = lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            return (Statement) {
+                .location = location_expand(token_deincrement.location, expr.location),
+                .type = STATEMENT_DEINCREMENT,
+                .data.deincrement = expr
+            };
+        }
+
+        default: {
+            Token token = lexer_token_get(lexer);
+            error_exit(token.location, "Not valid the beginning of a statement.");
+            return (Statement) { 0 };
+        }
     }
-    lexer_token_get(lexer);
-
-    Statement statement;
-
-    Type type = type_parse(lexer);
-    if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
-        lexer_token_get(lexer);
-        statement.data.var_declare.assign = expr_parse(lexer);
-        statement.data.var_declare.has_assign = true;
-    } else {
-        statement.data.var_declare.has_assign = false;
-    }
-
-    statement.location = location_expand(token_var.location, type.location);
-    statement.type = STATEMENT_VAR_DECLARE;
-    statement.data.var_declare.id = token_var.data.id;
-    statement.data.var_declare.type = type;
-    return statement;
 }
 
 void statement_free(Statement *statement) {
@@ -436,6 +462,12 @@ void statement_free(Statement *statement) {
             if (statement->data.var_declare.has_assign) {
                 expr_free(&statement->data.var_declare.assign);
             }
+            break;
+        case STATEMENT_INCREMENT:
+            expr_free(&statement->data.increment);
+            break;
+        case STATEMENT_DEINCREMENT:
+            expr_free(&statement->data.deincrement);
             break;
     }
 }
@@ -452,6 +484,15 @@ void statement_print(Statement *statement) {
                 expr_print(&statement->data.var_declare.assign);
             }
             break;
+        case STATEMENT_INCREMENT:
+            print("++"); // I don't like doing this, but idk how to do this better right now.
+            expr_print(&statement->data.increment);
+            break;
+        case STATEMENT_DEINCREMENT:
+            print("--");
+            expr_print(&statement->data.deincrement);
+            break;
+            
     }
 }
 
@@ -601,8 +642,6 @@ void scope_print(Scope *scope, int indentation) {
     }
 }
 
-
-
 Constant constant_parse(Lexer *lexer) {
     Token constant_name = lexer_token_get(lexer);
     if (constant_name.type != TOKEN_ID) {
@@ -613,11 +652,10 @@ Constant constant_parse(Lexer *lexer) {
         error_exit(paren_open.location, "Expected the opening parenthesis of a function declaration list.");
     }
 
-    while (true) {
-        // parse parameters
-    }
+    // parse parameters
 
     // parse scope
+    return (Constant) { 0 };
 }
 
 void constant_free(Constant *constant) {

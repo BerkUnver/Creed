@@ -95,6 +95,8 @@ typedef struct Statement {
     
     enum {
         STATEMENT_VAR_DECLARE, 
+        STATEMENT_INCREMENT,
+        STATEMENT_DEINCREMENT
     } type;
 
     union {
@@ -104,6 +106,9 @@ typedef struct Statement {
             bool has_assign;
             Expr assign;
         } var_declare;
+
+        Expr increment;
+        Expr deincrement;
     } data;
 } Statement;
 
@@ -123,7 +128,6 @@ typedef struct Scope {
 
     union {
         Statement statement;
-        
         struct {
             Statement init;
             Expr expr;
