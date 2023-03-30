@@ -91,7 +91,7 @@ void literal_print(Literal *literal) {
             break;
         
         case LITERAL_INT64:
-            printf("%ldi64", literal->data.l_int64);
+            printf("%lldi64", literal->data.l_int64);
             break;
         
         case LITERAL_UINT8:
@@ -107,7 +107,7 @@ void literal_print(Literal *literal) {
             break;
         
         case LITERAL_UINT64:
-            printf("%luu64", literal->data.l_uint64);
+            printf("%lluu64", literal->data.l_uint64);
             break;
 
         case LITERAL_FLOAT:

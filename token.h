@@ -47,11 +47,11 @@ typedef struct Literal {
         char l_int8;
         short l_int16;
         int l_int;
-        long l_int64;
+        long long l_int64;
         unsigned char l_uint8;
         unsigned short l_uint16;
         unsigned int l_uint;
-        unsigned long l_uint64;
+        unsigned long long l_uint64;
         float l_float;
         double l_float64;
         char l_char;
@@ -138,7 +138,7 @@ typedef enum TokenType {
     TOKEN_KEYWORD_IN,               // "for var in arr[]"
     TOKEN_KEYWORD_BREAK,
     TOKEN_KEYWORD_CONTINUE,
-    TOKEN_KEYWORD_CONST,
+    TOKEN_KEYWORD_CONST,            // I (Berk) thought we weren't having this?
 
     TOKEN_KEYWORD_TYPE_MIN,
     TOKEN_KEYWORD_TYPE_VOID = TOKEN_KEYWORD_TYPE_MIN,
