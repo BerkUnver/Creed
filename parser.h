@@ -107,7 +107,8 @@ typedef struct Statement {
     
     enum {
         STATEMENT_VAR_DECLARE, 
-        STATEMENT_LOOP_FOR// TODO: add conditionals, loops, matches ect. (tom)
+        STATEMENT_LOOP_FOR,// TODO: add conditionals, loops, matches ect. (tom)
+        STATEMENT_LOOP_WHILE,
     } type;
 
     union {
@@ -122,8 +123,13 @@ typedef struct Statement {
             struct Statement *init;
             Expr expr;
             struct Statement *step;
-            struct Scope scope;
+            Scope scope;
         } loop_for;
+
+        struct {
+           Expr condition;
+           Scope body;
+        } loop_while;
 
     } data;
 } Statement;

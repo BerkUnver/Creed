@@ -432,6 +432,19 @@ Statement statement_parse(Lexer *lexer) {
         }
         
         // TODO: add conditionals, loops, ect. (tom)
+        case TOKEN_KEYWORD_WHILE: {
+            Token token_while = lexer_token_get(lexer);
+            Expr condition = expr_parse(lexer);
+            Scope body = scope_parse(lexer);
+
+            return (Statement) {
+                .type = STATEMENT_LOOP_WHILE,
+                .data.loop_while.condition = condition,
+                .data.loop_while.body = body,
+                .location = location_expand(token_while.location, body.location)
+            };
+
+        }
         
         case TOKEN_KEYWORD_FOR: {
             Token token_for = lexer_token_get(lexer);
@@ -486,6 +499,11 @@ void statement_free(Statement *statement) {
             free(statement->data.loop_for.step);
             scope_free(&statement->data.loop_for.scope);
             break;
+
+        case STATEMENT_LOOP_WHILE:
+            expr_free(&statement->data.loop_while.condition);
+            scope_free(&statement->data.loop_while.body);
+            break;
     }
 }
 
@@ -514,6 +532,14 @@ void statement_print(Statement *statement, int indentation) {
             statement_print(statement->data.loop_for.step, indentation);
             putchar(' ');
             scope_print(&statement->data.loop_for.scope, indentation);
+            break;
+
+        case STATEMENT_LOOP_WHILE:
+            print(string_keywords[TOKEN_KEYWORD_WHILE - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            expr_print(&statement->data.loop_while.condition);
+            putchar(' ');
+            scope_print(&statement->data.loop_while.body, indentation);
             break;
     }
 }
