@@ -117,7 +117,8 @@ typedef struct Scope {
     enum {
         SCOPE_BLOCK,
         SCOPE_STATEMENT,
-        SCOPE_LOOP_FOR
+        SCOPE_LOOP_FOR,
+        SCOPE_LOOP_WHILE
     } type;
 
     union {
@@ -129,7 +130,12 @@ typedef struct Scope {
             Statement step;
             struct Scope *scope;
         } loop_for;
-        
+       
+        struct {
+            Expr expr;
+            struct Scope *scope;
+        } loop_while;
+
         struct {
             struct Scope *scopes;
             int scope_count;

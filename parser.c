@@ -505,6 +505,20 @@ Scope scope_parse(Lexer *lexer) {
                 .data.loop_for.scope = scope
             };
         }
+        
+        case TOKEN_KEYWORD_WHILE: {
+            Token token_while = lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            Scope *scope = malloc(sizeof(Scope));
+            *scope = scope_parse(lexer);
+
+            return (Scope) {
+                .location = location_expand(token_while.location, scope->location),
+                .type = SCOPE_LOOP_WHILE,
+                .data.loop_while.expr = expr,
+                .data.loop_while.scope = scope
+            };
+        }
 
         default: {
             Statement statement = statement_parse(lexer);
@@ -535,6 +549,11 @@ void scope_free(Scope *scope) {
             scope_free(scope->data.loop_for.scope);
             free(scope->data.loop_for.scope);
             break;
+        case SCOPE_LOOP_WHILE:
+            expr_free(&scope->data.loop_while.expr);
+            scope_free(scope->data.loop_while.scope);
+            free(scope->data.loop_while.scope);
+            break;
         case SCOPE_BLOCK:
             for (int i = 0; i < scope->data.block.scope_count; i++) scope_free(scope->data.block.scopes + i);
             free(scope->data.block.scopes);
@@ -562,6 +581,14 @@ void scope_print(Scope *scope, int indentation) {
             scope_print(scope->data.loop_for.scope, indentation);
             break;
         
+        case SCOPE_LOOP_WHILE:
+            print(string_keywords[TOKEN_KEYWORD_WHILE - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            expr_print(&scope->data.loop_while.expr);
+            putchar(' ');
+            scope_print(scope->data.loop_while.scope, indentation);
+            break;
+
         case SCOPE_BLOCK:
             printf("%c\n", TOKEN_CURLY_BRACE_OPEN);
             for (int i = 0; i < scope->data.block.scope_count; i++) {
