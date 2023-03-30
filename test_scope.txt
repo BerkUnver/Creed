@@ -1,4 +1,8 @@
 { 
     i: int;
     j: bool = false;
+    
+    for i: int = 0; i < length; j: int = 0; {
+        j: int = 0;
+    }
 }

@@ -400,40 +400,73 @@ void expr_print(Expr *expr) {
 }
 
 Statement statement_parse(Lexer *lexer) {
-    // TODO: add conditionals, loops, ect. (tom)
-    Token token_var = lexer_token_peek(lexer);
+    switch (lexer_token_peek(lexer).type) {
+        case TOKEN_ID: {
+            Token token_var = lexer_token_get(lexer);
+            if (lexer_token_peek(lexer).type != TOKEN_COLON) {
+                error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
+            }
+            lexer_token_get(lexer);
 
-    if (token_var.type != TOKEN_ID) {
-        error_exit(token_var.location, "Expected a variable declaration statement to start with the name of the variable.");
+            Statement statement;
+
+            Type type = type_parse(lexer);
+            if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
+                lexer_token_get(lexer);
+                statement.data.var_declare.assign = expr_parse(lexer);
+                statement.data.var_declare.has_assign = true;
+            } else {
+                statement.data.var_declare.has_assign = false;
+            }
+
+            if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
+                error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a variable declaration.");
+            }
+            Token token_semicolon = lexer_token_get(lexer); 
+            
+            statement.location = location_expand(token_var.location, token_semicolon.location);
+            statement.type = STATEMENT_VAR_DECLARE;
+            statement.data.var_declare.id = token_var.data.id;
+            statement.data.var_declare.type = type;
+            return statement;
+        }
+        
+        // TODO: add conditionals, loops, ect. (tom)
+        
+        case TOKEN_KEYWORD_FOR: {
+            Token token_for = lexer_token_get(lexer);
+            
+            Statement *init = malloc(sizeof(Statement));
+            *init = statement_parse(lexer);
+            Expr expr = expr_parse(lexer);
+            
+            if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
+                error_exit(expr.location, "Expected a semicolon after the expression in a for loop.");
+            }
+            lexer_token_get(lexer);
+            
+            Statement *step = malloc(sizeof(Statement));
+            *step = statement_parse(lexer);
+            
+            Scope scope = scope_parse(lexer);
+            
+            return (Statement) {
+                .location = location_expand(token_for.location, scope.location),
+                .type = STATEMENT_LOOP_FOR,
+                .data.loop_for.init = init,
+                .data.loop_for.expr = expr,
+                .data.loop_for.step = step,
+                .data.loop_for.scope = scope
+            };
+        }
+
+        default: {
+            Token token_error = lexer_token_get(lexer);
+            error_exit(token_error.location, "Not the valid start of a statement");
+            Statement dummy = {0};
+            return dummy;
+        }
     }
-    lexer_token_get(lexer);
-
-    if (lexer_token_peek(lexer).type != TOKEN_COLON) {
-        error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
-    }
-    lexer_token_get(lexer);
-
-    Statement statement;
-
-    Type type = type_parse(lexer);
-    if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
-        lexer_token_get(lexer);
-        statement.data.var_declare.assign = expr_parse(lexer);
-        statement.data.var_declare.has_assign = true;
-    } else {
-        statement.data.var_declare.has_assign = false;
-    }
-
-    if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
-        error_exit(location_expand(token_var.location, type.location), "Expected a semicolon after a variable declaration.");
-    }
-    Token token_semicolon = lexer_token_get(lexer); 
-    
-    statement.location = location_expand(token_var.location, token_semicolon.location);
-    statement.type = STATEMENT_VAR_DECLARE;
-    statement.data.var_declare.id = token_var.data.id;
-    statement.data.var_declare.type = type;
-    return statement;
 }
 
 void statement_free(Statement *statement) {
@@ -444,10 +477,19 @@ void statement_free(Statement *statement) {
                 expr_free(&statement->data.var_declare.assign);
             }
             break;
+        
+        case STATEMENT_LOOP_FOR:
+            statement_free(statement->data.loop_for.init);
+            free(statement->data.loop_for.init);
+            expr_free(&statement->data.loop_for.expr);
+            statement_free(statement->data.loop_for.step);
+            free(statement->data.loop_for.step);
+            scope_free(&statement->data.loop_for.scope);
+            break;
     }
 }
 
-void statement_print(Statement *statement) {
+void statement_print(Statement *statement, int indentation) {
     switch (statement->type) {
         case STATEMENT_VAR_DECLARE:
             print(string_cache_get(statement->data.var_declare.id));
@@ -459,6 +501,19 @@ void statement_print(Statement *statement) {
                 expr_print(&statement->data.var_declare.assign);
             }
             putchar(TOKEN_SEMICOLON);
+            break;
+
+        case STATEMENT_LOOP_FOR:
+            print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            statement_print(statement->data.loop_for.init, indentation);
+            putchar(' ');
+            expr_print(&statement->data.loop_for.expr);
+            putchar(TOKEN_SEMICOLON);
+            putchar(' ');
+            statement_print(statement->data.loop_for.step, indentation);
+            putchar(' ');
+            scope_print(&statement->data.loop_for.scope, indentation);
             break;
     }
 }
@@ -507,10 +562,10 @@ void scope_print(Scope *scope, int indentation) {
         for (int j = 0; j < indentation + 1; j++) {
             print(STR_INDENTATION);
         }
-        statement_print(&scope->statements[i]);
+        statement_print(&scope->statements[i], indentation + 1);
         putchar('\n');
     }
-    for (int i = 0; i < indentation - 1; i++) {
+    for (int i = 0; i < indentation; i++) {
         print(STR_INDENTATION);
     }
     putchar(TOKEN_CURLY_BRACE_CLOSE);
