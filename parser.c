@@ -35,10 +35,17 @@ Type type_parse(Lexer *lexer) {
                 .type = TYPE_ID,
                 .data.id = token.data.id
             };
-
-        default: 
-            // TODO: Insert checking for primitive token types.
-            error_exit(token.location, "Expected type signature here.");
+        
+        default:
+            if (token.type < TOKEN_KEYWORD_TYPE_MIN || TOKEN_KEYWORD_TYPE_MAX < token.type) {
+                error_exit(token.location, "Expected type signature here.");
+            }
+            lexer_token_get(lexer);
+            return (Type) {
+                .location = token.location,
+                .type = TYPE_PRIMITIVE,
+                .data.primitive = token.type
+            };
     }
 
     lexer_token_get(lexer);
@@ -88,6 +95,7 @@ void type_print(Type *type) {
             break;
 
         case TYPE_PRIMITIVE:
+            print(string_keywords[type->data.primitive - TOKEN_KEYWORD_MIN]);
             // TODO: Add printing primitives here.
             break;
     }
@@ -130,6 +138,13 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
             expr.location = token_id.location;
         } break;
         
+        case TOKEN_KEYWORD_FALSE:
+        case TOKEN_KEYWORD_TRUE: {
+            Token token_bool = lexer_token_get(lexer);
+            expr.location = token_bool.location;
+            expr.type = EXPR_LITERAL_BOOL;
+            expr.data.literal_bool = token_bool.type - TOKEN_KEYWORD_FALSE;
+        } break;
 
         case TOKEN_UNARY_LOGICAL_NOT:
             unary_type = EXPR_UNARY_LOGICAL_NOT;
@@ -348,6 +363,10 @@ void expr_print(Expr *expr) {
             literal_print(&expr->data.literal);
             break;
         
+        case EXPR_LITERAL_BOOL:
+            print(string_keywords[expr->data.literal_bool + TOKEN_KEYWORD_FALSE - TOKEN_KEYWORD_MIN]);
+            break;
+
         case EXPR_TYPECAST:
             putchar('(');
             expr_print(expr->data.typecast.operand);

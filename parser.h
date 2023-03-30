@@ -40,6 +40,7 @@ typedef struct Expr {
         EXPR_FUNCTION_CALL,
         EXPR_ID,
         EXPR_LITERAL,
+        EXPR_LITERAL_BOOL
     } type;
 
     union {
@@ -80,6 +81,7 @@ typedef struct Expr {
         } member_access;
 
         Literal literal;
+        bool literal_bool;
         StringId id;
     } data;
 } Expr;
