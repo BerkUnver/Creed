@@ -107,6 +107,14 @@ typedef struct Statement {
     } data;
 } Statement;
 
+typedef struct MatchCase {
+    Location location;
+    StringId match_id;
+    bool declares; // if the case creates a new variable
+    Statement declared_var; // id for created variable
+    int statement_count;
+    Statement *statements;
+} MatchCase;
 
 Statement statement_parse(Lexer *lexer);
 void statement_free(Statement *statement);
@@ -117,7 +125,8 @@ typedef struct Scope {
     enum {
         SCOPE_BLOCK,
         SCOPE_STATEMENT,
-        SCOPE_LOOP_FOR
+        SCOPE_LOOP_FOR,
+        SCOPE_MATCH,
     } type;
 
     union {
@@ -134,8 +143,16 @@ typedef struct Scope {
             struct Scope *scopes;
             int scope_count;
         } block;
+
+        struct {
+            Expr expr;
+            int case_count;
+            struct MatchCase *cases;
+        } match;
     } data;
 } Scope;
+
+
 
 Scope scope_parse(Lexer *lexer);
 void scope_free(Scope *scope);

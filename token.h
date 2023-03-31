@@ -102,6 +102,7 @@ typedef enum TokenType {
     TOKEN_OP_MULTIPLY,
     TOKEN_OP_DIVIDE,
     TOKEN_OP_MODULO,
+    TOKEN_OP_RIGHT_ARROW,
     TOKEN_OP_MAX = TOKEN_OP_MODULO,
     // string_operators relies on these being in this order so don't change this without changing that.
 

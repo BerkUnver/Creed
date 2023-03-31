@@ -506,6 +506,68 @@ Scope scope_parse(Lexer *lexer) {
             };
         }
 
+        // not including the _ (defualt case) for now.
+        case TOKEN_KEYWORD_MATCH: {
+            Token token_match = lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            Token open_brace_token = lexer_token_get(lexer);
+            int case_count = 0;
+            int allocated_case_count = 2; // defaults to 2 match statements
+
+            if (open_brace_token.type != TOKEN_CURLY_BRACE_OPEN) { error_exit(open_brace_token.location, "Expected an open curly brace after match expression."); }
+
+            MatchCase *cases = malloc(sizeof(MatchCase) * allocated_case_count);
+            while(lexer_token_peek(lexer).type == TOKEN_OP_BITWISE_OR) {
+                lexer_token_get(lexer);
+                if (case_count >= allocated_case_count) {
+                    allocated_case_count *= 2; // double the size for matches
+                    cases = realloc(cases, sizeof(MatchCase) * allocated_case_count);
+                }
+
+                Token id_token = lexer_token_get(lexer);
+                if (id_token.type != TOKEN_ID) { error_exit(id_token.location, "Expected an identifier."); }
+
+                Token arrow_token = lexer_token_get(lexer);
+                if (arrow_token.type != TOKEN_OP_RIGHT_ARROW) { error_exit(arrow_token.location, "Expected a '->' token"); }
+
+                int statement_count = 0;
+                int allocated_statement_count = 2;
+                Statement *statements = malloc(sizeof(Statement) * allocated_statement_count);
+
+                while(lexer_token_peek(lexer).type != TOKEN_OP_BITWISE_OR && lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                    if (statement_count >= allocated_statement_count) {
+                        allocated_statement_count *= 2; // double the size allocated for statements
+                        cases = realloc(cases, sizeof(Statement) * allocated_statement_count);
+                    }
+                    statements[statement_count] = statement_parse(lexer);
+                    statement_count += 1;
+                    // consume semicolon:
+                    Token end_statement_token = lexer_token_get(lexer);
+                    if (end_statement_token.type != TOKEN_SEMICOLON) { error_exit(end_statement_token.location, "Expected a semicolon at end of statement."); }
+                }
+                cases[case_count] = (MatchCase) {
+                    .location = location_expand(id_token.location, statements[statement_count].location),
+                    .match_id = id_token.data.id,
+                    .declares = false, // TODO: add parsing for a declared var in match
+                    .statement_count = statement_count,
+                    .statements = statements
+                };
+                case_count += 1;
+                // NOTE: is it worth realloc() to match_count to save space ? (same for statements)
+            }
+
+            Token close_brace = lexer_token_get(lexer);
+            if (close_brace.type != TOKEN_CURLY_BRACE_CLOSE) { error_exit(close_brace.location, "Expected a closing curly brace."); }
+
+            return (Scope) {
+                .location = location_expand(token_match.location, cases[case_count].location),
+                .type = SCOPE_MATCH,
+                .data.match.expr = expr,
+                .data.match.case_count = case_count,
+                .data.match.cases = cases,
+            };
+        }
+
         default: {
             Statement statement = statement_parse(lexer);
             Token token_semicolon = lexer_token_peek(lexer);
@@ -539,6 +601,15 @@ void scope_free(Scope *scope) {
             for (int i = 0; i < scope->data.block.scope_count; i++) scope_free(scope->data.block.scopes + i);
             free(scope->data.block.scopes);
             break;
+        case SCOPE_MATCH:
+            expr_free(&scope->data.match.expr);
+            for (int i=0; i < scope->data.match.case_count; ++i) {
+                if (scope->data.match.cases[i].declares)
+                    statement_free(&scope->data.match.cases[i].declared_var);
+                int stmt_count = scope->data.match.cases[i].statement_count;
+                for (int j=0; j < stmt_count; ++j) statement_free(scope->data.match.cases[i].statements + j);
+            }
+            break;
     }
 }
 
@@ -570,6 +641,27 @@ void scope_print(Scope *scope, int indentation) {
             }
             for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
             printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
+            break;
+        case SCOPE_MATCH:
+            print(string_keywords[TOKEN_KEYWORD_MATCH - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            expr_print(&scope->data.match.expr);
+            putchar(' ');
+            putchar('{');
+            putchar('\n');
+            for(int i=0; i<scope->data.match.case_count; ++i) {
+                for(int j=0; j<indentation; ++j) {putchar('\t');}
+                putchar('|');
+                print(string_cache_get((scope->data.match.cases + i)->match_id));
+                printf("->");
+                for(int j=0; j < (scope->data.match.cases + i)->statement_count; ++j) {
+                    putchar('\n');
+                    for(int j=0; j<indentation+1; ++j) {putchar('\t');}
+                    statement_print(&(scope->data.match.cases + i)->statements[j]);
+                }
+                putchar('\n');
+            }
+
             break;
     }
 }
