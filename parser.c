@@ -397,6 +397,7 @@ void expr_print(Expr *expr) {
     }
 }
 
+/*
 Assignee assignee_parse(Lexer *lexer) {
     switch (lexer_token_peek(lexer).type) {
         case TOKEN_ID: {
@@ -438,6 +439,7 @@ void assignee_print(Assignee *assignee) {
         print(string_cache_get(assignee->data.id));
     }
 }
+*/
 
 Statement statement_parse(Lexer *lexer) {
     if (lexer_token_peek_2(lexer).type == TOKEN_COLON) {
@@ -469,39 +471,45 @@ Statement statement_parse(Lexer *lexer) {
     switch (lexer_token_peek(lexer).type) {
         case TOKEN_INCREMENT: {
             Token token_increment = lexer_token_get(lexer);
-            Assignee increment = assignee_parse(lexer);
+            Expr expr = expr_parse(lexer);
             return (Statement) {
-                .location = location_expand(token_increment.location, increment.location),
+                .location = location_expand(token_increment.location, expr.location),
                 .type = STATEMENT_INCREMENT,
-                .data.increment = increment
+                .data.increment = expr
             };
         }
 
         case TOKEN_DEINCREMENT: {
             Token token_deincrement = lexer_token_get(lexer);
-            Assignee deincrement = assignee_parse(lexer);
+            Expr expr = expr_parse(lexer);
             return (Statement) {
-                .location = location_expand(token_deincrement.location, deincrement.location),
+                .location = location_expand(token_deincrement.location, expr.location),
                 .type = STATEMENT_DEINCREMENT,
-                .data.deincrement = deincrement
+                .data.deincrement = expr
             };
         }
 
         default: {
-            Assignee assignee = assignee_parse(lexer);
-            Token token_assign = lexer_token_peek(lexer);
-            if (token_assign.type < TOKEN_ASSIGN_MIN || TOKEN_ASSIGN_MAX < token_assign.type) {
-                error_exit(token_assign.location, "Expected an assignment after an assignee in a statement.");
-            }
-            lexer_token_get(lexer);
             Expr expr = expr_parse(lexer);
-            return (Statement) {
-                .location = location_expand(assignee.location, expr.location),
-                .type = STATEMENT_ASSIGN,
-                .data.assign.assignee = assignee,
-                .data.assign.value = expr,
-                .data.assign.type = token_assign.type
-            };
+            Token token_assign = lexer_token_peek(lexer);
+            
+            if (token_assign.type < TOKEN_ASSIGN_MIN || TOKEN_ASSIGN_MAX < token_assign.type) {
+                return (Statement) {
+                    .location = expr.location,
+                    .type = STATEMENT_EXPR,
+                    .data.expr = expr
+                };
+            } else {
+                lexer_token_get(lexer);
+                Expr value = expr_parse(lexer);
+                return (Statement) {
+                    .location = location_expand(expr.location, expr.location),
+                    .type = STATEMENT_ASSIGN,
+                    .data.assign.assignee = expr,
+                    .data.assign.value = value,
+                    .data.assign.type = token_assign.type
+                };
+            }
         }
     }
 }
@@ -515,14 +523,17 @@ void statement_free(Statement *statement) {
             }
             break;
         case STATEMENT_INCREMENT:
-            assignee_free(&statement->data.increment);
+            expr_free(&statement->data.increment);
             break;
         case STATEMENT_DEINCREMENT:
-            assignee_free(&statement->data.deincrement);
+            expr_free(&statement->data.deincrement);
             break;
         case STATEMENT_ASSIGN:
-            assignee_free(&statement->data.assign.assignee);
+            expr_free(&statement->data.assign.assignee);
             expr_free(&statement->data.assign.value);
+            break;
+        case STATEMENT_EXPR:
+            expr_free(&statement->data.expr);
             break;
     }
 }
@@ -541,16 +552,19 @@ void statement_print(Statement *statement) {
             break;
         case STATEMENT_INCREMENT:
             print("++"); // I don't like doing this, but idk how to do this better right now.
-            assignee_print(&statement->data.increment);
+            expr_print(&statement->data.increment);
             break;
         case STATEMENT_DEINCREMENT:
             print("--");
-            assignee_print(&statement->data.deincrement);
+            expr_print(&statement->data.deincrement);
             break;
         case STATEMENT_ASSIGN:
-            assignee_print(&statement->data.assign.assignee);
+            expr_print(&statement->data.assign.assignee);
             printf(" %s ", string_assigns[statement->data.assign.type - TOKEN_ASSIGN_MIN]);
             expr_print(&statement->data.assign.value);
+            break;
+        case STATEMENT_EXPR:
+            expr_print(&statement->data.expr);
             break;
     }
 }

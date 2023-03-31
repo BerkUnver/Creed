@@ -90,17 +90,6 @@ Expr expr_parse(Lexer *lexer);
 void expr_free(Expr *expr);
 void expr_print(Expr *expr);
 
-typedef struct Assignee {
-    Location location;
-    bool is_dereference;
-    union {
-        StringId id;
-        Expr dereference;
-    } data;
-} Assignee;
-
-void assignee_free(Assignee *assignee);
-
 typedef struct Statement {
     Location location;
     
@@ -108,7 +97,8 @@ typedef struct Statement {
         STATEMENT_VAR_DECLARE, 
         STATEMENT_INCREMENT,
         STATEMENT_DEINCREMENT,
-        STATEMENT_ASSIGN
+        STATEMENT_ASSIGN,
+        STATEMENT_EXPR
     } type;
 
     union {
@@ -119,14 +109,16 @@ typedef struct Statement {
             Expr assign;
         } var_declare;
 
-        Assignee increment;
-        Assignee deincrement;
+        Expr increment;
+        Expr deincrement;
         
         struct {
-            Assignee assignee;
+            Expr assignee;
             Expr value;
             TokenType type;
         } assign;
+
+        Expr expr;
     } data;
 } Statement;
 
