@@ -12,4 +12,10 @@
         | Test3 ->
         | Test5 -> var4 : int = 4;
     }
+    while i > 0 {
+    
+    }
+    ++i;
+    --j;
+    ++1;
 }
