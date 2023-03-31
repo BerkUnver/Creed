@@ -6,12 +6,19 @@
     }
 
     match x {
-        | Test1 -> var1 : int = 1;
-            var2 : int = 3;
-        | Test2 -> var2 : int = 2;
-        | Test3 ->
-        | Test5 -> var4 : int = 4;
+    | Test1 -> 
+        var1 : int = 1;
+        var2 : int = 3;
+    | Test2 -> 
+        var2: int = 2;
+        for i: int = 0; i < 0; ++i {
+            ++var2;
+        }
+    | Test3 ->
+    | Test5 -> 
+        var4 : int = 4;
     }
+
     while i > 0 {
     
     }

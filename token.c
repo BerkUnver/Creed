@@ -141,6 +141,8 @@ void token_print(Token *token) {
         print("EOF");
     else if (token->type == TOKEN_UNARY_LOGICAL_NOT)
         putchar('!');
+    else if (token->type == TOKEN_LAMBDA)
+        print("->");
     else if (char_is_single_char_token_type(token->type))
         putchar(token->type);
     else if (TOKEN_OP_MIN <= token->type && token->type <= TOKEN_OP_MAX)

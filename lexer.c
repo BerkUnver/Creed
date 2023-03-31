@@ -163,7 +163,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
         else if (lexer_char_get_if(lexer, '='))
             token.type = TOKEN_ASSIGN_MINUS;
         else if (lexer_char_get_if(lexer, '>'))
-            token.type = TOKEN_OP_RIGHT_ARROW;
+            token.type = TOKEN_LAMBDA;
         else
             token.type = TOKEN_OP_MINUS;
         break;

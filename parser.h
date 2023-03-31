@@ -112,13 +112,15 @@ typedef struct Statement {
     } data;
 } Statement;
 
+struct Scope;
+
 typedef struct MatchCase {
     Location location;
     StringId match_id;
     bool declares; // if the case creates a new variable
     Statement declared_var; // id for created variable
-    int statement_count;
-    Statement *statements;
+    int scope_count;
+    struct Scope *scopes;
 } MatchCase;
 
 Statement statement_parse(Lexer *lexer);
@@ -157,7 +159,7 @@ typedef struct Scope {
         struct {
             Expr expr;
             int case_count;
-            struct MatchCase *cases;
+            MatchCase *cases;
         } match;
     } data;
 } Scope;
