@@ -40,4 +40,8 @@
     else c;
     if a { }
     if a > 0 { } else { }
+
+    label label_name;
+    goto label_name;
+    return a + b;
 }

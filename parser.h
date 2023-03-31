@@ -99,6 +99,9 @@ typedef struct Statement {
         STATEMENT_DEINCREMENT,
         STATEMENT_ASSIGN,
         STATEMENT_EXPR,
+        STATEMENT_LABEL,
+        STATEMENT_LABEL_GOTO,
+        STATEMENT_RETURN
     } type;
 
     union {
@@ -119,6 +122,10 @@ typedef struct Statement {
         } assign;
 
         Expr expr;
+
+        StringId label;
+        StringId label_goto;
+        Expr return_expr;
     } data;
 } Statement;
 

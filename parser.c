@@ -397,50 +397,6 @@ void expr_print(Expr *expr) {
     }
 }
 
-/*
-Assignee assignee_parse(Lexer *lexer) {
-    switch (lexer_token_peek(lexer).type) {
-        case TOKEN_ID: {
-            Token token_id = lexer_token_get(lexer);
-            return (Assignee) {
-                .location = token_id.location,
-                .is_dereference = false,
-                .data.id = token_id.data.id
-            };
-        }
-        
-        case TOKEN_OP_BITWISE_AND: {
-            Token token_and = lexer_token_get(lexer);
-            Expr expr = expr_parse_modifiers(lexer);
-            return (Assignee) {
-                .location = location_expand(token_and.location, expr.location),
-                .is_dereference = true,
-                .data.dereference = expr
-            };
-        }
-
-        default: {
-            Token token_err = lexer_token_peek(lexer);
-            error_exit(token_err.location, "Expected an identifier or a dereference in an assignment statement.");
-            return (Assignee) { };
-        }
-    }
-}
-
-void assignee_free(Assignee *assignee) {
-    if (assignee->is_dereference) expr_free(&assignee->data.dereference);
-}
-
-void assignee_print(Assignee *assignee) {
-    if (assignee->is_dereference) {
-        print(string_operators[TOKEN_OP_BITWISE_AND - TOKEN_OP_MIN]);
-        expr_print(&assignee->data.dereference);
-    } else {
-        print(string_cache_get(assignee->data.id));
-    }
-}
-*/
-
 Statement statement_parse(Lexer *lexer) {
     if (lexer_token_peek_2(lexer).type == TOKEN_COLON) {
         Token token_id = lexer_token_peek(lexer);
@@ -486,6 +442,44 @@ Statement statement_parse(Lexer *lexer) {
                 .location = location_expand(token_deincrement.location, expr.location),
                 .type = STATEMENT_DEINCREMENT,
                 .data.deincrement = expr
+            };
+        }
+        
+        case TOKEN_KEYWORD_LABEL: {
+            Token token_label = lexer_token_get(lexer);
+            Token token_id = lexer_token_peek(lexer);
+            if (token_id.type != TOKEN_ID) {
+                error_exit(token_id.location, "Expected an identifier as a label.");
+            }
+            lexer_token_get(lexer);
+            return (Statement) {
+                .location = location_expand(token_label.location, token_id.location),
+                .type = STATEMENT_LABEL,
+                .data.label = token_id.data.id
+            };
+            break;
+        }
+        
+        case TOKEN_KEYWORD_GOTO: {
+            Token token_goto = lexer_token_get(lexer);
+            Token token_id = lexer_token_peek(lexer);
+            if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the label of a goto statement to be an identifier.");
+            lexer_token_get(lexer);
+            return (Statement) {
+                .location = location_expand(token_goto.location, token_id.location),
+                .type = STATEMENT_LABEL_GOTO,
+                .data.label_goto = token_id.data.id
+            };
+            break;
+        }
+
+        case TOKEN_KEYWORD_RETURN: {
+            Token token_return = lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            return (Statement) {
+                .location = location_expand(token_return.location, expr.location),
+                .type = STATEMENT_RETURN,
+                .data.return_expr = expr, 
             };
         }
 
@@ -535,6 +529,14 @@ void statement_free(Statement *statement) {
         case STATEMENT_EXPR:
             expr_free(&statement->data.expr);
             break;
+
+        case STATEMENT_LABEL:
+        case STATEMENT_LABEL_GOTO:
+            break;
+
+        case STATEMENT_RETURN:
+            expr_free(&statement->data.return_expr);
+            break;
     }
 }
 
@@ -566,7 +568,17 @@ void statement_print(Statement *statement) {
         case STATEMENT_EXPR:
             expr_print(&statement->data.expr);
             break;
-    }
+        case STATEMENT_LABEL:
+            printf("%s %s", string_keywords[TOKEN_KEYWORD_LABEL - TOKEN_KEYWORD_MIN], string_cache_get(statement->data.label));
+            break;
+        case STATEMENT_LABEL_GOTO:
+            printf("%s %s", string_keywords[TOKEN_KEYWORD_GOTO - TOKEN_KEYWORD_MIN], string_cache_get(statement->data.label_goto));
+            break;
+        case STATEMENT_RETURN:
+            printf("%s ", string_keywords[TOKEN_KEYWORD_RETURN - TOKEN_KEYWORD_MIN]);
+            expr_print(&statement->data.return_expr);
+            break;
+    }  
 }
 
 Scope scope_parse(Lexer *lexer) {
