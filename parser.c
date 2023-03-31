@@ -735,16 +735,17 @@ void scope_print(Scope *scope, int indentation) {
                 
                 printf("%s ", string_operators[TOKEN_OP_BITWISE_OR - TOKEN_OP_MIN]);
                 print(string_cache_get(scope->data.match.cases[i].match_id));
-                printf(" ->");
+                printf(" ->\n");
                 for (int j = 0; j < scope->data.match.cases[i].scope_count; ++j) {
-                    putchar('\n');
                     for (int j = 0; j <= indentation; ++j) {
                         print(STR_INDENTATION);
                     }
                     scope_print(scope->data.match.cases[i].scopes + j, indentation + 1);
                 }
-                putchar('\n');
             }
+
+            for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
+            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
             break;
     }
 }
