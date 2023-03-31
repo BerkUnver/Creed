@@ -108,7 +108,7 @@ typedef struct Statement {
         STATEMENT_VAR_DECLARE, 
         STATEMENT_INCREMENT,
         STATEMENT_DEINCREMENT,
-        // STATEMENT_ASSIGN
+        STATEMENT_ASSIGN
     } type;
 
     union {

@@ -488,9 +488,20 @@ Statement statement_parse(Lexer *lexer) {
         }
 
         default: {
-            Token token = lexer_token_get(lexer);
-            error_exit(token.location, "Not valid the beginning of a statement.");
-            return (Statement) { 0 };
+            Assignee assignee = assignee_parse(lexer);
+            Token token_assign = lexer_token_peek(lexer);
+            if (token_assign.type < TOKEN_ASSIGN_MIN || TOKEN_ASSIGN_MAX < token_assign.type) {
+                error_exit(token_assign.location, "Expected an assignment after an assignee in a statement.");
+            }
+            lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            return (Statement) {
+                .location = location_expand(assignee.location, expr.location),
+                .type = STATEMENT_ASSIGN,
+                .data.assign.assignee = assignee,
+                .data.assign.value = expr,
+                .data.assign.type = token_assign.type
+            };
         }
     }
 }
@@ -508,6 +519,10 @@ void statement_free(Statement *statement) {
             break;
         case STATEMENT_DEINCREMENT:
             assignee_free(&statement->data.deincrement);
+            break;
+        case STATEMENT_ASSIGN:
+            assignee_free(&statement->data.assign.assignee);
+            expr_free(&statement->data.assign.value);
             break;
     }
 }
@@ -532,7 +547,11 @@ void statement_print(Statement *statement) {
             print("--");
             assignee_print(&statement->data.deincrement);
             break;
-            
+        case STATEMENT_ASSIGN:
+            assignee_print(&statement->data.assign.assignee);
+            printf(" %s ", string_assigns[statement->data.assign.type - TOKEN_ASSIGN_MIN]);
+            expr_print(&statement->data.assign.value);
+            break;
     }
 }
 
