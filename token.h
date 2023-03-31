@@ -131,7 +131,6 @@ typedef enum TokenType {
     // Same thing for operators applies to keywords.
     TOKEN_KEYWORD_MIN,
     TOKEN_KEYWORD_IF = TOKEN_KEYWORD_MIN,
-    TOKEN_KEYWORD_ELIF,
     TOKEN_KEYWORD_ELSE,
     TOKEN_KEYWORD_TYPECAST,          // "as"
     TOKEN_KEYWORD_FOR,

@@ -27,7 +27,7 @@ int operator_precedences[] = {
 };
 
 char *string_keywords[] = {
-    "if", "elif", "else", "as", "for", "while", "in", "break", "continue", "void", "char", "int8", "int16", "int", "int64",
+    "if", "else", "as", "for", "while", "in", "break", "continue", "void", "char", "int8", "int16", "int", "int64",
     "uint8", "uint16", "uint", "uint64", "float", "float64", "bool", "false", "true", "file", "regex", "enum", "struct", "union", "sum", "match",
     "goto", "label", "return", "import"
 };

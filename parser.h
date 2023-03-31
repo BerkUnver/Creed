@@ -98,7 +98,7 @@ typedef struct Statement {
         STATEMENT_INCREMENT,
         STATEMENT_DEINCREMENT,
         STATEMENT_ASSIGN,
-        STATEMENT_EXPR
+        STATEMENT_EXPR,
     } type;
 
     union {
@@ -142,6 +142,7 @@ typedef struct Scope {
     enum {
         SCOPE_BLOCK,
         SCOPE_STATEMENT,
+        SCOPE_CONDITIONAL,
         SCOPE_LOOP_FOR,
         SCOPE_LOOP_FOR_EACH,
         SCOPE_LOOP_WHILE,
@@ -150,6 +151,7 @@ typedef struct Scope {
 
     union {
         Statement statement;
+
         struct {
             Statement init;
             Expr expr;
@@ -157,6 +159,12 @@ typedef struct Scope {
             struct Scope *scope;
         } loop_for;
         
+        struct {
+            Expr condition;
+            struct Scope *scope_if;
+            struct Scope *scope_else; // if null then no else statement exists.
+        } conditional;
+
         struct {
             StringId element;
             Expr array;

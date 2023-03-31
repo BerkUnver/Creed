@@ -592,7 +592,35 @@ Scope scope_parse(Lexer *lexer) {
                 .data.block.scopes = scopes
             };
         }
-        
+       
+        case TOKEN_KEYWORD_IF: {
+            Token token_if = lexer_token_get(lexer);
+            Expr expr = expr_parse(lexer);
+            
+            Location location;
+            Scope *scope_if = malloc(sizeof(Scope));
+            *scope_if = scope_parse(lexer);
+
+            Scope *scope_else;
+            if (lexer_token_peek(lexer).type == TOKEN_KEYWORD_ELSE) {
+                lexer_token_get(lexer);
+                scope_else = malloc(sizeof(Scope));
+                *scope_else = scope_parse(lexer);
+                location = location_expand(token_if.location, scope_else->location);
+            } else {
+                location = location_expand(token_if.location, scope_if->location);
+                scope_else = NULL;
+            }
+
+            return (Scope) {
+                .location = location,
+                .type = SCOPE_CONDITIONAL,
+                .data.conditional.condition = expr,
+                .data.conditional.scope_if = scope_if,
+                .data.conditional.scope_else = scope_else
+            };
+        }
+
         case TOKEN_KEYWORD_FOR: {
             Token token_for = lexer_token_get(lexer);
             
@@ -750,6 +778,15 @@ void scope_free(Scope *scope) {
         case SCOPE_STATEMENT:
             statement_free(&scope->data.statement);
             break;
+        case SCOPE_CONDITIONAL:
+            expr_free(&scope->data.conditional.condition);
+            scope_free(scope->data.conditional.scope_if);
+            free(scope->data.conditional.scope_if);
+            if (scope->data.conditional.scope_else) {
+                scope_free(scope->data.conditional.scope_else);
+                free(scope->data.conditional.scope_else);
+            }
+            break;
         case SCOPE_LOOP_FOR:
             statement_free(&scope->data.loop_for.init);
             expr_free(&scope->data.loop_for.expr);
@@ -793,7 +830,20 @@ void scope_print(Scope *scope, int indentation) {
             putchar(TOKEN_SEMICOLON);
             putchar('\n');
             break;
-
+            
+        case SCOPE_CONDITIONAL:
+            print(string_keywords[TOKEN_KEYWORD_IF - TOKEN_KEYWORD_MIN]);
+            putchar(' ');
+            expr_print(&scope->data.conditional.condition);
+            putchar(' ');
+            scope_print(scope->data.conditional.scope_if, indentation);
+            if (scope->data.conditional.scope_else) {
+                for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
+                print(string_keywords[TOKEN_KEYWORD_ELSE - TOKEN_KEYWORD_MIN]);
+                putchar(' ');
+                scope_print(scope->data.conditional.scope_else, indentation);
+            }
+            break;
         case SCOPE_LOOP_FOR:
             print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
             putchar(' ');

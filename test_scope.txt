@@ -35,4 +35,9 @@
     ++&func(1, 2, 3);
     1;
     function_call(a, b, c);
+    
+    if a b;
+    else c;
+    if a { }
+    if a > 0 { } else { }
 }
