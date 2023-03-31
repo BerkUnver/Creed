@@ -12,12 +12,14 @@ typedef struct Lexer {
     int line_idx;
     int char_idx;
 
-    bool peek_cached;
-    Token peek;
+    int peeks;
+    Token peek1;
+    Token peek2;
 } Lexer;
 
 bool lexer_new(const char *path, Lexer *lexer);
 void lexer_free(Lexer *lexer);
 Token lexer_token_get(Lexer *lexer);
 Token lexer_token_peek(Lexer *lexer);
+Token lexer_token_peek_2(Lexer *lexer);
 #endif

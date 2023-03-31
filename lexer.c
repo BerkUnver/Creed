@@ -14,7 +14,7 @@ bool lexer_new(const char *path, Lexer *lexer) {
         .file = file,
         .line_idx = 0,
         .char_idx = 0,
-        .peek_cached = false,
+        .peeks = 0,
     };
     return true;
 }
@@ -337,17 +337,31 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
 }
 
 Token lexer_token_peek(Lexer *lexer) {
-    if (!lexer->peek_cached) {
-        lexer->peek = lexer_token_get_skip_cache(lexer);
-        lexer->peek_cached = true;
+    if (lexer->peeks < 1) {
+        lexer->peek1 = lexer_token_get_skip_cache(lexer);
+        lexer->peeks = 1;
     }
-    return lexer->peek;
+    return lexer->peek1;
+}
+
+Token lexer_token_peek_2(Lexer *lexer) {
+    if (lexer->peeks < 1) lexer->peek1 = lexer_token_get_skip_cache(lexer);
+    if (lexer->peeks < 2) lexer->peek2 = lexer_token_get_skip_cache(lexer);
+    lexer->peeks = 2;
+    return lexer->peek2;
 }
 
 Token lexer_token_get(Lexer *lexer) {
-    if (lexer->peek_cached) {
-        lexer->peek_cached = false;
-        return lexer->peek;
+    if (lexer->peeks > 0) {
+        Token token = lexer->peek1;
+        if (lexer->peeks > 1) {
+            lexer->peek1 = lexer->peek2;
+            lexer->peeks = 1;
+        } else {
+            lexer->peeks = 0;
+        }
+        return token;
     }
+
     return lexer_token_get_skip_cache(lexer);
 }

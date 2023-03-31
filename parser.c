@@ -332,9 +332,7 @@ void expr_free(Expr *expr) {
     }
 }
 
-void expr_print(Expr *expr) {
-    
-    // currently only prints things that are actually implemented.
+void expr_print(Expr *expr) { 
     switch (expr->type) {
         case EXPR_PAREN:
             putchar(TOKEN_PAREN_OPEN);
@@ -399,51 +397,93 @@ void expr_print(Expr *expr) {
     }
 }
 
-Statement statement_parse(Lexer *lexer) {
+Assignee assignee_parse(Lexer *lexer) {
     switch (lexer_token_peek(lexer).type) {
         case TOKEN_ID: {
-            Token token_var = lexer_token_get(lexer);
-    
-            if (lexer_token_peek(lexer).type != TOKEN_COLON) {
-                error_exit(token_var.location, "Expected a colon after a variable name in a variable declaration."); 
-            }
-            lexer_token_get(lexer);
-
-            Statement statement;
-
-            Type type = type_parse(lexer);
-            if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
-                lexer_token_get(lexer);
-                statement.data.var_declare.assign = expr_parse(lexer);
-                statement.data.var_declare.has_assign = true;
-            } else {
-                statement.data.var_declare.has_assign = false;
-            }
-
-            statement.location = location_expand(token_var.location, type.location);
-            statement.type = STATEMENT_VAR_DECLARE;
-            statement.data.var_declare.id = token_var.data.id;
-            statement.data.var_declare.type = type;
-            return statement;
+            Token token_id = lexer_token_get(lexer);
+            return (Assignee) {
+                .location = token_id.location,
+                .is_dereference = false,
+                .data.id = token_id.data.id
+            };
         }
         
+        case TOKEN_OP_BITWISE_AND: {
+            Token token_and = lexer_token_get(lexer);
+            Expr expr = expr_parse_modifiers(lexer);
+            return (Assignee) {
+                .location = location_expand(token_and.location, expr.location),
+                .is_dereference = true,
+                .data.dereference = expr
+            };
+        }
+
+        default: {
+            Token token_err = lexer_token_peek(lexer);
+            error_exit(token_err.location, "Expected an identifier or a dereference in an assignment statement.");
+            return (Assignee) { };
+        }
+    }
+}
+
+void assignee_free(Assignee *assignee) {
+    if (assignee->is_dereference) expr_free(&assignee->data.dereference);
+}
+
+void assignee_print(Assignee *assignee) {
+    if (assignee->is_dereference) {
+        print(string_operators[TOKEN_OP_BITWISE_AND - TOKEN_OP_MIN]);
+        expr_print(&assignee->data.dereference);
+    } else {
+        print(string_cache_get(assignee->data.id));
+    }
+}
+
+Statement statement_parse(Lexer *lexer) {
+    if (lexer_token_peek_2(lexer).type == TOKEN_COLON) {
+        Token token_id = lexer_token_peek(lexer);
+        if (token_id.type != TOKEN_ID) {
+            error_exit(token_id.location, "Expected the name of a variable to be an id.");
+        }
+        lexer_token_get(lexer);
+        lexer_token_get(lexer); // get colon
+
+        Statement statement;
+
+        Type type = type_parse(lexer);
+        if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
+            lexer_token_get(lexer);
+            statement.data.var_declare.assign = expr_parse(lexer);
+            statement.data.var_declare.has_assign = true;
+        } else {
+            statement.data.var_declare.has_assign = false;
+        }
+
+        statement.location = location_expand(token_id.location, type.location);
+        statement.type = STATEMENT_VAR_DECLARE;
+        statement.data.var_declare.id = token_id.data.id;
+        statement.data.var_declare.type = type;
+        return statement;
+    }
+
+    switch (lexer_token_peek(lexer).type) {
         case TOKEN_INCREMENT: {
             Token token_increment = lexer_token_get(lexer);
-            Expr expr = expr_parse(lexer);
+            Assignee increment = assignee_parse(lexer);
             return (Statement) {
-                .location = location_expand(token_increment.location, expr.location),
+                .location = location_expand(token_increment.location, increment.location),
                 .type = STATEMENT_INCREMENT,
-                .data.increment = expr
+                .data.increment = increment
             };
         }
 
         case TOKEN_DEINCREMENT: {
             Token token_deincrement = lexer_token_get(lexer);
-            Expr expr = expr_parse(lexer);
+            Assignee deincrement = assignee_parse(lexer);
             return (Statement) {
-                .location = location_expand(token_deincrement.location, expr.location),
+                .location = location_expand(token_deincrement.location, deincrement.location),
                 .type = STATEMENT_DEINCREMENT,
-                .data.deincrement = expr
+                .data.deincrement = deincrement
             };
         }
 
@@ -464,10 +504,10 @@ void statement_free(Statement *statement) {
             }
             break;
         case STATEMENT_INCREMENT:
-            expr_free(&statement->data.increment);
+            assignee_free(&statement->data.increment);
             break;
         case STATEMENT_DEINCREMENT:
-            expr_free(&statement->data.deincrement);
+            assignee_free(&statement->data.deincrement);
             break;
     }
 }
@@ -486,11 +526,11 @@ void statement_print(Statement *statement) {
             break;
         case STATEMENT_INCREMENT:
             print("++"); // I don't like doing this, but idk how to do this better right now.
-            expr_print(&statement->data.increment);
+            assignee_print(&statement->data.increment);
             break;
         case STATEMENT_DEINCREMENT:
             print("--");
-            expr_print(&statement->data.deincrement);
+            assignee_print(&statement->data.deincrement);
             break;
             
     }
