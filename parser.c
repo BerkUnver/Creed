@@ -947,3 +947,37 @@ void constant_free(Constant *constant) {
             break;
     }
 }
+
+Declaration declaration_parse(Lexer *lexer, TokenType type) {
+    Token keyword = lexer_token_get(lexer);
+    Declaration *declaration = malloc(sizeof(Declaration));
+    switch(type) {
+        case TOKEN_KEYWORD_ENUM:
+            declaration->type = DECLARATION_ENUM;
+            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
+                error_exit(keyword.location, "Expected an opening curly brace when declaring an enum.");
+            }
+
+            int member_count = 0;
+            int current_val = 0;
+            StringId * ids;
+            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                Token id = lexer_token_peek(lexer);
+                if (id.type != TOKEN_ID) {
+                    error_exit(id.location, "Expected a non-keyword identifier for the union member.");
+                }
+                StringId label = id.data.literal.data.l_string;
+                ids[member_count] = label;
+                lexer_token_get(lexer);
+
+                if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
+                    Token assign = lexer_token_get(lexer);
+                    if (lexer_token_peek(lexer).data.literal.type != LITERAL_INT) {
+                        error_exit(assign.location, "Can only assign integer values to enum members.");
+                    }
+                    Token val = lexer_token_get(lexer);
+                      
+                }
+            }
+    }
+}
