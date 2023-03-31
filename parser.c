@@ -581,6 +581,28 @@ Scope scope_parse(Lexer *lexer) {
         
         case TOKEN_KEYWORD_FOR: {
             Token token_for = lexer_token_get(lexer);
+            
+            if (lexer_token_peek_2(lexer).type == TOKEN_KEYWORD_IN) {
+                Token token_id = lexer_token_peek(lexer);
+                if (token_id.type != TOKEN_ID) {
+                    error_exit(token_id.location, "Expected the name of the iteration variable in a for .. in loop.");
+                }
+                lexer_token_get(lexer);
+                lexer_token_get(lexer);
+                
+                Expr array = expr_parse(lexer);
+                Scope *scope = malloc(sizeof(Scope));
+                *scope = scope_parse(lexer);
+
+                return (Scope) {
+                    .location = location_expand(token_for.location, scope->location),
+                    .type = SCOPE_LOOP_FOR_EACH,
+                    .data.loop_for_each.element = token_id.data.id,
+                    .data.loop_for_each.array = array,
+                    .data.loop_for_each.scope = scope
+                };
+            }
+
             Statement init = statement_parse(lexer);
             
             if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) error_exit(init.location, "Expected a semicolon after the initialization condition of a for loop.");
@@ -721,6 +743,11 @@ void scope_free(Scope *scope) {
             scope_free(scope->data.loop_for.scope);
             free(scope->data.loop_for.scope);
             break;
+        case SCOPE_LOOP_FOR_EACH:
+            expr_free(&scope->data.loop_for_each.array);
+            scope_free(scope->data.loop_for_each.scope);
+            free(scope->data.loop_for_each.scope);
+            break;
         case SCOPE_LOOP_WHILE:
             expr_free(&scope->data.loop_while.expr);
             scope_free(scope->data.loop_while.scope);
@@ -764,7 +791,15 @@ void scope_print(Scope *scope, int indentation) {
             putchar(' ');
             scope_print(scope->data.loop_for.scope, indentation);
             break;
-        
+
+        case SCOPE_LOOP_FOR_EACH:
+            print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
+            printf(" %s %s ", string_cache_get(scope->data.loop_for_each.element), string_keywords[TOKEN_KEYWORD_IN - TOKEN_KEYWORD_MIN]);
+            expr_print(&scope->data.loop_for_each.array);
+            putchar(' ');
+            scope_print(scope->data.loop_for_each.scope, indentation);
+            break;
+            
         case SCOPE_LOOP_WHILE:
             print(string_keywords[TOKEN_KEYWORD_WHILE - TOKEN_KEYWORD_MIN]);
             putchar(' ');

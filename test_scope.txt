@@ -4,6 +4,10 @@
     for i: int = 0; i < 0; p: int = 0 {
         z: int = 0;
     }
+    
+    for element in array {
+        ++&element;
+    }
 
     match x {
     | Test1 -> 

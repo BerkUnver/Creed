@@ -151,6 +151,7 @@ typedef struct Scope {
         SCOPE_BLOCK,
         SCOPE_STATEMENT,
         SCOPE_LOOP_FOR,
+        SCOPE_LOOP_FOR_EACH,
         SCOPE_LOOP_WHILE,
         SCOPE_MATCH,
     } type;
@@ -163,7 +164,13 @@ typedef struct Scope {
             Statement step;
             struct Scope *scope;
         } loop_for;
-       
+        
+        struct {
+            StringId element;
+            Expr array;
+            struct Scope *scope;
+        } loop_for_each;
+
         struct {
             Expr expr;
             struct Scope *scope;
