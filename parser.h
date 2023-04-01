@@ -251,6 +251,6 @@ typedef struct Declaration {
 
 } Declaration;
 
-Declaration declaration_parse(Lexer *lexer, TokenType type);
+Declaration declaration_parse(Lexer *lexer);
 
 #endif
