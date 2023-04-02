@@ -221,4 +221,36 @@ typedef struct Constant {
 
 Constant constant_parse(Lexer *lexer);
 void constant_free(Constant *constant);
+
+
+typedef struct Declaration {
+    Location location;
+    enum {
+        DECLARATION_STRUCT,
+        DECLARATION_ENUM,
+        DECLARATION_UNION,
+        DECLARATION_SUM
+    } type;
+    union {
+        struct {
+            StringId id;
+            struct { StringId id; Type type; } *members;
+            int member_count;
+        } d_struct_union;
+        struct {
+            StringId id;
+            struct { StringId id; } *members;
+            int member_count;
+        } d_enum;
+        struct {
+            StringId id;
+            struct { StringId id; Type type; } *members;
+            int member_count;
+        } d_sum;
+    } data;
+
+} Declaration;
+
+Declaration declaration_parse(Lexer *lexer);
+
 #endif
