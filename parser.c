@@ -1020,7 +1020,7 @@ Declaration declaration_parse(Lexer *lexer) {
 
         default: 
             error_exit(keyword.location, "Expected a literal or function declaration here.");
-            return (Declaration) { 0 };
+            return (Declaration) {{ 0 }}; // have to put extra braces to work around compiler bug on version of gcc used by cslab
     }
 }
 
