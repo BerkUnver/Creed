@@ -196,61 +196,63 @@ typedef struct Scope {
     } data;
 } Scope;
 
-
-
 Scope scope_parse(Lexer *lexer);
 void scope_free(Scope *scope);
 void scope_print(Scope *scope, int indentation);
 
-typedef struct Constant {
-    Location location;
-
-    enum {
-        CONSTANT_FUNCTION
-    } type;
-
-    union {
-        struct {
-            StringId name;
-            int parameter_count;
-            struct {StringId name; Type type; } *parameters;
-            Scope scope;
-        } function;
-    } data;
-} Constant;
-
-Constant constant_parse(Lexer *lexer);
-void constant_free(Constant *constant);
-
+typedef struct FunctionParameter {
+    StringId id;
+    Type type;
+} FunctionParameter;
 
 typedef struct Declaration {
     Location location;
+    
     enum {
         DECLARATION_STRUCT,
         DECLARATION_ENUM,
         DECLARATION_UNION,
-        DECLARATION_SUM
+        DECLARATION_SUM,
+        DECLARATION_FUNCTION,
+        DECLARATION_IMPORT,
+        DECLARATION_CONSTANT
     } type;
+
     union {
         struct {
             StringId id;
             struct { StringId id; Type type; } *members;
             int member_count;
         } d_struct_union;
+
         struct {
             StringId id;
-            struct { StringId id; } *members;
+            struct StringId *members;
             int member_count;
         } d_enum;
+        
         struct {
             StringId id;
             struct { StringId id; Type type; } *members;
             int member_count;
         } d_sum;
+
+        struct {
+            StringId id;
+            FunctionParameter *parameters;
+            int parameter_count;
+            Type return_type;
+            Scope scope;
+        } d_function;
+        
+        StringId import;
+        Literal constant;
     } data;
 
 } Declaration;
 
 Declaration declaration_parse(Lexer *lexer);
+void declaration_free(Declaration *declaration);
+void declaration_print(Declaration *declaration);
 
 #endif

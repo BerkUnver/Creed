@@ -9,12 +9,12 @@
         ++&element;
     }
 
-    for element in array i += func(element);
+    // for element in array i += func(element);
 
     match x {
     | Test1 -> 
-        var1 : int = 1;
-        var2 : int = 3;
+        var1: int = 1;
+        var2: int = 3;
     | Test2 -> 
         var2: int = 2;
         for i: int = 0; i < 0; ++i {

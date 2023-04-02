@@ -920,34 +920,6 @@ void scope_print(Scope *scope, int indentation) {
     }
 }
 
-Constant constant_parse(Lexer *lexer) {
-    Token constant_name = lexer_token_get(lexer);
-    if (constant_name.type != TOKEN_ID) {
-        error_exit(constant_name.location, "Expected the name of a constant in a top-level declaration.");
-    }
-    Token paren_open = lexer_token_get(lexer);
-    if (paren_open.type != TOKEN_PAREN_OPEN) {
-        error_exit(paren_open.location, "Expected the opening parenthesis of a function declaration list.");
-    }
-
-    // parse parameters
-
-    // parse scope
-    return (Constant) { 0 };
-}
-
-void constant_free(Constant *constant) {
-    switch (constant->type) {
-        case CONSTANT_FUNCTION:
-            for (int i = 0; i < constant->data.function.parameter_count; i++) {
-                type_free(&constant->data.function.parameters[i].type);
-            }
-            free(constant->data.function.parameters);
-            scope_free(&constant->data.function.scope);
-            break;
-    }
-}
-
 Declaration declaration_parse(Lexer *lexer) {
     Token identifier = lexer_token_get(lexer);
     if (identifier.type != TOKEN_ID) {
@@ -956,7 +928,7 @@ Declaration declaration_parse(Lexer *lexer) {
     StringId varname = identifier.data.id;
     Token keyword = lexer_token_get(lexer);
 
-    switch(keyword.type) {
+    switch (keyword.type) {
         case TOKEN_KEYWORD_ENUM:
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
                 error_exit(keyword.location, "Expected an opening curly brace when declaring an enum.");
@@ -964,7 +936,7 @@ Declaration declaration_parse(Lexer *lexer) {
 
             int member_count = 0;
             int current_val = 0;
-            StringId * members;
+            StringId *members = NULL;
             while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
                 Token id = lexer_token_peek(lexer);
                 if (id.type != TOKEN_ID) {
@@ -994,5 +966,96 @@ Declaration declaration_parse(Lexer *lexer) {
                 .data.d_enum.members = members
             };
 
+        case TOKEN_PAREN_OPEN: {
+            FunctionParameter *parameters = NULL;
+            int parameter_count = 0;
+
+            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
+                int parameter_count_allocated = 2;
+                parameters = malloc(sizeof(FunctionParameter) * parameter_count_allocated);
+
+                while (true) {
+                    Token parameter_id = lexer_token_peek(lexer);
+                    if (parameter_id.type != TOKEN_ID) {
+                        error_exit(parameter_id.location, "Expected the name of a function parameter to be a non-keyword literal.");
+                    }
+                    lexer_token_get(lexer);
+                    if (lexer_token_peek(lexer).type != TOKEN_COLON) {
+                        error_exit(parameter_id.location, "Expected a colon after a function parameter name.");
+                    }
+                    lexer_token_get(lexer);
+                    Type type = type_parse(lexer);
+                    parameter_count++;
+                    if (parameter_count > parameter_count_allocated) {
+                        parameter_count_allocated *= 2;
+                        parameters = realloc(parameters, sizeof(FunctionParameter) * parameter_count_allocated);
+                    }
+                    parameters[parameter_count - 1] = (FunctionParameter) {
+                        .id = parameter_id.data.id,
+                        .type = type
+                    };
+
+                    if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
+                        lexer_token_get(lexer); 
+                        continue;
+                    }
+
+                    if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
+                }
+            }
+
+            lexer_token_get(lexer);
+            Type return_type = type_parse(lexer);
+            Scope scope = scope_parse(lexer);
+
+            return (Declaration) {
+                .type = DECLARATION_FUNCTION,
+                .data.d_function.id = varname,
+                .data.d_function.parameters = parameters,
+                .data.d_function.parameter_count = parameter_count,
+                .data.d_function.return_type = return_type,
+                .data.d_function.scope = scope
+            };
+        }
+
+        default: 
+            error_exit(keyword.location, "Expected a literal or function declaration here.");
+            return (Declaration) { 0 };
+    }
+}
+
+void declaration_free(Declaration *declaration) {
+    switch (declaration->type) {
+        case DECLARATION_FUNCTION:
+            for (int i = 0; i < declaration->data.d_function.parameter_count; i++) {
+                type_free(&declaration->data.d_function.parameters[i].type);
+            }
+            free(declaration->data.d_function.parameters);
+            type_free(&declaration->data.d_function.return_type);
+            scope_free(&declaration->data.d_function.scope);
+            break;
+        default: break;
+    }
+}
+
+void declaration_print(Declaration *declaration) {
+    switch (declaration->type) {
+        case DECLARATION_FUNCTION:
+            printf("%s %c", string_cache_get(declaration->data.d_function.id), TOKEN_PAREN_OPEN);
+            if (declaration->data.d_function.parameter_count > 0) {
+                for (int i = 0; i < declaration->data.d_function.parameter_count - 1; i++) {
+                    printf("%s%c ", string_cache_get(declaration->data.d_function.parameters[i].id), TOKEN_COLON);
+                    type_print(&declaration->data.d_function.parameters[i].type);
+                    putchar(TOKEN_COMMA);
+                }
+                printf("%s%c ", string_cache_get(declaration->data.d_function.parameters[declaration->data.d_function.parameter_count - 1].id), TOKEN_COLON);
+                type_print(&declaration->data.d_function.parameters[declaration->data.d_function.parameter_count - 1].type);
+            }
+            printf("%c ", TOKEN_PAREN_CLOSE);
+            type_print(&declaration->data.d_function.return_type);
+            putchar(' ');
+            scope_print(&declaration->data.d_function.scope, 0);
+            break;
+        default: break; 
     }
 }
