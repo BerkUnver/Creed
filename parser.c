@@ -224,11 +224,27 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
             Expr *operand = malloc(sizeof(Expr));
             *operand = expr;
 
-            expr.type = EXPR_MEMBER_ACCESS;
-            expr.data.member_access.operand = operand;
-            expr.data.member_access.member = token_id.data.id;
+            expr.type = EXPR_ACCESS_MEMBER;
+            expr.data.access_member.operand = operand;
+            expr.data.access_member.member = token_id.data.id;
             expr.location = location_expand(expr.location, token_id.location);
         
+        } else if (lexer_token_peek(lexer).type == TOKEN_BRACKET_OPEN) { 
+            lexer_token_get(lexer);
+            Expr *index = malloc(sizeof(Expr));
+            *index = expr_parse(lexer);
+            if (lexer_token_peek(lexer).type != TOKEN_BRACKET_CLOSE) {
+                error_exit(index->location, "Expected a closing bracket at the end of an array access.");
+            }
+            Token token_end = lexer_token_get(lexer);
+            Expr *operand = malloc(sizeof(Expr));
+            *operand = expr;
+            expr = (Expr) {
+                .type = EXPR_ACCESS_ARRAY,
+                .data.access_array.operand = operand,
+                .data.access_array.index = index,
+                .location = location_expand(expr.location, token_end.location) 
+            };
         } else break;
     }
 
@@ -314,11 +330,18 @@ void expr_free(Expr *expr) {
             type_free(&expr->data.typecast.cast_to);
             break;
         
-        case EXPR_MEMBER_ACCESS:
-            expr_free(expr->data.member_access.operand);
-            free(expr->data.member_access.operand);
+        case EXPR_ACCESS_MEMBER:
+            expr_free(expr->data.access_member.operand);
+            free(expr->data.access_member.operand);
             break;
 
+        case EXPR_ACCESS_ARRAY:
+            expr_free(expr->data.access_array.operand);
+            free(expr->data.access_array.operand);
+            expr_free(expr->data.access_array.index);
+            free(expr->data.access_array.index);
+            break;
+        
         case EXPR_FUNCTION_CALL:
             for (int i = 0; i < expr->data.function_call.param_count; i++) {
                 expr_free(&expr->data.function_call.params[i]);
@@ -328,7 +351,10 @@ void expr_free(Expr *expr) {
             free(expr->data.function_call.function);
             break;
 
-        default: break;
+        case EXPR_ID:
+        case EXPR_LITERAL:
+        case EXPR_LITERAL_BOOL:
+            break;
     }
 }
 
@@ -373,14 +399,21 @@ void expr_print(Expr *expr) {
             putchar(')');
             break;
         
-        case EXPR_MEMBER_ACCESS:
+        case EXPR_ACCESS_MEMBER:
             putchar('(');
-            expr_print(expr->data.member_access.operand);
+            expr_print(expr->data.access_member.operand);
             putchar(')');
             putchar(TOKEN_DOT);
-            print(string_cache_get(expr->data.member_access.member));
+            print(string_cache_get(expr->data.access_member.member));
             break;
 
+        case EXPR_ACCESS_ARRAY:
+            expr_print(expr->data.access_array.operand);
+            putchar(TOKEN_BRACKET_OPEN);
+            expr_print(expr->data.access_array.index);
+            putchar(TOKEN_BRACKET_CLOSE);
+            break;
+        
         case EXPR_FUNCTION_CALL:
             expr_print(expr->data.function_call.function);
             putchar(TOKEN_PAREN_OPEN);

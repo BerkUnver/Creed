@@ -36,7 +36,8 @@ typedef struct Expr {
         EXPR_UNARY, 
         EXPR_BINARY,
         EXPR_TYPECAST,
-        EXPR_MEMBER_ACCESS,
+        EXPR_ACCESS_MEMBER,
+        EXPR_ACCESS_ARRAY,
         EXPR_FUNCTION_CALL,
         EXPR_ID,
         EXPR_LITERAL,
@@ -78,7 +79,12 @@ typedef struct Expr {
         struct {
             struct Expr *operand;
             StringId member;
-        } member_access;
+        } access_member;
+        
+        struct {
+            struct Expr *operand;
+            struct Expr *index;
+        } access_array;
 
         Literal literal;
         bool literal_bool;
