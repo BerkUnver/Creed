@@ -10,7 +10,6 @@
 #define PATH_TEST_LEXER "test_lexer.txt"
 #define PATH_TEST_EXPR "test_expr.txt"
 #define PATH_TEST_SCOPE "test_scope.txt"
-#define PATH_TEST_DECLARATION "test_declaration.txt"
 
 void test_lexer(void) {
     Lexer lexer;
@@ -61,23 +60,6 @@ void test_scope(void) {
     return;
 }
 
-void test_declaration(void) {
-    Lexer lexer;
-    if (!lexer_new(PATH_TEST_DECLARATION, &lexer)) {
-        printf("Failed to open the file at"PATH_TEST_DECLARATION".\n");
-        return;
-    }
-
-    while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
-        Declaration declaration = declaration_parse(&lexer);
-        declaration_print(&declaration);
-        declaration_free(&declaration);
-        putchar('\n');
-    }
-    
-    lexer_free(&lexer);
-}
-
 int main(int argc, char **argv) {
     string_cache_init();
     
@@ -101,7 +83,9 @@ int main(int argc, char **argv) {
         putchar('\n');
         test_scope();
         putchar('\n');
-        test_declaration();
+        SourceFile source = source_file_parse("test.creed");
+        source_file_print(&source);
+        source_file_free(&source);
     }
 
     string_cache_free();

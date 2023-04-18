@@ -1243,3 +1243,67 @@ void declaration_print(Declaration *declaration) {
             break;
     }
 }
+
+SourceFile source_file_parse(const char *file_name) {
+    Lexer lexer;
+    if (!lexer_new(file_name, &lexer)) {
+        printf("Source file %s could not be opened.\n", file_name);
+        exit(EXIT_FAILURE);
+    }
+
+    int import_count = 0;
+    int import_count_alloc = 2;
+    StringId *imports = malloc(sizeof(StringId) * import_count_alloc);
+
+    while (lexer_token_peek(&lexer).type == TOKEN_KEYWORD_IMPORT) {
+        Token token_import = lexer_token_get(&lexer);
+        Token token_file = lexer_token_get(&lexer);
+        if (token_file.type != TOKEN_LITERAL || token_file.data.literal.type != LITERAL_STRING) {
+            error_exit(location_expand(token_import.location, token_file.location), "Expected a literal string as the import file.");
+        }
+        
+        import_count++;
+        if (import_count > import_count_alloc) {
+            import_count_alloc *= 2;
+            imports = realloc(imports, sizeof(StringId) * import_count_alloc);
+        }
+        imports[import_count - 1] = token_file.data.literal.data.l_string;
+    }
+    
+    int decl_count = 0;
+    int decl_count_alloc = 2;
+    Declaration *decls = malloc(sizeof(Declaration) * decl_count_alloc);
+    while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
+        Declaration decl = declaration_parse(&lexer);
+        decl_count++;
+        if (decl_count > decl_count_alloc) {
+            decl_count_alloc *= 2;
+            decls = realloc(decls, sizeof(Declaration) * decl_count_alloc);
+        }
+        decls[decl_count - 1] = decl;
+    }
+    
+    lexer_free(&lexer);
+    return (SourceFile) {
+        .import_count = import_count,
+        .imports = imports,
+        .declaration_count = decl_count,
+        .declarations = decls
+    };
+}
+
+void source_file_print(SourceFile *file) {
+    for (int i = 0; i < file->import_count; i++) {
+        printf("%s \"%s\"\n", string_keywords[TOKEN_KEYWORD_IMPORT - TOKEN_KEYWORD_MIN], string_cache_get(file->imports[i]));
+    }
+    for (int i = 0; i < file->declaration_count; i++) {
+        putchar('\n');
+        declaration_print(file->declarations + i);
+    }
+}
+
+void source_file_free(SourceFile *file) {
+    free(file->imports);
+    for (int i = 0; i < file->declaration_count; i++) declaration_free(file->declarations + i);
+    free(file->declarations);
+}
