@@ -8,7 +8,20 @@ Person struct {
     name: []char;
     age: int;
     ssn: int;
+    occupation: Occupation;
 }
+
+TestUnion union {
+    val1: int;
+    val2: float;
+    val3: bool;
+}
+
+Option sum {
+    Some: int;
+    None: void;
+}
+
 
 main (args: [][]char) int {
     println("Hello, World.");

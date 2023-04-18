@@ -961,6 +961,7 @@ Declaration declaration_parse(Lexer *lexer) {
     StringId varname = identifier.data.id;
     Token keyword = lexer_token_get(lexer);
 
+    int declaration_type;
     switch (keyword.type) {
 
         case TOKEN_KEYWORD_ENUM:
@@ -994,12 +995,20 @@ Declaration declaration_parse(Lexer *lexer) {
             return (Declaration) {
                 .location = location_expand(identifier.location, enum_token_end.location),
                 .type = DECLARATION_ENUM,
-                .data.d_enum.id = varname,
+                .id = varname,
                 .data.d_enum.member_count = enum_member_count,
                 .data.d_enum.members = enum_members
             };
 
         case TOKEN_KEYWORD_STRUCT:
+            declaration_type = DECLARATION_STRUCT;
+            goto complex_type_parse;
+        case TOKEN_KEYWORD_UNION:
+            declaration_type = DECLARATION_UNION;
+            goto complex_type_parse;
+        case TOKEN_KEYWORD_SUM:
+            declaration_type = DECLARATION_SUM;
+            complex_type_parse:
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
                 error_exit(keyword.location, "Expected an opening curly brace when declaring a complex type.");
             }
@@ -1033,10 +1042,10 @@ Declaration declaration_parse(Lexer *lexer) {
             Token token_end = lexer_token_get(lexer);
             return (Declaration) {
                 .location = location_expand(identifier.location, token_end.location),
-                .type = DECLARATION_STRUCT,
-                .data.d_struct.id = varname,
-                .data.d_struct.member_count = member_count,
-                .data.d_struct.members = members
+                .type = declaration_type,
+                .id = varname,
+                .data.d_complex_type.member_count = member_count,
+                .data.d_complex_type.members = members
             };
 
         case TOKEN_PAREN_OPEN: {
@@ -1083,7 +1092,7 @@ Declaration declaration_parse(Lexer *lexer) {
 
             return (Declaration) {
                 .type = DECLARATION_FUNCTION,
-                .data.d_function.id = varname,
+                .id = varname,
                 .data.d_function.parameters = parameters,
                 .data.d_function.parameter_count = parameter_count,
                 .data.d_function.return_type = return_type,
@@ -1100,10 +1109,12 @@ Declaration declaration_parse(Lexer *lexer) {
 void declaration_free(Declaration *declaration) {
     switch (declaration->type) {
         case DECLARATION_STRUCT:
-            for (int i = 0; i < declaration->data.d_struct.member_count; i++) {
-                type_free(&declaration->data.d_struct.members[i].type);
+        case DECLARATION_UNION:
+        case DECLARATION_SUM:
+            for (int i = 0; i < declaration->data.d_complex_type.member_count; i++) {
+                type_free(&declaration->data.d_complex_type.members[i].type);
             }
-            free(declaration->data.d_struct.members);
+            free(declaration->data.d_complex_type.members);
             break;
 
         case DECLARATION_ENUM:
@@ -1122,9 +1133,10 @@ void declaration_free(Declaration *declaration) {
 }
 
 void declaration_print(Declaration *declaration) {
+    printf("%s ", string_cache_get(declaration->id));
     switch (declaration->type) {
         case DECLARATION_ENUM:
-            printf("%s %s %c\n", string_cache_get(declaration->data.d_enum.id), string_keywords[TOKEN_KEYWORD_ENUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
+            printf("%s %c\n", string_keywords[TOKEN_KEYWORD_ENUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
             for (int i = 0; i < declaration->data.d_enum.member_count; i++) {
                 printf("%s%s%c\n", STR_INDENTATION, string_cache_get(declaration->data.d_enum.members[i]), TOKEN_SEMICOLON);
             }
@@ -1132,17 +1144,25 @@ void declaration_print(Declaration *declaration) {
             break;
         
         case DECLARATION_STRUCT:
-            printf("%s %s %c\n", string_cache_get(declaration->data.d_struct.id), string_keywords[TOKEN_KEYWORD_STRUCT - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
-            for (int i = 0; i < declaration->data.d_struct.member_count; i++) {
-                printf("%s%s%c ", STR_INDENTATION, string_cache_get(declaration->data.d_struct.members[i].id), TOKEN_COLON);
-                type_print(&declaration->data.d_struct.members[i].type);
+            print(string_keywords[TOKEN_KEYWORD_STRUCT - TOKEN_KEYWORD_MIN]);
+            goto complex_type_print;
+        case DECLARATION_UNION:
+            print(string_keywords[TOKEN_KEYWORD_UNION - TOKEN_KEYWORD_MIN]);
+            goto complex_type_print;
+        case DECLARATION_SUM:
+            print(string_keywords[TOKEN_KEYWORD_SUM - TOKEN_KEYWORD_MIN]);
+            complex_type_print:
+            printf(" %c\n", TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.d_complex_type.member_count; i++) {
+                printf("%s%s%c ", STR_INDENTATION, string_cache_get(declaration->data.d_complex_type.members[i].id), TOKEN_COLON);
+                type_print(&declaration->data.d_complex_type.members[i].type);
                 printf("%c\n", TOKEN_SEMICOLON);
             }
             printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);    
             break;
 
         case DECLARATION_FUNCTION:
-            printf("%s %c", string_cache_get(declaration->data.d_function.id), TOKEN_PAREN_OPEN);
+            putchar(TOKEN_PAREN_OPEN);
             if (declaration->data.d_function.parameter_count > 0) {
                 for (int i = 0; i < declaration->data.d_function.parameter_count - 1; i++) {
                     printf("%s%c ", string_cache_get(declaration->data.d_function.parameters[i].id), TOKEN_COLON);

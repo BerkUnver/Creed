@@ -219,48 +219,38 @@ typedef struct TypeMember {
 
 typedef struct Declaration {
     Location location;
+    StringId id;
     
     enum {
+        // Eventually we will have to split sum away from struct and union in order to declare explicit tag values.
         DECLARATION_STRUCT,
+        DECLARATION_UNION,
+        DECLARATION_SUM,
+        
         DECLARATION_ENUM,
-        // DECLARATION_UNION,
-        // DECLARATION_SUM,
+
         DECLARATION_FUNCTION,
         // DECLARATION_IMPORT,
         // DECLARATION_CONSTANT
     } type;
 
     union {
-        struct {
-            StringId id;
+        struct { // shared by structs, sums, and unions.
             TypeMember *members;
             int member_count;
-        } d_struct;
+        } d_complex_type;
 
         struct {
-            StringId id;
             StringId *members;
             int member_count;
         } d_enum;
         
-        /* 
         struct {
-            StringId id;
-            StructUnionSumMember *members;
-            int member_count;
-        } d_sum;
-        */
-        
-        struct {
-            StringId id;
             FunctionParameter *parameters;
             int parameter_count;
             Type return_type;
             Scope scope;
         } d_function;
-        
-        StringId import;
-        Literal constant;
     } data;
 
 } Declaration;
