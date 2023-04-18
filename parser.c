@@ -961,30 +961,29 @@ Declaration declaration_parse(Lexer *lexer) {
     StringId varname = identifier.data.id;
     Token keyword = lexer_token_get(lexer);
 
-    int declaration_type;
     switch (keyword.type) {
 
-        case TOKEN_KEYWORD_ENUM:
+        case TOKEN_KEYWORD_ENUM: {
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
                 error_exit(keyword.location, "Expected an opening curly brace starting an enum declaration.");
             }
             lexer_token_get(lexer);
             
-            int enum_member_count = 0;
-            int enum_member_count_alloc = 2;
-            StringId *enum_members = malloc(sizeof(StringId) * enum_member_count_alloc);
+            int member_count = 0;
+            int member_count_alloc = 2;
+            StringId *members = malloc(sizeof(StringId) * member_count_alloc);
             
             while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
                 Token token_id = lexer_token_get(lexer);
                 if (token_id.type != TOKEN_ID) {
                     error_exit(token_id.location, "Expected an identifier as the value of an enum.");
                 }
-                enum_member_count++;
-                if (enum_member_count > enum_member_count_alloc) {
-                    enum_member_count_alloc *= 2;
-                    enum_members = realloc(enum_members, sizeof(StringId) * enum_member_count_alloc);
+                member_count++;
+                if (member_count > member_count_alloc) {
+                    member_count_alloc *= 2;
+                    members = realloc(members, sizeof(StringId) * member_count_alloc);
                 }
-                enum_members[enum_member_count - 1] = token_id.data.id;
+                members[member_count - 1] = token_id.data.id;
                 if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
                     error_exit(token_id.location, "Expected a semicolon after an enum member.");
                 }
@@ -996,19 +995,18 @@ Declaration declaration_parse(Lexer *lexer) {
                 .location = location_expand(identifier.location, enum_token_end.location),
                 .type = DECLARATION_ENUM,
                 .id = varname,
-                .data.d_enum.member_count = enum_member_count,
-                .data.d_enum.members = enum_members
+                .data.d_enum.member_count = member_count,
+                .data.d_enum.members = members
             };
+        }
 
         case TOKEN_KEYWORD_STRUCT:
-            declaration_type = DECLARATION_STRUCT;
-            goto complex_type_parse;
-        case TOKEN_KEYWORD_UNION:
-            declaration_type = DECLARATION_UNION;
-            goto complex_type_parse;
-        case TOKEN_KEYWORD_SUM:
-            declaration_type = DECLARATION_SUM;
-            complex_type_parse:
+        case TOKEN_KEYWORD_UNION: {
+            int declaration_type;
+            if (keyword.type == TOKEN_KEYWORD_STRUCT) declaration_type = DECLARATION_STRUCT;
+            else if (keyword.type == TOKEN_KEYWORD_UNION) declaration_type = DECLARATION_UNION;
+            else assert(false);
+
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
                 error_exit(keyword.location, "Expected an opening curly brace when declaring a complex type.");
             }
@@ -1047,6 +1045,53 @@ Declaration declaration_parse(Lexer *lexer) {
                 .data.d_complex_type.member_count = member_count,
                 .data.d_complex_type.members = members
             };
+        }
+        
+        case TOKEN_KEYWORD_SUM: {
+            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
+                error_exit(keyword.location, "Expected an opening curly brace when declaring a sum type.");
+            }
+            lexer_token_get(lexer);
+            
+            int member_count = 0;
+            int member_count_alloc = 2;
+            SumMember *members = malloc(sizeof(SumMember) * member_count_alloc);
+
+            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                Token sum_token_id = lexer_token_get(lexer);
+                if (sum_token_id.type != TOKEN_ID) {
+                    error_exit(sum_token_id.location, "Expected an identifier as the name of a sum member.");
+                }
+
+                SumMember member;
+                member.id = sum_token_id.data.id;
+                if (lexer_token_peek(lexer).type == TOKEN_COLON) {
+                    lexer_token_get(lexer);
+                    member.type_exists = true;
+                    member.type = type_parse(lexer);
+                } else member.type_exists = false;
+
+                member_count++;
+                if (member_count > member_count_alloc) {
+                    member_count_alloc *= 2;
+                    members = realloc(members, sizeof(SumMember) * member_count_alloc);
+                }
+                members[member_count - 1] = member;
+
+                if (lexer_token_get(lexer).type != TOKEN_SEMICOLON) {
+                    error_exit(sum_token_id.location, "Expected a semicolon after a sum member.");
+                }
+            }
+            Token token_end = lexer_token_get(lexer);
+
+            return (Declaration) {
+                .location = location_expand(identifier.location, token_end.location),
+                .id = varname,
+                .type = DECLARATION_SUM,
+                .data.d_sum.member_count = member_count,
+                .data.d_sum.members = members
+            };
+        }
 
         case TOKEN_PAREN_OPEN: {
             FunctionParameter *parameters = NULL;
@@ -1110,11 +1155,19 @@ void declaration_free(Declaration *declaration) {
     switch (declaration->type) {
         case DECLARATION_STRUCT:
         case DECLARATION_UNION:
-        case DECLARATION_SUM:
             for (int i = 0; i < declaration->data.d_complex_type.member_count; i++) {
                 type_free(&declaration->data.d_complex_type.members[i].type);
             }
             free(declaration->data.d_complex_type.members);
+            break;
+
+            
+        case DECLARATION_SUM:
+            for (int i = 0; i < declaration->data.d_sum.member_count; i++) {
+                SumMember member = declaration->data.d_sum.members[i];
+                if (member.type_exists) type_free(&member.type);
+            }
+            free(declaration->data.d_sum.members);
             break;
 
         case DECLARATION_ENUM:
@@ -1148,9 +1201,6 @@ void declaration_print(Declaration *declaration) {
             goto complex_type_print;
         case DECLARATION_UNION:
             print(string_keywords[TOKEN_KEYWORD_UNION - TOKEN_KEYWORD_MIN]);
-            goto complex_type_print;
-        case DECLARATION_SUM:
-            print(string_keywords[TOKEN_KEYWORD_SUM - TOKEN_KEYWORD_MIN]);
             complex_type_print:
             printf(" %c\n", TOKEN_CURLY_BRACE_OPEN);
             for (int i = 0; i < declaration->data.d_complex_type.member_count; i++) {
@@ -1159,6 +1209,20 @@ void declaration_print(Declaration *declaration) {
                 printf("%c\n", TOKEN_SEMICOLON);
             }
             printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);    
+            break;
+
+        case DECLARATION_SUM:
+            printf("%s %c\n", string_keywords[TOKEN_KEYWORD_SUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.d_sum.member_count; i++) {
+                SumMember member = declaration->data.d_sum.members[i];
+                printf("%s%s", STR_INDENTATION, string_cache_get(member.id));
+                if (member.type_exists) {
+                    printf("%c ", TOKEN_COLON);
+                    type_print(&member.type);
+                }
+                printf("%c\n", TOKEN_SEMICOLON);
+            }
+            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
             break;
 
         case DECLARATION_FUNCTION:

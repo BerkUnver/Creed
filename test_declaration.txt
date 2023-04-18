@@ -17,9 +17,11 @@ TestUnion union {
     val3: bool;
 }
 
-Option sum {
-    Some: int;
-    None: void;
+Token sum {
+    TOKEN_PAREN_OPEN;
+    TOKEN_PAREN_CLOSE;
+    TOKEN_ID: []char;
+    TOKEN_CLOSE;
 }
 
 

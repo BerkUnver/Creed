@@ -217,6 +217,12 @@ typedef struct TypeMember {
     Type type;
 } TypeMember;
 
+typedef struct SumMember {
+    StringId id;
+    bool type_exists;
+    Type type;
+} SumMember;
+
 typedef struct Declaration {
     Location location;
     StringId id;
@@ -239,6 +245,11 @@ typedef struct Declaration {
             TypeMember *members;
             int member_count;
         } d_complex_type;
+        
+        struct {
+            SumMember *members;
+            int member_count;
+        } d_sum;
 
         struct {
             StringId *members;
