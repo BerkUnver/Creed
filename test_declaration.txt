@@ -1,3 +1,15 @@
+Occupation enum {
+    OCCUPATION_PROFESSOR;
+    OCCUPATION_STUDENT;
+    OCCUPATION_NONE;
+}
+
+Person struct {
+    name: []char;
+    age: int;
+    ssn: int;
+}
+
 main (args: [][]char) int {
     println("Hello, World.");
 }
@@ -6,3 +18,5 @@ factorial (i: int) int {
     if i <= 0 return 1;
     else return i * factorial(i - 1); 
 }
+
+

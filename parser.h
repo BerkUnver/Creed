@@ -211,10 +211,11 @@ typedef struct FunctionParameter {
     Type type;
 } FunctionParameter;
 
-typedef struct StructUnionSumMember {
+
+typedef struct TypeMember {
     StringId id;
     Type type;
-} StructUnionSumMember;
+} TypeMember;
 
 typedef struct Declaration {
     Location location;
@@ -222,19 +223,19 @@ typedef struct Declaration {
     enum {
         DECLARATION_STRUCT,
         DECLARATION_ENUM,
-        DECLARATION_UNION,
-        DECLARATION_SUM,
+        // DECLARATION_UNION,
+        // DECLARATION_SUM,
         DECLARATION_FUNCTION,
-        DECLARATION_IMPORT,
-        DECLARATION_CONSTANT
+        // DECLARATION_IMPORT,
+        // DECLARATION_CONSTANT
     } type;
 
     union {
         struct {
             StringId id;
-            StructUnionSumMember *members;
+            TypeMember *members;
             int member_count;
-        } d_struct_union;
+        } d_struct;
 
         struct {
             StringId id;
@@ -242,12 +243,14 @@ typedef struct Declaration {
             int member_count;
         } d_enum;
         
+        /* 
         struct {
             StringId id;
             StructUnionSumMember *members;
             int member_count;
         } d_sum;
-
+        */
+        
         struct {
             StringId id;
             FunctionParameter *parameters;

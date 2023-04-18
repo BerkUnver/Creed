@@ -962,83 +962,82 @@ Declaration declaration_parse(Lexer *lexer) {
     Token keyword = lexer_token_get(lexer);
 
     switch (keyword.type) {
-        case TOKEN_KEYWORD_ENUM: {
+
+        case TOKEN_KEYWORD_ENUM:
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
-                error_exit(keyword.location, "Expected an opening curly brace when declaring an enum.");
+                error_exit(keyword.location, "Expected an opening curly brace starting an enum declaration.");
             }
             lexer_token_get(lexer);
-
-            int member_count = 0;
-            int current_val = 0;
-            StringId *members = NULL;
+            
+            int enum_member_count = 0;
+            int enum_member_count_alloc = 2;
+            StringId *enum_members = malloc(sizeof(StringId) * enum_member_count_alloc);
+            
             while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
-                Token id = lexer_token_peek(lexer);
-                if (id.type != TOKEN_ID) {
-                    error_exit(id.location, "Expected a non-keyword identifier for the enum member.");
+                Token token_id = lexer_token_get(lexer);
+                if (token_id.type != TOKEN_ID) {
+                    error_exit(token_id.location, "Expected an identifier as the value of an enum.");
                 }
-                StringId label = id.data.id;
-                members[member_count] = label;
+                enum_member_count++;
+                if (enum_member_count > enum_member_count_alloc) {
+                    enum_member_count_alloc *= 2;
+                    enum_members = realloc(enum_members, sizeof(StringId) * enum_member_count_alloc);
+                }
+                enum_members[enum_member_count - 1] = token_id.data.id;
+                if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
+                    error_exit(token_id.location, "Expected a semicolon after an enum member.");
+                }
                 lexer_token_get(lexer);
-                // Check if enum value is assigned
-                if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
-                    Token assign = lexer_token_get(lexer);
-                    if (lexer_token_peek(lexer).data.literal.type != LITERAL_INT) {
-                        error_exit(assign.location, "Can only assign integer values to enum members.");
-                    }
-                    current_val = lexer_token_get(lexer).data.literal.data.l_int;
-                }
-                member_count++;
-                current_val++;      // Enum value should probably be saved to symbol table eventually
             }
-            Token close_brace = lexer_token_get(lexer);
-            Location location = location_expand(identifier.location, close_brace.location);
+
+            Token enum_token_end = lexer_token_get(lexer);
             return (Declaration) {
-                .location = location,
+                .location = location_expand(identifier.location, enum_token_end.location),
                 .type = DECLARATION_ENUM,
                 .data.d_enum.id = varname,
-                .data.d_enum.member_count = member_count,
-                .data.d_enum.members = members
+                .data.d_enum.member_count = enum_member_count,
+                .data.d_enum.members = enum_members
             };
-        }
-        
-        case TOKEN_KEYWORD_STRUCT: {
+
+        case TOKEN_KEYWORD_STRUCT:
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
-                error_exit(keyword.location, "Expected an opening curly brace when declaring an enum.");
+                error_exit(keyword.location, "Expected an opening curly brace when declaring a complex type.");
             }
             lexer_token_get(lexer);
-
+            
             int member_count = 0;
-            StructUnionSumMember *members;
+            int member_count_alloc = 2;
+            TypeMember *members = malloc(sizeof(TypeMember) * member_count_alloc);
             while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
-                Token id = lexer_token_peek(lexer);
-                if (id.type != TOKEN_ID) {
-                    error_exit(id.location, "Expected a non-keyword identifier for the struct member.");
+                Token token_id = lexer_token_get(lexer);
+                if (token_id.type != TOKEN_ID) {
+                    error_exit(token_id.location, "Expected the name of a type member here.");
                 }
-                StructUnionSumMember *member = malloc(sizeof(StructUnionSumMember));
-                member->id = lexer_token_get(lexer).data.id;
-
-                if (lexer_token_peek(lexer).type != TOKEN_COLON) {
-                    free(member);
-                    error_exit(id.location, "Expected a non-keyword identifier for the struct member.");
+                if (lexer_token_get(lexer).type != TOKEN_COLON) {
+                    error_exit(token_id.location, "Expected a colon after the name of a member in a complex type declaration.");
                 }
-                lexer_token_get(lexer);
-
-                Type member_type = type_parse(lexer);
-                member->type = member_type;
-
-                members[member_count] = *member;
+                Type type = type_parse(lexer);
+                if (lexer_token_get(lexer).type != TOKEN_SEMICOLON) {
+                    error_exit(location_expand(token_id.location, type.location), "Expected a semicolon after a member in a complex type declaration."); 
+                }
                 member_count++;
+                if (member_count > member_count_alloc) {
+                    member_count_alloc *= 2;
+                    members = realloc(members, sizeof(TypeMember) * member_count_alloc);
+                }
+                members[member_count - 1] = (TypeMember) {
+                    .id = token_id.data.id,
+                    .type = type
+                };
             }
-            Token close_brace = lexer_token_get(lexer);
-            Location location = location_expand(identifier.location, close_brace.location);
+            Token token_end = lexer_token_get(lexer);
             return (Declaration) {
-                .location = location,
+                .location = location_expand(identifier.location, token_end.location),
                 .type = DECLARATION_STRUCT,
-                .data.d_struct_union.id = varname,
-                .data.d_struct_union.members = members,
-                .data.d_struct_union.member_count = member_count
+                .data.d_struct.id = varname,
+                .data.d_struct.member_count = member_count,
+                .data.d_struct.members = members
             };
-        }
 
         case TOKEN_PAREN_OPEN: {
             FunctionParameter *parameters = NULL;
@@ -1100,6 +1099,17 @@ Declaration declaration_parse(Lexer *lexer) {
 
 void declaration_free(Declaration *declaration) {
     switch (declaration->type) {
+        case DECLARATION_STRUCT:
+            for (int i = 0; i < declaration->data.d_struct.member_count; i++) {
+                type_free(&declaration->data.d_struct.members[i].type);
+            }
+            free(declaration->data.d_struct.members);
+            break;
+
+        case DECLARATION_ENUM:
+            free(declaration->data.d_enum.members);
+            break;
+
         case DECLARATION_FUNCTION:
             for (int i = 0; i < declaration->data.d_function.parameter_count; i++) {
                 type_free(&declaration->data.d_function.parameters[i].type);
@@ -1108,20 +1118,29 @@ void declaration_free(Declaration *declaration) {
             type_free(&declaration->data.d_function.return_type);
             scope_free(&declaration->data.d_function.scope);
             break;
-        
-        case DECLARATION_STRUCT:
-            for (int i = 0; i < declaration->data.d_struct_union.member_count; i++) {
-                type_free(&declaration->data.d_struct_union.members[i].type);
-                free(&declaration->data.d_struct_union.members[i]);
-            }
-            break;
-            
-        default: break;
     }
 }
 
 void declaration_print(Declaration *declaration) {
     switch (declaration->type) {
+        case DECLARATION_ENUM:
+            printf("%s %s %c\n", string_cache_get(declaration->data.d_enum.id), string_keywords[TOKEN_KEYWORD_ENUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.d_enum.member_count; i++) {
+                printf("%s%s%c\n", STR_INDENTATION, string_cache_get(declaration->data.d_enum.members[i]), TOKEN_SEMICOLON);
+            }
+            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
+            break;
+        
+        case DECLARATION_STRUCT:
+            printf("%s %s %c\n", string_cache_get(declaration->data.d_struct.id), string_keywords[TOKEN_KEYWORD_STRUCT - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.d_struct.member_count; i++) {
+                printf("%s%s%c ", STR_INDENTATION, string_cache_get(declaration->data.d_struct.members[i].id), TOKEN_COLON);
+                type_print(&declaration->data.d_struct.members[i].type);
+                printf("%c\n", TOKEN_SEMICOLON);
+            }
+            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);    
+            break;
+
         case DECLARATION_FUNCTION:
             printf("%s %c", string_cache_get(declaration->data.d_function.id), TOKEN_PAREN_OPEN);
             if (declaration->data.d_function.parameter_count > 0) {
@@ -1138,6 +1157,5 @@ void declaration_print(Declaration *declaration) {
             putchar(' ');
             scope_print(&declaration->data.d_function.scope, 0);
             break;
-        default: break; 
     }
 }
