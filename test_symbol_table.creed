@@ -1,0 +1,3 @@
+main () void {
+    i: int = 0;
+}

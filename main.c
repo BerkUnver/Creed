@@ -6,6 +6,7 @@
 #include "parser.h"
 #include "print.h"
 #include "string_cache.h"
+#include "symbol_table.h"
 
 #define PATH_TEST_LEXER "test_lexer.txt"
 #define PATH_TEST_EXPR "test_expr.txt"
@@ -83,9 +84,15 @@ int main(int argc, char **argv) {
         putchar('\n');
         test_scope();
         putchar('\n');
-        SourceFile source = source_file_parse("test.creed");
-        source_file_print(&source);
-        source_file_free(&source);
+        SourceFile source_declaration = source_file_parse("test_declaration.creed");
+        source_file_print(&source_declaration);
+        source_file_free(&source_declaration);
+
+        SourceFile source_symbol_table = source_file_parse("test_symbol_table.creed");
+        for (int i = 0; i < source_symbol_table.declaration_count; i++) {
+            symbol_table_check_declaration(source_symbol_table.declarations + i);
+        }
+        source_file_free(&source_symbol_table);
     }
 
     string_cache_free();
