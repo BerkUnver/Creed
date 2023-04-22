@@ -49,7 +49,7 @@ typedef struct Expr {
         struct {
             enum {
                 EXPR_UNARY_LOGICAL_NOT = '!',
-                EXPR_UNARY_BITWISE_NOT = '^',
+                EXPR_UNARY_BITWISE_NOT = '~',
                 EXPR_UNARY_NEGATE = '-',
                 EXPR_UNARY_REF = '&',
                 EXPR_UNARY_DEREF = '*',

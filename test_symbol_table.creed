@@ -1,3 +1,5 @@
-main () void {
-    i: int = 0;
+func (count: int) void {
+    for j: int = 0; j < count; ++j {
+
+    }
 }
