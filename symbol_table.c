@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "parser.h"
-#include "print.h"
+#include "prelude.h"
 #include "symbol_table.h"
 #include "string_cache.h"
 #include "token.h"

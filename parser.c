@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include "lexer.h"
 #include "parser.h"
-#include "print.h"
+#include "prelude.h"
 #include "token.h"
 
 Type type_parse(Lexer *lexer) {
@@ -1245,12 +1245,8 @@ void declaration_print(Declaration *declaration) {
 }
 
 SourceFile source_file_parse(const char *file_name) {
-    Lexer lexer;
-    if (!lexer_new(file_name, &lexer)) {
-        printf("Source file %s could not be opened.\n", file_name);
-        exit(EXIT_FAILURE);
-    }
-
+    Lexer lexer = lexer_new(file_name);
+    
     int import_count = 0;
     int import_count_alloc = 2;
     StringId *imports = malloc(sizeof(StringId) * import_count_alloc);

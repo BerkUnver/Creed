@@ -3,20 +3,7 @@
 #include <stdlib.h>
 
 #include "token.h"
-#include "print.h"
-
-Location location_expand(Location begin, Location end) {
-    return (Location) {
-        .line_start = begin.line_start,
-        .char_start = begin.char_start,
-        .line_end = end.line_end,
-        .char_end = end.char_end
-    };
-}
-
-void location_print(Location location) {
-    printf("(%i, %i) -> (%i, %i)", location.line_start + 1, location.char_start + 1, location.line_end + 1, location.char_end + 1);
-}
+#include "prelude.h"
 
 char *string_operators[] = {
     "&&", "||", "&", "|", "^", "==", "!=", "<", ">", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%"
@@ -62,74 +49,6 @@ bool char_is_single_char_token_type(int c) {
 
 bool char_is_whitespace(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\r';
-}
-
-void literal_print(Literal *literal) {
-    switch (literal->type) {
-        
-        case LITERAL_STRING:
-            putchar('"');
-            int idx = 0;
-            char *string = string_cache_get(literal->data.l_string);
-            while (string[idx] != '\0') {
-                print_literal_char(string[idx]);
-                idx++;
-            }
-            putchar('"');
-            break;
-
-        case LITERAL_INT8:
-            printf("%di8", literal->data.l_int8);
-            break;
-
-        case LITERAL_INT16:
-            printf("%hii16", literal->data.l_int16);
-            break;
-        
-        case LITERAL_INT:
-            printf("%di", literal->data.l_int);
-            break;
-        
-        case LITERAL_INT64:
-            printf("%lldi64", literal->data.l_int64);
-            break;
-        
-        case LITERAL_UINT8:
-            printf("%uu8", literal->data.l_uint8);
-            break;
-
-        case LITERAL_UINT16:
-            printf("%huu16", literal->data.l_uint16);
-            break;
-        
-        case LITERAL_UINT:
-            printf("%uu", literal->data.l_uint);
-            break;
-        
-        case LITERAL_UINT64:
-            printf("%lluu64", literal->data.l_uint64);
-            break;
-
-        case LITERAL_FLOAT:
-            // todo: make so this prints out only as many chars as the token is in length.
-            printf("%ff", literal->data.l_float);
-            break;
-        
-        case LITERAL_FLOAT64:
-            printf("%lff64", literal->data.l_float64);
-            break;
-
-        case LITERAL_CHAR:
-            putchar('\'');
-            print_literal_char(literal->data.l_char);
-            putchar('\'');
-            break;
-
-        default:
-            printf("[Unrecognized token typen %i]", literal->type);
-            break;
-    }
-
 }
 
 void token_print(Token *token) {

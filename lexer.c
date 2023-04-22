@@ -3,20 +3,22 @@
 #include <string.h>
 
 #include "lexer.h"
-#include "print.h"
+#include "prelude.h"
 #include "string_builder.h"
 #include "token.h"
 
-bool lexer_new(const char *path, Lexer *lexer) {
+Lexer lexer_new(const char *path) {
     FILE *file = fopen(path, "r+");
-    if (!file) return false;
-    *lexer = (Lexer) {
+    if (!file) {
+        printf("Failed to open file %s to create a lexer from.\n", path);
+        exit(EXIT_FAILURE);
+    }
+    return (Lexer) {
         .file = file,
         .line_idx = 0,
         .char_idx = 0,
         .peeks = 0,
     };
-    return true;
 }
 
 void lexer_free(Lexer *lexer) {

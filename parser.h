@@ -5,7 +5,6 @@
 #include "lexer.h"
 #include "token.h"
 
-#define STR_INDENTATION "   "
 typedef struct Type {
     Location location;
 

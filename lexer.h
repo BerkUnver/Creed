@@ -17,7 +17,7 @@ typedef struct Lexer {
     Token peek2;
 } Lexer;
 
-bool lexer_new(const char *path, Lexer *lexer);
+Lexer lexer_new(const char *path);
 void lexer_free(Lexer *lexer);
 Token lexer_token_get(Lexer *lexer);
 Token lexer_token_peek(Lexer *lexer);
