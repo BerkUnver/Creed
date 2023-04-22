@@ -1255,7 +1255,7 @@ SourceFile source_file_parse(const char *file_name) {
         Token token_import = lexer_token_get(&lexer);
         Token token_file = lexer_token_get(&lexer);
         if (token_file.type != TOKEN_LITERAL || token_file.data.literal.type != LITERAL_STRING) {
-            error_exit(location_expand(token_import.location, token_file.location), "Expected a literal string as the import file.");
+            error_exit(location_expand(token_import.location, token_file.location), "Expected a literal string as the name of an import.");
         }
         
         import_count++;

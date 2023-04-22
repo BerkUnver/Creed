@@ -227,16 +227,58 @@ typedef struct Declaration {
     StringId id;
     
     enum {
-        // Eventually we will have to split sum away from struct and union in order to declare explicit tag values.
         DECLARATION_STRUCT,
         DECLARATION_UNION,
         DECLARATION_SUM,
-        
         DECLARATION_ENUM,
-
         DECLARATION_FUNCTION,
-        // DECLARATION_IMPORT,
         // DECLARATION_CONSTANT
+        
+        /* We need to figure out how to handle globals much better.
+         * Right now, we just have constants as literals, i.e.
+         * 
+         * CONSTANT_1 128
+         * CONSTANT_2 256
+         * 
+         * We cannot hande the addition of constants, i.e.
+         * CONSTANT_3 CONSTANT_1 + CONSTANT_2
+         * 
+         * We could handle that, but then it introduces a syntactical ambiguity between function arguments and parenthesized expressions.
+         
+         * CONSTANT_3 (CONSTANT_1 + CONSTANT_2)
+         * main () void { }
+         
+         * I believe differenciating between these would make it an LR grammar.
+         * A way to resolve this would be to add a "fn" keyword before every function. I'm not opposed to this, and also makes lamdas and function type declarations easier.
+         *
+         * main fn () void { }
+         *
+         * However, there is another issue. How do we resolve mutable globals?
+         * We could just parse them like normal declarations.
+         *
+         * global_1: int = 3;
+         *
+         * However, this would require semicolons after them and requiring semicolons after globals but not constants is weird.
+         *
+         * CONSTANT_1 128;
+         *
+         * Does this imply having semicolons after type and function declarations?
+         * Right now, the following is legal.
+         *
+         * main () int return EXIT_FAILURE;
+         *
+         * We would have to require 2 semicolons after a single-line function declaration, one for the function body and for the function declaration itself.
+         *
+         * main () int return EXIT_FAILURE;;
+         * 
+         * This is really, really dumb, and avoiding semicolons after function declarations would be good.
+         * However, this would also mean function declarations would have to imply the end of a statement when direcly assigned to a constant name.
+         * This might imply something weird about lambdas.
+         *
+         * I feel like not having a constant assignment operator is just asking for syntactic ambiguities at this point as well.
+         *
+         * main :: fn () void { }
+         */
     } type;
 
     union {

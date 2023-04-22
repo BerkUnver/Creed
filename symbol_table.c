@@ -194,7 +194,8 @@ void symbol_table_check_statement(SymbolTable *table, Statement *statement) {
                 error_exit(statement->location, "This local variable shadows another local variable in the same scope.");
             }
             break;
-
+        
+        // We need a way to differenciate lvals and rvals here.
         case STATEMENT_INCREMENT: {
             TokenType type = symbol_table_check_expr(table, &statement->data.increment);
             if (type < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MAX < type) {
