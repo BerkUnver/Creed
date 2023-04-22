@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
 #include "parser.h"
 #include "prelude.h"
 #include "symbol_table.h"
@@ -10,12 +11,18 @@
 #include "token.h"
 
 void symbol_table_new(SymbolTable *table) {
-    memset(table->nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_COUNT);
+    memset(table->nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_NODE_COUNT);
     table->previous = NULL;
 }
 
+void symbol_table_free_head(SymbolTable *table) {
+    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
+        free(table->nodes[i].symbols);
+    }
+}
+
 bool symbol_table_has(SymbolTable *table, StringId id) {
-    int idx = id.idx % SYMBOL_TABLE_COUNT;
+    int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
     for (int i = 0; i < table->nodes[idx].count; i++) {
         if (table->nodes[idx].symbols[i].id.idx == id.idx) return true;
     }
@@ -23,7 +30,7 @@ bool symbol_table_has(SymbolTable *table, StringId id) {
 }
 
 bool symbol_table_get(SymbolTable *table, StringId id, Symbol *symbol) {
-    int i = id.idx % SYMBOL_TABLE_COUNT;
+    int i = id.idx % SYMBOL_TABLE_NODE_COUNT;
     for (int j = 0; j < table->nodes[j].count; j++) {
         if (table->nodes[i].symbols[j].id.idx != id.idx) continue;
         *symbol = table->nodes[i].symbols[j];
@@ -42,7 +49,7 @@ bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
         .type = type->data.primitive
     };
     
-    int i = id.idx % SYMBOL_TABLE_COUNT;
+    int i = id.idx % SYMBOL_TABLE_NODE_COUNT;
     if (table->nodes[i].count == 0) {
         int count_alloc = 2;
         Symbol *symbols = malloc(sizeof(Symbol) * count_alloc);
@@ -66,7 +73,7 @@ bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
 }
 
 void symbol_table_print(SymbolTable *table) {
-    for (int i = 0; i < SYMBOL_TABLE_COUNT; i++) {
+    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
         for (int j = 0; j < table->nodes[i].count; j++) {
             printf("%s: %s\n", string_cache_get(table->nodes[i].symbols[j].id), string_keywords[table->nodes[i].symbols[j].data.var_type - TOKEN_KEYWORD_MIN]);
         }
@@ -77,11 +84,12 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
     switch (scope->type) {
         case SCOPE_BLOCK: {
             SymbolTable table_new;
-            memset(&table_new.nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_COUNT);
+            memset(&table_new.nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_NODE_COUNT);
             table_new.previous = table;
             for (int i = 0; i < scope->data.block.scope_count; i++) {
                 symbol_table_check_scope(&table_new, scope->data.block.scopes + i);
             }
+            symbol_table_free_head(&table_new);
         } break;
        
         case SCOPE_STATEMENT:
@@ -107,6 +115,7 @@ void symbol_table_check_declaration(Declaration *decl) {
     switch (decl->type) {
         case DECLARATION_FUNCTION: {
             SymbolTable table;
+            memset(&table, 0, sizeof(SymbolTable));
             symbol_table_new(&table);
             for (int i = 0; i < decl->data.d_function.parameter_count; i++) {
                 FunctionParameter param = decl->data.d_function.parameters[i];
@@ -115,6 +124,7 @@ void symbol_table_check_declaration(Declaration *decl) {
                 }
             }
             symbol_table_check_scope(&table, &decl->data.d_function.scope);
+            symbol_table_free_head(&table);
         } break;
 
         default: assert(false);
