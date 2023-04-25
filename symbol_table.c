@@ -51,7 +51,7 @@ bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
     Symbol symbol = {
         .id = id,
         .type = SYMBOL_VAR, 
-        .type = type->data.primitive
+        .data.var_type = type->data.primitive
     };
     
     int i = id.idx % SYMBOL_TABLE_NODE_COUNT;

@@ -30,6 +30,7 @@ typedef struct SymbolTable {
     struct SymbolTable *previous;
 } SymbolTable;
 
+
 void symbol_table_new(SymbolTable *table, SymbolTable *previous); // previous can be null.
 void symbol_table_free_head(SymbolTable *table); // frees only the first symbol table, not the previous ones.
 bool symbol_table_has(const SymbolTable *table, StringId id);
