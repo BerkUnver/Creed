@@ -220,6 +220,7 @@ typedef struct MemberStructUnion {
 } MemberStructUnion;
 
 typedef struct MemberSum {
+    Location location;
     StringId id;
     bool type_exists;
     Type type;

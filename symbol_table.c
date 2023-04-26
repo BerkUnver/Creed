@@ -297,34 +297,77 @@ void symbol_table_print(SymbolTable *table) {
     }
 }
 
-void symbol_table_populate_type(SymbolTable *table, SymbolTypes *types, Declaration *decl) {
+void symbol_table_populate_type(SymbolTable *table, TypeList *types, Declaration *decl) {
     assert(DECLARATION_TYPE_MIN <= decl->type && decl->type <= DECLARATION_TYPE_MAX);
-    switch (decl->type) {
-        case DECLARATION_STRUCT:
-        case DECLARATION_UNION: 
-            decl->type_idx_state = DECLARATION_TYPE_IDX_PARSING;
-            for (int i = 0; i < decl->data.d_struct_union.member_count; i++) {
-                MemberStructUnion *member = decl->data.d_struct_union.members + i;
-                switch (member->type.type) {
-                    case TYPE_PRIMITIVE:
-                        
+    
+    switch (decl->type_idx_state) {
+        case DECLARATION_TYPE_IDX_UNPARSED:
+            switch (decl->type) {
+                case DECLARATION_STRUCT:
+                case DECLARATION_UNION: 
+                    
+                    decl->type_idx_state = DECLARATION_TYPE_IDX_PARSING;
+                    
+                    TypeListMemberStructUnion *members = malloc(sizeof(TypeListMemberStructUnion) * decl->data.d_struct_union.member_count);
+                    
+                    for (int i = 0; i < decl->data.d_struct_union.member_count; i++) {
+                        MemberStructUnion *member = decl->data.d_struct_union.members + i;
+                        TypeListId type;
+                        switch (member->type.type) {
+                            case TYPE_PRIMITIVE: {
+                                type = (TypeListId) {
+                                    .is_primitive = true,
+                                    .data.primitive = member->type.data.primitive
+                                };
+                            } break;
 
-                    case TYPE_ID:
-                    case TYPE_PTR:
-                    case TYPE_PTR_NULLABLE:
-                    case TYPE_ARRAY:
-                        assert(false); // Will figure this out later.
-                }
+                            case TYPE_ID: {
+                                Symbol symbol;
+                                if (!symbol_table_get(table, member->type.data.id, &symbol)) {
+                                    error_exit(member->location, "The type of this member is undefined.");
+                                }
+                                assert(symbol.type == SYMBOL_DECLARATION);
+                                if (symbol.data.declaration.type < DECLARATION_TYPE_MIN || DECLARATION_TYPE_MAX < symbol.data.declaration.type) {
+                                    error_exit(member->location, "The type of this member is not a type.");
+                                }
+                                symbol_table_populate_type(table, types, &symbol.data.declaration);
+                                type = (TypeListId) {
+                                    .is_primitive = false,
+                                    .data.idx = symbol.data.declaration.type_idx
+                                };
+                                
+                            } break;
+                            
+                            case TYPE_PTR:
+                            case TYPE_PTR_NULLABLE:
+                            case TYPE_ARRAY:
+                                assert(false); // Will figure this out later.
+                        }
+                        members[i] = (TypeListMemberStructUnion) {
+                            .id = decl->id,
+                            .type = type
+                        };
+                    }
+                    
+
+                    decl->type_idx_state = DECLARATION_TYPE_IDX_PARSED;
+                    break;
+
+                case DECLARATION_SUM:
+
+                case DECLARATION_ENUM:
+
+                case DECLARATION_FUNCTION:
+                    assert(false);
             }
+        case DECLARATION_TYPE_IDX_PARSING:
+            error_exit(decl->location, "This data type contains a mutually recursive reference.");
             break;
-
-        case DECLARATION_SUM:
-
-        case DECLARATION_ENUM:
-
-        case DECLARATION_FUNCTION:
-            assert(false);
+        case DECLARATION_TYPE_IDX_PARSED:
+            break;
     }
+    assert(DECLARATION_TYPE_MIN <= decl->type && decl->type <= DECLARATION_TYPE_MAX);
+
 }
 
 SymbolTable symbol_table_from_file(const char *path) {
