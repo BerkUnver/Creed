@@ -211,16 +211,16 @@ typedef struct FunctionParameter {
 } FunctionParameter;
 
 
-typedef struct TypeMember {
+typedef struct MemberStructUnion {
     StringId id;
     Type type;
-} TypeMember;
+} MemberStructUnion;
 
-typedef struct SumMember {
+typedef struct MemberSum {
     StringId id;
     bool type_exists;
     Type type;
-} SumMember;
+} MemberSum;
 
 typedef struct Declaration {
     Location location;
@@ -283,12 +283,12 @@ typedef struct Declaration {
 
     union {
         struct {
-            TypeMember *members;
+            MemberStructUnion *members;
             int member_count;
-        } d_complex_type;
+        } d_struct_union;
         
         struct {
-            SumMember *members;
+            MemberSum *members;
             int member_count;
         } d_sum;
 

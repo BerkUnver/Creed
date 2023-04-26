@@ -23,7 +23,6 @@ void symbol_table_free_head(SymbolTable *table) {
             Symbol *symbol = table->nodes[i].symbols + symbol_idx;
             if (symbol->type == SYMBOL_DECLARATION) {
                 declaration_free(&symbol->data.declaration); 
-                puts("Freeing declaration");
             }
         }
         free(table->nodes[i].symbols);
@@ -277,7 +276,9 @@ void symbol_table_check_functions(SymbolTable *table) {
             SymbolTable table_func = symbol_table_new(table);
             for (int param_idx = 0; param_idx < decl->data.d_function.parameter_count; param_idx++) {
                 FunctionParameter *param = decl->data.d_function.parameters + param_idx;
-                symbol_table_add_var(&table_func, param->id, &param->type);
+                if (!symbol_table_add_var(&table_func, param->id, &param->type)) {
+                    error_exit(decl->location, "A function's parameter names must be unique.");
+                }
             }
             symbol_table_check_scope(&table_func, &decl->data.d_function.scope);
             symbol_table_free_head(&table_func);

@@ -1,10 +1,36 @@
 #ifndef CREED_SYMBOL_TABLE_H
 #define CREED_SYMBOL_TABLE_H
 
-#include "stdbool.h"
+#include <stdbool.h>
 #include "string_cache.h"
-#include "token.h"
+#include "lexer.h"
 #include "parser.h"
+
+typedef struct SymbolType {
+    enum {
+        SYMBOL_TYPE_STRUCT,
+        SYMBOL_TYPE_UNION,
+        SYMBOL_TYPE_ENUM,
+        SYMBOL_TYPE_SUM
+    } type;
+    
+    union {
+        struct {
+        } s_complex_type;
+        
+        struct {
+
+        } s_sum;
+
+        struct {
+
+        } s_enum;
+    } data;
+} SymbolTableType;
+
+typedef struct SymbolTypeList {
+    
+} SymbolTableTypeList;
 
 typedef struct Symbol {
     StringId id;
@@ -32,7 +58,6 @@ typedef struct SymbolTable {
     SymbolNode nodes[SYMBOL_TABLE_NODE_COUNT];
     struct SymbolTable *previous;
 } SymbolTable;
-
 
 SymbolTable symbol_table_new(SymbolTable *previous); // previous can be null.
 void symbol_table_free_head(SymbolTable *table); // frees only the first symbol table, not the previous ones.

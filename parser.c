@@ -1015,7 +1015,7 @@ Declaration declaration_parse(Lexer *lexer) {
             
             int member_count = 0;
             int member_count_alloc = 2;
-            TypeMember *members = malloc(sizeof(TypeMember) * member_count_alloc);
+            MemberStructUnion *members = malloc(sizeof(MemberStructUnion) * member_count_alloc);
             while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
                 Token token_id = lexer_token_get(lexer);
                 if (token_id.type != TOKEN_ID) {
@@ -1031,9 +1031,9 @@ Declaration declaration_parse(Lexer *lexer) {
                 member_count++;
                 if (member_count > member_count_alloc) {
                     member_count_alloc *= 2;
-                    members = realloc(members, sizeof(TypeMember) * member_count_alloc);
+                    members = realloc(members, sizeof(MemberStructUnion) * member_count_alloc);
                 }
-                members[member_count - 1] = (TypeMember) {
+                members[member_count - 1] = (MemberStructUnion) {
                     .id = token_id.data.id,
                     .type = type
                 };
@@ -1043,8 +1043,8 @@ Declaration declaration_parse(Lexer *lexer) {
                 .location = location_expand(identifier.location, token_end.location),
                 .type = declaration_type,
                 .id = varname,
-                .data.d_complex_type.member_count = member_count,
-                .data.d_complex_type.members = members
+                .data.d_struct_union.member_count = member_count,
+                .data.d_struct_union.members = members
             };
         }
         
@@ -1056,7 +1056,7 @@ Declaration declaration_parse(Lexer *lexer) {
             
             int member_count = 0;
             int member_count_alloc = 2;
-            SumMember *members = malloc(sizeof(SumMember) * member_count_alloc);
+            MemberSum *members = malloc(sizeof(MemberSum) * member_count_alloc);
 
             while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
                 Token sum_token_id = lexer_token_get(lexer);
@@ -1064,7 +1064,7 @@ Declaration declaration_parse(Lexer *lexer) {
                     error_exit(sum_token_id.location, "Expected an identifier as the name of a sum member.");
                 }
 
-                SumMember member;
+                MemberSum member;
                 member.id = sum_token_id.data.id;
                 if (lexer_token_peek(lexer).type == TOKEN_COLON) {
                     lexer_token_get(lexer);
@@ -1075,7 +1075,7 @@ Declaration declaration_parse(Lexer *lexer) {
                 member_count++;
                 if (member_count > member_count_alloc) {
                     member_count_alloc *= 2;
-                    members = realloc(members, sizeof(SumMember) * member_count_alloc);
+                    members = realloc(members, sizeof(MemberSum) * member_count_alloc);
                 }
                 members[member_count - 1] = member;
 
@@ -1156,16 +1156,16 @@ void declaration_free(Declaration *declaration) {
     switch (declaration->type) {
         case DECLARATION_STRUCT:
         case DECLARATION_UNION:
-            for (int i = 0; i < declaration->data.d_complex_type.member_count; i++) {
-                type_free(&declaration->data.d_complex_type.members[i].type);
+            for (int i = 0; i < declaration->data.d_struct_union.member_count; i++) {
+                type_free(&declaration->data.d_struct_union.members[i].type);
             }
-            free(declaration->data.d_complex_type.members);
+            free(declaration->data.d_struct_union.members);
             break;
 
             
         case DECLARATION_SUM:
             for (int i = 0; i < declaration->data.d_sum.member_count; i++) {
-                SumMember member = declaration->data.d_sum.members[i];
+                MemberSum member = declaration->data.d_sum.members[i];
                 if (member.type_exists) type_free(&member.type);
             }
             free(declaration->data.d_sum.members);
@@ -1204,9 +1204,9 @@ void declaration_print(Declaration *declaration) {
             print(string_keywords[TOKEN_KEYWORD_UNION - TOKEN_KEYWORD_MIN]);
             complex_type_print:
             printf(" %c\n", TOKEN_CURLY_BRACE_OPEN);
-            for (int i = 0; i < declaration->data.d_complex_type.member_count; i++) {
-                printf("%s%s%c ", STR_INDENTATION, string_cache_get(declaration->data.d_complex_type.members[i].id), TOKEN_COLON);
-                type_print(&declaration->data.d_complex_type.members[i].type);
+            for (int i = 0; i < declaration->data.d_struct_union.member_count; i++) {
+                printf("%s%s%c ", STR_INDENTATION, string_cache_get(declaration->data.d_struct_union.members[i].id), TOKEN_COLON);
+                type_print(&declaration->data.d_struct_union.members[i].type);
                 printf("%c\n", TOKEN_SEMICOLON);
             }
             printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);    
@@ -1215,7 +1215,7 @@ void declaration_print(Declaration *declaration) {
         case DECLARATION_SUM:
             printf("%s %c\n", string_keywords[TOKEN_KEYWORD_SUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
             for (int i = 0; i < declaration->data.d_sum.member_count; i++) {
-                SumMember member = declaration->data.d_sum.members[i];
+                MemberSum member = declaration->data.d_sum.members[i];
                 printf("%s%s", STR_INDENTATION, string_cache_get(member.id));
                 if (member.type_exists) {
                     printf("%c ", TOKEN_COLON);
