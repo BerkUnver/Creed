@@ -1,0 +1,12 @@
+main (args: [][]char) int {
+        arr : int[5];
+
+        for i: int = 0; i < count; ++i {
+            arr[i] = i
+        }
+
+        printf("Value at index 6: %d\n", arr[6]);
+
+        return 0;
+
+}
