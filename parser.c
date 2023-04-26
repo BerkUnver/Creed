@@ -6,6 +6,7 @@
 #include "parser.h"
 #include "prelude.h"
 #include "token.h"
+#include "handlers.h"
 
 Type type_parse(Lexer *lexer) {
     Token token = lexer_token_peek(lexer);

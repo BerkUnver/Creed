@@ -4,6 +4,7 @@
 #include "stdbool.h"
 #include "string_cache.h"
 #include "token.h"
+#include "parser.h"
 
 typedef struct Symbol {
     StringId id;
