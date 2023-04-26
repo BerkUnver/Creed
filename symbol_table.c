@@ -19,7 +19,7 @@ SymbolTable symbol_table_new(SymbolTable *previous) {
 
 void symbol_table_free_head(SymbolTable *table) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
-        for (int symbol_idx = 0; symbol_idx < table->nodes[i].count; symbol_idx++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[i].symbol_count; symbol_idx++) {
             Symbol *symbol = table->nodes[i].symbols + symbol_idx;
             if (symbol->type == SYMBOL_DECLARATION) {
                 declaration_free(&symbol->data.declaration); 
@@ -32,7 +32,7 @@ void symbol_table_free_head(SymbolTable *table) {
 bool symbol_table_has(const SymbolTable *table, StringId id) {
     int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
     while (table) { 
-        for (int i = 0; i < table->nodes[idx].count; i++) {
+        for (int i = 0; i < table->nodes[idx].symbol_count; i++) {
             if (table->nodes[idx].symbols[i].id.idx == id.idx) return true;
         }
         table = table->previous;
@@ -43,7 +43,7 @@ bool symbol_table_has(const SymbolTable *table, StringId id) {
 bool symbol_table_get(const SymbolTable *table, StringId id, Symbol *symbol) {
     int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
     while (table) {
-        for (int i = 0; i < table->nodes[idx].count; i++) {
+        for (int i = 0; i < table->nodes[idx].symbol_count; i++) {
             if (table->nodes[idx].symbols[i].id.idx != id.idx) continue;
             *symbol = table->nodes[idx].symbols[i];
             return true; 
@@ -57,23 +57,23 @@ bool symbol_table_add_symbol(SymbolTable *table, Symbol symbol) {
     if (symbol_table_has(table, symbol.id)) return false;
     
     int i = symbol.id.idx % SYMBOL_TABLE_NODE_COUNT;
-    if (table->nodes[i].count == 0) {
+    if (table->nodes[i].symbol_count == 0) {
         int count_alloc = 2;
         Symbol *symbols = malloc(sizeof(Symbol) * count_alloc);
         symbols[0] = symbol;
         table->nodes[i] = (SymbolNode) {
-            .count = 1,
-            .count_alloc = count_alloc,
+            .symbol_count = 1,
+            .symbol_count_alloc = count_alloc,
             .symbols = symbols
         };
     } else {
         SymbolNode node = table->nodes[i];
-        node.count++;
-        if (node.count > node.count_alloc) {
-            node.count_alloc *= 2;
-            node.symbols = realloc(node.symbols, sizeof(Symbol) * node.count_alloc);
+        node.symbol_count++;
+        if (node.symbol_count > node.symbol_count_alloc) {
+            node.symbol_count_alloc *= 2;
+            node.symbols = realloc(node.symbols, sizeof(Symbol) * node.symbol_count_alloc);
         }
-        node.symbols[node.count - 1] = symbol;
+        node.symbols[node.symbol_count - 1] = symbol;
         table->nodes[i] = node;
     }
     return true;
@@ -268,7 +268,7 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
 
 void symbol_table_check_functions(SymbolTable *table) {
     for (int node_idx = 0; node_idx < SYMBOL_TABLE_NODE_COUNT; node_idx++) {
-        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].count; symbol_idx++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].symbol_count; symbol_idx++) {
             Symbol *symbol = table->nodes[node_idx].symbols + symbol_idx;
             if (symbol->type != SYMBOL_DECLARATION) continue;
             Declaration *decl = &symbol->data.declaration;
@@ -288,12 +288,42 @@ void symbol_table_check_functions(SymbolTable *table) {
 
 void symbol_table_print(SymbolTable *table) {
     for (int node_idx = 0; node_idx < SYMBOL_TABLE_NODE_COUNT; node_idx++) {
-        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].count; symbol_idx++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].symbol_count; symbol_idx++) {
             Symbol *symbol = table->nodes[node_idx].symbols + symbol_idx;
             assert(symbol->type == SYMBOL_DECLARATION);
             declaration_print(&symbol->data.declaration);
             putchar('\n');
         }
+    }
+}
+
+void symbol_table_populate_type(SymbolTable *table, SymbolTypes *types, Declaration *decl) {
+    assert(DECLARATION_TYPE_MIN <= decl->type && decl->type <= DECLARATION_TYPE_MAX);
+    switch (decl->type) {
+        case DECLARATION_STRUCT:
+        case DECLARATION_UNION: 
+            decl->type_idx_state = DECLARATION_TYPE_IDX_PARSING;
+            for (int i = 0; i < decl->data.d_struct_union.member_count; i++) {
+                MemberStructUnion *member = decl->data.d_struct_union.members + i;
+                switch (member->type.type) {
+                    case TYPE_PRIMITIVE:
+                        
+
+                    case TYPE_ID:
+                    case TYPE_PTR:
+                    case TYPE_PTR_NULLABLE:
+                    case TYPE_ARRAY:
+                        assert(false); // Will figure this out later.
+                }
+            }
+            break;
+
+        case DECLARATION_SUM:
+
+        case DECLARATION_ENUM:
+
+        case DECLARATION_FUNCTION:
+            assert(false);
     }
 }
 
@@ -319,9 +349,37 @@ SymbolTable symbol_table_from_file(const char *path) {
             .type = SYMBOL_DECLARATION,
             .data.declaration = decl
         };
-        symbol_table_add_symbol(&table, symbol);
+        if (!symbol_table_add_symbol(&table, symbol)) {
+            error_exit(decl.location, "A declaration with this name already exists in this file.");
+        }
     }
 
+    /*
+    int type_count_alloc = 2;
+    *types = (SymbolTypes) {
+        .types = malloc(sizeof(SymbolType) * type_count_alloc),
+        .type_count = 0,
+        .type_count_alloc = type_count_alloc
+    };
+    
+    
+    for (int node_idx = 0; node_idx < SYMBOL_TABLE_NODE_COUNT; node_idx++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].symbol_count; symbol_idx++) {
+            Symbol *symbol = table->nodes[node_idx].symbols + symbol_idx;
+            assert(symbol->type == SYMBOL_DECLARATION);
+            Declaration *decl = &symbol->data.declaration;
+            switch (decl->type) {
+                case DECLARATION_STRUCT:
+                case DECLARATION_UNION:
+                
+                case DECLARATION_UNION:
+                case DECLARATION_FUNCTION:
+                    break;
+            }
+            
+        }
+    }
+    */
     lexer_free(&lexer);
     return table;
 }

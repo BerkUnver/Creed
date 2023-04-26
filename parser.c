@@ -1,7 +1,9 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include "lexer.h"
 #include "parser.h"
 #include "prelude.h"
@@ -959,9 +961,14 @@ Declaration declaration_parse(Lexer *lexer) {
     if (identifier.type != TOKEN_ID) {
         error_exit(identifier.location, "Expected a non-keyword identifier for the union member.");
     }
-    StringId varname = identifier.data.id;
-    Token keyword = lexer_token_get(lexer);
+    
+    Declaration decl = {
+        .id = identifier.data.id,
+        .type_idx_state = DECLARATION_TYPE_IDX_UNPARSED,
+        .type_idx = INT_MIN // defined like this so the program will probably segfault if you try to access it as it is undefined.
+    };
 
+    Token keyword = lexer_token_get(lexer);
     switch (keyword.type) {
 
         case TOKEN_KEYWORD_ENUM: {
@@ -992,14 +999,11 @@ Declaration declaration_parse(Lexer *lexer) {
             }
 
             Token enum_token_end = lexer_token_get(lexer);
-            return (Declaration) {
-                .location = location_expand(identifier.location, enum_token_end.location),
-                .type = DECLARATION_ENUM,
-                .id = varname,
-                .data.d_enum.member_count = member_count,
-                .data.d_enum.members = members
-            };
-        }
+            decl.location = location_expand(identifier.location, enum_token_end.location);
+            decl.type = DECLARATION_ENUM;
+            decl.data.d_enum.member_count = member_count;
+            decl.data.d_enum.members = members;
+        } break;
 
         case TOKEN_KEYWORD_STRUCT:
         case TOKEN_KEYWORD_UNION: {
@@ -1034,19 +1038,17 @@ Declaration declaration_parse(Lexer *lexer) {
                     members = realloc(members, sizeof(MemberStructUnion) * member_count_alloc);
                 }
                 members[member_count - 1] = (MemberStructUnion) {
+                    .location = location_expand(token_id.location, type.location),
                     .id = token_id.data.id,
                     .type = type
                 };
             }
             Token token_end = lexer_token_get(lexer);
-            return (Declaration) {
-                .location = location_expand(identifier.location, token_end.location),
-                .type = declaration_type,
-                .id = varname,
-                .data.d_struct_union.member_count = member_count,
-                .data.d_struct_union.members = members
-            };
-        }
+            decl.location = location_expand(identifier.location, token_end.location);
+            decl.type = declaration_type;
+            decl.data.d_struct_union.member_count = member_count;
+            decl.data.d_struct_union.members = members;
+        } break;
         
         case TOKEN_KEYWORD_SUM: {
             if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
@@ -1085,14 +1087,11 @@ Declaration declaration_parse(Lexer *lexer) {
             }
             Token token_end = lexer_token_get(lexer);
 
-            return (Declaration) {
-                .location = location_expand(identifier.location, token_end.location),
-                .id = varname,
-                .type = DECLARATION_SUM,
-                .data.d_sum.member_count = member_count,
-                .data.d_sum.members = members
-            };
-        }
+            decl.location = location_expand(identifier.location, token_end.location);
+            decl.type = DECLARATION_SUM;
+            decl.data.d_sum.member_count = member_count;
+            decl.data.d_sum.members = members;
+        } break;
 
         case TOKEN_PAREN_OPEN: {
             FunctionParameter *parameters = NULL;
@@ -1119,6 +1118,7 @@ Declaration declaration_parse(Lexer *lexer) {
                         parameters = realloc(parameters, sizeof(FunctionParameter) * parameter_count_allocated);
                     }
                     parameters[parameter_count - 1] = (FunctionParameter) {
+                        .location = location_expand(parameter_id.location, type.location),
                         .id = parameter_id.data.id,
                         .type = type
                     };
@@ -1136,20 +1136,19 @@ Declaration declaration_parse(Lexer *lexer) {
             Type return_type = type_parse(lexer);
             Scope scope = scope_parse(lexer);
 
-            return (Declaration) {
-                .type = DECLARATION_FUNCTION,
-                .id = varname,
-                .data.d_function.parameters = parameters,
-                .data.d_function.parameter_count = parameter_count,
-                .data.d_function.return_type = return_type,
-                .data.d_function.scope = scope
-            };
-        }
+            decl.location = location_expand(identifier.location, scope.location);
+            decl.type = DECLARATION_FUNCTION;
+            decl.data.d_function.parameters = parameters;
+            decl.data.d_function.parameter_count = parameter_count;
+            decl.data.d_function.return_type = return_type;
+            decl.data.d_function.scope = scope;
+        } break;
 
         default: 
             error_exit(keyword.location, "Expected a literal or function declaration here.");
-            return (Declaration) {{ 0 }}; // have to put extra braces to work around compiler bug on version of gcc used by cslab
     }
+
+    return decl;
 }
 
 void declaration_free(Declaration *declaration) {

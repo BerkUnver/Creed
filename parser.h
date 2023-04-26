@@ -206,12 +206,15 @@ void scope_free(Scope *scope);
 void scope_print(Scope *scope, int indentation);
 
 typedef struct FunctionParameter {
+    Location location;
     StringId id;
     Type type;
+    int type_idx;
 } FunctionParameter;
 
 
 typedef struct MemberStructUnion {
+    Location location;
     StringId id;
     Type type;
 } MemberStructUnion;
@@ -225,12 +228,22 @@ typedef struct MemberSum {
 typedef struct Declaration {
     Location location;
     StringId id;
-    
+
+    // These two fields are only used by type declarations.
     enum {
-        DECLARATION_STRUCT,
+        DECLARATION_TYPE_IDX_UNPARSED, // Type does not have type idx
+        DECLARATION_TYPE_IDX_PARSING, // Members are being examined to find their types and assign a type idx to this. Used to detect recursive struct declarations.
+        DECLARATION_TYPE_IDX_PARSED // Type idx is defined.
+    } type_idx_state;
+    int type_idx;
+ 
+    enum {
+        DECLARATION_TYPE_MIN,
+        DECLARATION_STRUCT = DECLARATION_TYPE_MIN,
         DECLARATION_UNION,
         DECLARATION_SUM,
         DECLARATION_ENUM,
+        DECLARATION_TYPE_MAX = DECLARATION_ENUM,
         DECLARATION_FUNCTION,
         // DECLARATION_CONSTANT
         
@@ -301,6 +314,7 @@ typedef struct Declaration {
             FunctionParameter *parameters;
             int parameter_count;
             Type return_type;
+            int return_type_id;
             Scope scope;
         } d_function;
     } data;

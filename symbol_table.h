@@ -6,6 +6,12 @@
 #include "lexer.h"
 #include "parser.h"
 
+typedef struct SymbolTypeId {
+    bool is_primitive;
+    TokenType primitive;
+    int idx;
+} TypeId;
+
 typedef struct SymbolType {
     enum {
         SYMBOL_TYPE_STRUCT,
@@ -16,21 +22,34 @@ typedef struct SymbolType {
     
     union {
         struct {
-        } s_complex_type;
+            struct {
+                StringId id;
+                TypeId type;
+            } *members;
+            int member_count;
+        } s_struct_union;
         
         struct {
-
+            struct {
+                StringId id;
+                bool type_exists;
+                TypeId type;
+            } *members;
+            int member_count;
         } s_sum;
 
         struct {
-
+            StringId *members;
+            int member_count;
         } s_enum;
     } data;
-} SymbolTableType;
+} SymbolType;
 
-typedef struct SymbolTypeList {
-    
-} SymbolTableTypeList;
+typedef struct SymbolTypes {
+    SymbolType *types;
+    int type_count;
+    int type_count_alloc;
+} SymbolTypes;
 
 typedef struct Symbol {
     StringId id;
@@ -47,8 +66,8 @@ typedef struct Symbol {
 } Symbol;
 
 typedef struct SymbolNode {
-    int count;
-    int count_alloc;
+    int symbol_count;
+    int symbol_count_alloc;
     Symbol *symbols;
 } SymbolNode;
 
