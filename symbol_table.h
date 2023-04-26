@@ -6,54 +6,15 @@
 #include "lexer.h"
 #include "parser.h"
 
-typedef struct TypeListId {
+typedef struct SymbolType {
     bool is_primitive;
     union {
         TokenType primitive;
-        int idx;
+        StringId id;
     } data;
-} TypeListId;
+} SymbolType;
 
-typedef struct TypeListMemberStructUnion {
-    StringId id;
-    TypeListId type;
-} TypeListMemberStructUnion;
-
-typedef struct TypeListMember {
-    enum {
-        SYMBOL_TYPE_STRUCT,
-        SYMBOL_TYPE_UNION,
-        SYMBOL_TYPE_ENUM,
-        SYMBOL_TYPE_SUM
-    } type;
-    
-    union {
-        struct {
-            TypeListMemberStructUnion *members;
-            int member_count;
-        } s_struct_union;
-        
-        struct {
-            struct {
-                StringId id;
-                bool type_exists;
-                TypeListId type;
-            } *members;
-            int member_count;
-        } s_sum;
-
-        struct {
-            StringId *members;
-            int member_count;
-        } s_enum;
-    } data;
-} TypeListMember;
-
-typedef struct TypeList {
-    TypeListMember *types;
-    int type_count;
-    int type_count_alloc;
-} TypeList;
+bool symbol_type_equal(SymbolType lhs, SymbolType rhs);
 
 typedef struct Symbol {
     StringId id;
@@ -64,7 +25,7 @@ typedef struct Symbol {
     } type;
 
     union {
-        TokenType var_type;
+        SymbolType var_type;
         Declaration declaration;
     } data;
 } Symbol;
@@ -91,4 +52,5 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope);
 void symbol_table_check_functions(SymbolTable *table);
 void symbol_table_print(SymbolTable *table);
 SymbolTable symbol_table_from_file(const char *path);
+
 #endif

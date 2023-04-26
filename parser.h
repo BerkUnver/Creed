@@ -230,14 +230,6 @@ typedef struct Declaration {
     Location location;
     StringId id;
 
-    // These two fields are only used by type declarations.
-    enum {
-        DECLARATION_TYPE_IDX_UNPARSED, // Type does not have type idx
-        DECLARATION_TYPE_IDX_PARSING, // Members are being examined to find their types and assign a type idx to this. Used to detect recursive struct declarations.
-        DECLARATION_TYPE_IDX_PARSED // Type idx is defined.
-    } type_idx_state;
-    int type_idx;
- 
     enum {
         DECLARATION_TYPE_MIN,
         DECLARATION_STRUCT = DECLARATION_TYPE_MIN,

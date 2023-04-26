@@ -962,11 +962,8 @@ Declaration declaration_parse(Lexer *lexer) {
         error_exit(identifier.location, "Expected a non-keyword identifier for the union member.");
     }
     
-    Declaration decl = {
-        .id = identifier.data.id,
-        .type_idx_state = DECLARATION_TYPE_IDX_UNPARSED,
-        .type_idx = INT_MIN // defined like this so the program will probably segfault if you try to access it as it is undefined.
-    };
+    Declaration decl;
+    decl.id = identifier.data.id;
 
     Token keyword = lexer_token_get(lexer);
     switch (keyword.type) {

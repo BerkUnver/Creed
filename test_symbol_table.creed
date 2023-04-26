@@ -9,3 +9,11 @@ Person struct {
     age: int;
     salary: int64;
 }
+
+person_new(salary: int64) Person {
+
+}
+
+person_use (person: Person) void {
+    person2: Person;
+}
