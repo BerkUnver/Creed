@@ -1,0 +1,9 @@
+b : int; 
+
+func (a : int) int {
+    b = 3;
+    a = 3;
+    printf(b);
+    print(b+a);
+    return 0; 
+} 
