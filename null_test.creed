@@ -1,0 +1,7 @@
+func (*ptr int) int {
+    return 10;
+} 
+
+main (args: [][]char) int {
+        func('\0')
+}
