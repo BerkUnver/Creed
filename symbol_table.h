@@ -9,11 +9,13 @@ typedef struct Symbol {
     StringId id;
 
     enum {
-        SYMBOL_VAR
+        SYMBOL_VAR,
+        SYMBOL_DECLARATION
     } type;
 
     union {
         TokenType var_type;
+        Declaration declaration;
     } data;
 } Symbol;
 
@@ -31,11 +33,13 @@ typedef struct SymbolTable {
 } SymbolTable;
 
 
-void symbol_table_new(SymbolTable *table, SymbolTable *previous); // previous can be null.
+SymbolTable symbol_table_new(SymbolTable *previous); // previous can be null.
 void symbol_table_free_head(SymbolTable *table); // frees only the first symbol table, not the previous ones.
 bool symbol_table_has(const SymbolTable *table, StringId id);
 bool symbol_table_get(const SymbolTable *table, StringId id, Symbol *symbol);
 bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type);
 void symbol_table_check_scope(SymbolTable *table, Scope *scope);
-void symbol_table_check_declaration(Declaration *decl);
+void symbol_table_check_functions(SymbolTable *table);
+void symbol_table_print(SymbolTable *table);
+SymbolTable symbol_table_from_file(const char *path);
 #endif

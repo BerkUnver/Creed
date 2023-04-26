@@ -56,20 +56,19 @@ int main(int argc, char **argv) {
         }
 
         putchar('\n');
-        
-        { // test parsing a file of top-level declarations.
-            SourceFile source = source_file_parse("test_declaration.creed");
-            source_file_print(&source);
-            source_file_free(&source);
+
+        { // test parsing declarations
+            SymbolTable table = symbol_table_from_file("test_declaration.creed");
+            symbol_table_print(&table);
+            symbol_table_free_head(&table);
         }
 
         putchar('\n');
-        { // test parsing a function into a symbol table.
-            SourceFile source = source_file_parse("test_symbol_table.creed");
-            for (int i = 0; i < source.declaration_count; i++) {
-                symbol_table_check_declaration(source.declarations + i);
-            }
-            source_file_free(&source);
+
+        { // test typechecking
+            SymbolTable table = symbol_table_from_file("test_symbol_table.creed");
+            symbol_table_check_functions(&table); 
+            symbol_table_free_head(&table);
         }
     }
 

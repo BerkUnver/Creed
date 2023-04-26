@@ -3,3 +3,9 @@ func (count: int) void {
 
     }
 }
+
+Person struct {
+    id: int;
+    age: int;
+    salary: int64;
+}

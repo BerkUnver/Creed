@@ -10,13 +10,22 @@
 #include "string_cache.h"
 #include "token.h"
 
-void symbol_table_new(SymbolTable *table, SymbolTable *previous) {
-    memset(table->nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_NODE_COUNT);
-    table->previous = previous;
+SymbolTable symbol_table_new(SymbolTable *previous) {
+    SymbolTable table;
+    memset(table.nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_NODE_COUNT);
+    table.previous = previous;
+    return table;
 }
 
 void symbol_table_free_head(SymbolTable *table) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[i].count; symbol_idx++) {
+            Symbol *symbol = table->nodes[i].symbols + symbol_idx;
+            if (symbol->type == SYMBOL_DECLARATION) {
+                declaration_free(&symbol->data.declaration); 
+                puts("Freeing declaration");
+            }
+        }
         free(table->nodes[i].symbols);
     }
 }
@@ -45,16 +54,10 @@ bool symbol_table_get(const SymbolTable *table, StringId id, Symbol *symbol) {
     return false;
 }
 
-bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
-    assert(type->type == TYPE_PRIMITIVE); // temporary, just to get simple types working.
-    if (symbol_table_has(table, id)) return false;
-    Symbol symbol = {
-        .id = id,
-        .type = SYMBOL_VAR, 
-        .data.var_type = type->data.primitive
-    };
+bool symbol_table_add_symbol(SymbolTable *table, Symbol symbol) {
+    if (symbol_table_has(table, symbol.id)) return false;
     
-    int i = id.idx % SYMBOL_TABLE_NODE_COUNT;
+    int i = symbol.id.idx % SYMBOL_TABLE_NODE_COUNT;
     if (table->nodes[i].count == 0) {
         int count_alloc = 2;
         Symbol *symbols = malloc(sizeof(Symbol) * count_alloc);
@@ -75,6 +78,16 @@ bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
         table->nodes[i] = node;
     }
     return true;
+}
+
+bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
+    assert(type->type == TYPE_PRIMITIVE); // temporary, just to get simple types working.
+    Symbol symbol = {
+        .id = id,
+        .type = SYMBOL_VAR, 
+        .data.var_type = type->data.primitive
+    };
+    return symbol_table_add_symbol(table, symbol); 
 }
 
 TokenType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
@@ -179,7 +192,10 @@ TokenType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             if (!symbol_table_get(table, expr->data.id, &symbol)) {
                 error_exit(expr->location, "This identifier has not yet been declared.");
             }
-            return symbol.type;
+            if (symbol.type != SYMBOL_VAR) {
+                error_exit(expr->location, "This symbol is not a variable name.");
+            }
+            return symbol.data.var_type;
         }
         
         default: assert(false);
@@ -217,8 +233,7 @@ void symbol_table_check_statement(SymbolTable *table, Statement *statement) {
 void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
     switch (scope->type) {
         case SCOPE_BLOCK: {
-            SymbolTable table_new;
-            symbol_table_new(&table_new, table);
+            SymbolTable table_new = symbol_table_new(table);
             for (int i = 0; i < scope->data.block.scope_count; i++) {
                 symbol_table_check_scope(&table_new, scope->data.block.scopes + i);
             }
@@ -238,8 +253,7 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
             break;
 
         case SCOPE_LOOP_FOR: {
-            SymbolTable table_new;
-            symbol_table_new(&table_new, table); 
+            SymbolTable table_new = symbol_table_new(table); 
             symbol_table_check_statement(&table_new, &scope->data.loop_for.init);
             if (symbol_table_check_expr(&table_new, &scope->data.loop_for.expr) != TOKEN_KEYWORD_TYPE_BOOL) {
                 error_exit(scope->data.loop_for.expr.location, "The expression of a for loop is expected to have a boolean type.");
@@ -253,21 +267,60 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
     }
 }
 
-void symbol_table_check_declaration(Declaration *decl) {
-    switch (decl->type) {
-        case DECLARATION_FUNCTION: {
-            SymbolTable table;
-            symbol_table_new(&table, NULL);
-            for (int i = 0; i < decl->data.d_function.parameter_count; i++) {
-                FunctionParameter param = decl->data.d_function.parameters[i];
-                if (!symbol_table_add_var(&table, param.id, &param.type)) {
-                    error_exit(param.type.location, "This function parameter's name shadows another.");
-                }
+void symbol_table_check_functions(SymbolTable *table) {
+    for (int node_idx = 0; node_idx < SYMBOL_TABLE_NODE_COUNT; node_idx++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].count; symbol_idx++) {
+            Symbol *symbol = table->nodes[node_idx].symbols + symbol_idx;
+            if (symbol->type != SYMBOL_DECLARATION) continue;
+            Declaration *decl = &symbol->data.declaration;
+            if (decl->type != DECLARATION_FUNCTION) continue;
+            SymbolTable table_func = symbol_table_new(table);
+            for (int param_idx = 0; param_idx < decl->data.d_function.parameter_count; param_idx++) {
+                FunctionParameter *param = decl->data.d_function.parameters + param_idx;
+                symbol_table_add_var(&table_func, param->id, &param->type);
             }
-            symbol_table_check_scope(&table, &decl->data.d_function.scope);
-            symbol_table_free_head(&table);
-        } break;
-
-        default: assert(false);
+            symbol_table_check_scope(&table_func, &decl->data.d_function.scope);
+            symbol_table_free_head(&table_func);
+        }
     }
+}
+
+void symbol_table_print(SymbolTable *table) {
+    for (int node_idx = 0; node_idx < SYMBOL_TABLE_NODE_COUNT; node_idx++) {
+        for (int symbol_idx = 0; symbol_idx < table->nodes[node_idx].count; symbol_idx++) {
+            Symbol *symbol = table->nodes[node_idx].symbols + symbol_idx;
+            assert(symbol->type == SYMBOL_DECLARATION);
+            declaration_print(&symbol->data.declaration);
+            putchar('\n');
+        }
+    }
+}
+
+SymbolTable symbol_table_from_file(const char *path) {
+    SymbolTable table = symbol_table_new(NULL);
+    
+    Lexer lexer = lexer_new(path);
+    
+    while (lexer_token_peek(&lexer).type == TOKEN_KEYWORD_IMPORT) {
+        Token token_import = lexer_token_get(&lexer);
+        Token token_file = lexer_token_get(&lexer);
+        if (token_file.type != TOKEN_LITERAL || token_file.data.literal.type != LITERAL_STRING) {
+            error_exit(location_expand(token_import.location, token_file.location), "Expected a literal string as the name of an import.");
+        }
+        
+         // Ignoring imports for now.
+    }
+ 
+    while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
+        Declaration decl = declaration_parse(&lexer);
+        Symbol symbol = {
+            .id = decl.id,
+            .type = SYMBOL_DECLARATION,
+            .data.declaration = decl
+        };
+        symbol_table_add_symbol(&table, symbol);
+    }
+
+    lexer_free(&lexer);
+    return table;
 }

@@ -282,7 +282,7 @@ typedef struct Declaration {
     } type;
 
     union {
-        struct { // shared by structs, sums, and unions.
+        struct {
             TypeMember *members;
             int member_count;
         } d_complex_type;
@@ -310,17 +310,5 @@ typedef struct Declaration {
 Declaration declaration_parse(Lexer *lexer);
 void declaration_free(Declaration *declaration);
 void declaration_print(Declaration *declaration);
-
-typedef struct SourceFile {
-    StringId *imports;
-    int import_count;
-
-    Declaration *declarations;
-    int declaration_count;
-} SourceFile;
-
-SourceFile source_file_parse(const char *file_name);
-void source_file_print(SourceFile *file);
-void source_file_free(SourceFile *file);
 
 #endif
