@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
     } else {
 
         { // test lexer getting tokens
-            Lexer lexer = lexer_new("test_lexer.txt");
+            Lexer lexer = lexer_new("test/lexer.txt");
             while (true) {
                 Token token = lexer_token_get(&lexer);
                 token_print(&token);
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         putchar('\n');
        
         { // test parsing expressions.
-            Lexer lexer = lexer_new("test_expr.txt");
+            Lexer lexer = lexer_new("test/expr.txt");
             Expr expr = expr_parse(&lexer); 
             lexer_free(&lexer);
             expr_print(&expr);
@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
         putchar('\n');
 
         { // test parsing scopes
-            Lexer lexer = lexer_new("test_scope.txt");
+            Lexer lexer = lexer_new("test/scope.txt");
             Scope scope = scope_parse(&lexer);
             lexer_free(&lexer);
             scope_print(&scope, 0);
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
         putchar('\n');
 
         { // test parsing declarations
-            SymbolTable table = symbol_table_from_file("test_declaration.creed");
+            SymbolTable table = symbol_table_from_file("test/declaration.creed");
             symbol_table_print(&table);
             symbol_table_free_head(&table);
         }
@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         putchar('\n');
 
         { // test typechecking
-            SymbolTable table = symbol_table_from_file("test_symbol_table.creed");
+            SymbolTable table = symbol_table_from_file("test/symbol_table.creed");
             symbol_table_check_functions(&table); 
             symbol_table_free_head(&table);
         }
