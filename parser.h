@@ -318,4 +318,26 @@ Declaration declaration_parse(Lexer *lexer);
 void declaration_free(Declaration *declaration);
 void declaration_print(Declaration *declaration);
 
+typedef struct SourceFileMember {
+    StringId id;
+    int idx;
+} SourceFileMember;
+
+#define SOURCE_FILE_NODE_COUNT 128
+
+typedef struct SourceFileNode {
+    SourceFileMember *members;
+    int member_count;
+    int member_count_alloc;
+} SourceFileNode;
+
+typedef struct SourceFile {
+    StringId id;
+    int import_count;
+    StringId *imports;
+    SourceFileNode nodes[SOURCE_FILE_NODE_COUNT];
+} SourceFile;
+
+void source_file_parse(StringId id);
+Declaration *source_file_get(SourceFile *file, StringId id);
 #endif

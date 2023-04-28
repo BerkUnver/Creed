@@ -17,6 +17,12 @@ static unsigned long string_hash_djb2(const char *str) {
     return hash;
 }
 
+typedef struct StringNode {
+    char *string;
+    unsigned long hash;
+    StringId id;
+} StringNode;
+
 static struct {
     StringNode *nodes;
     int node_count;

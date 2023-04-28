@@ -6,6 +6,12 @@
 #include "lexer.h"
 #include "parser.h"
 
+typedef struct DeclarationNode {
+    int declaration_count;
+    int declaration_count_alloc;
+    Declaration *declarations;
+} DeclarationNode;
+
 typedef struct SymbolType {
     bool is_primitive;
     union {

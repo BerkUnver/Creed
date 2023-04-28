@@ -1240,3 +1240,97 @@ void declaration_print(Declaration *declaration) {
             break;
     }
 }
+
+static Declaration *declarations = NULL;
+static int declaration_count = 0;
+static int declaration_count_alloc = 0;
+
+#define SOURCE_FILE_TABLE_NODE_COUNT 512
+typedef struct SourceFileTableNode {
+    SourceFile *files;
+    int file_count;
+    int file_count_alloc;
+} SourceFileTableNode;
+
+SourceFileTableNode source_file_table[SOURCE_FILE_TABLE_NODE_COUNT]; // Default allocates to all 0 so it is okay.
+
+void source_file_parse(StringId path) {
+    // Check if source file was already parsed.
+    int source_file_idx = path.idx % SOURCE_FILE_TABLE_NODE_COUNT;
+    SourceFileTableNode *node = source_file_table + source_file_idx;
+    for (int i = 0; i < node->file_count; i++) {
+        if (node->files[i].id.idx == path.idx) return;
+    }
+
+    Lexer lexer = lexer_new(string_cache_get(path));
+
+    StringId *imports = NULL;
+    int import_count = 0;
+    int import_count_alloc = 0;
+
+    // Scan imports.
+    while (lexer_token_peek(&lexer).type == TOKEN_KEYWORD_IMPORT) {
+        Token token_import = lexer_token_get(&lexer);
+        Token token_file = lexer_token_get(&lexer);
+        if (token_file.type != TOKEN_LITERAL || token_file.data.literal.type != LITERAL_STRING) {
+            error_exit(location_expand(token_import.location, token_file.location), "Expected a literal string as the name of an import.");
+        }
+
+        import_count++;
+        if (import_count > import_count_alloc) {
+            if (import_count_alloc == 0) import_count_alloc = 2;
+            else import_count_alloc *= 2;
+            imports = realloc(imports, sizeof(StringId) * import_count);
+        }
+        imports[import_count - 1] = token_file.data.id;
+    }
+
+    SourceFile source_file = {
+        .id = path,
+        .imports = imports,
+        .import_count = import_count,
+        .nodes= {{ 0 }}
+    };
+
+    // Add all declarations to the declaration list and add all declaration ids to the source file. 
+    while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
+        Declaration decl = declaration_parse(&lexer);
+        int decl_idx = decl.id.idx % SOURCE_FILE_NODE_COUNT;
+        SourceFileNode *file_node = source_file.nodes + decl_idx;
+        for (int i = 0; i < file_node->member_count; i++) {
+            if (decl.id.idx != file_node->members[i].id.idx) continue;
+            error_exit(decl.location, "A declaration this name is already defined in the same file.");
+        }
+        file_node->member_count++;
+        if (file_node->member_count > file_node->member_count_alloc) {
+            if (file_node->member_count_alloc == 0) file_node->member_count_alloc = 2;
+            else file_node->member_count_alloc *= 2;
+            file_node->members = realloc(file_node->members, sizeof(SourceFileMember) * file_node->member_count_alloc);
+        }
+
+        declaration_count++;
+        if (declaration_count > declaration_count_alloc) {
+            if (declaration_count_alloc == 0) declaration_count_alloc = 512;
+            else declaration_count_alloc = (int) ((float) declaration_count_alloc * 1.5f);
+            declarations = realloc(declarations, sizeof(Declaration) * declaration_count_alloc);
+        }
+        int declaration_idx = declaration_count - 1;
+        declarations[declaration_idx] = decl;
+        file_node->members[file_node->member_count - 1] = (SourceFileMember) {.id = decl.id, .idx = declaration_idx}; 
+    }
+
+    
+    // Add the source file to the source file table.
+    node->file_count++;
+    if (node->file_count > node->file_count_alloc) {
+        if (node->file_count_alloc == 0) node->file_count_alloc = 2;
+        else node->file_count_alloc *= 2;
+        node->files = realloc(node->files, node->file_count_alloc * sizeof(SourceFile));
+    }
+    node->files[node->file_count - 1] = source_file;
+
+    // Recusively parse imports (Has to happen after the source file is added to the source file table so it isn't parsed twice.)
+    for (int i = 0; i < source_file.import_count; i++) {
+        source_file_parse(source_file.imports[i]);
+    }
+}
