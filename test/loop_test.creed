@@ -1,0 +1,9 @@
+main (args: [][]char) int {
+	
+	var : int = 1;
+	while i>var{
+	   i++;
+	   printf("%d\n", i);
+	}
+	retunr 0;
+}

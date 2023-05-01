@@ -1,0 +1,24 @@
+count : int = 0;
+
+void recursive_function(depth : int){
+	if (depth > 1000) {
+		printf("Recursion depth limit reached.\n");
+		return   
+}
+  	
+	
+	count++;
+	recursive_function(depth + 1);
+
+
+}
+
+main (args: [][]char) int {
+	
+	recursive_function(0);
+
+	printf("Recursion depth: %d\n", count);
+
+	return 0;
+
+}
