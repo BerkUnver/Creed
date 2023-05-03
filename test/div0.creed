@@ -1,0 +1,9 @@
+main (args: [][]char) int {
+	var : int; 
+	
+	x = var/0;
+
+	printf(x);
+
+}
+

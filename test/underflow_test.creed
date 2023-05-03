@@ -1,0 +1,26 @@
+main (args: [][]char) int {
+	
+	ptr* : int;
+	i : int; 
+
+	//allocate 1 billion slots to lock in with for loop and then the test will
+	// fail because not enough memory. 	
+	ptr = (malloc) //mallo but are we using malloc or different
+
+	if (ptr == /0){
+		printf("Memory alloc fail"); 
+		return 1;
+	}
+
+
+	for (i = 0, i < 10000000000; i++) {
+		ptr[i] = i;
+
+
+	}
+
+	//free that memeory with the function idk we have lol
+
+	return 0; 
+
+}
