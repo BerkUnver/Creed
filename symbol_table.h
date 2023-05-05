@@ -24,12 +24,11 @@ bool symbol_type_equal(SymbolType lhs, SymbolType rhs);
 
 typedef struct Symbol {
     StringId id;
-
     enum {
         SYMBOL_VAR,
         SYMBOL_DECLARATION
     } type;
-
+    
     union {
         SymbolType var_type;
         Declaration declaration;
@@ -42,7 +41,7 @@ typedef struct SymbolNode {
     Symbol *symbols;
 } SymbolNode;
 
-#define SYMBOL_TABLE_NODE_COUNT 128
+#define SYMBOL_TABLE_NODE_COUNT 32
 
 typedef struct SymbolTable {
     SymbolNode nodes[SYMBOL_TABLE_NODE_COUNT];

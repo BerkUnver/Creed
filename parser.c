@@ -964,6 +964,7 @@ Declaration declaration_parse(Lexer *lexer) {
     
     Declaration decl;
     decl.id = identifier.data.id;
+    decl.complex_type_state = DECLARATION_COMPLEX_TYPE_UNPARSED;
 
     Token keyword = lexer_token_get(lexer);
     switch (keyword.type) {
@@ -1254,7 +1255,7 @@ typedef struct SourceFileTableNode {
 
 SourceFileTableNode source_file_table[SOURCE_FILE_TABLE_NODE_COUNT]; // Default allocates to all 0 so it is okay.
 
-void source_file_parse(StringId path) {
+static void source_file_parse(StringId path) {
     // Check if source file was already parsed.
     int source_file_idx = path.idx % SOURCE_FILE_TABLE_NODE_COUNT;
     SourceFileTableNode *node = source_file_table + source_file_idx;
@@ -1289,7 +1290,7 @@ void source_file_parse(StringId path) {
         .id = path,
         .imports = imports,
         .import_count = import_count,
-        .nodes= {{ 0 }}
+        .nodes = {{ 0 }}
     };
 
     // Add all declarations to the declaration list and add all declaration ids to the source file. 
@@ -1299,7 +1300,7 @@ void source_file_parse(StringId path) {
         SourceFileNode *file_node = source_file.nodes + decl_idx;
         for (int i = 0; i < file_node->member_count; i++) {
             if (decl.id.idx != file_node->members[i].id.idx) continue;
-            error_exit(decl.location, "A declaration this name is already defined in the same file.");
+            error_exit(decl.location, "A declaration with this name is already defined in the same file.");
         }
         file_node->member_count++;
         if (file_node->member_count > file_node->member_count_alloc) {
@@ -1334,3 +1335,88 @@ void source_file_parse(StringId path) {
         source_file_parse(source_file.imports[i]);
     }
 }
+
+static Declaration *source_file_get_declaration(SourceFile *source_file, StringId declaration_id) {
+    SourceFileNode *node = source_file->nodes + declaration_id.idx % SOURCE_FILE_NODE_COUNT;
+    for (int i = 0; i < node->member_count; i++) {
+        if (node->members[i].id.idx == declaration_id.idx) return declarations + node->members[i].idx;
+    }
+    return NULL;
+}
+
+static Declaration *source_file_table_get_declaration(SourceFile *source_file, StringId declaration_id) {
+    // Try to find declaration in file
+    Declaration *decl_local = source_file_get_declaration(source_file, declaration_id);
+    if (decl_local) return decl_local;
+
+    // Try to find declaration in imports
+    for (int i = source_file->import_count - 1; i >= 0; i--) { // search imports from last to first
+        SourceFileTableNode *node = source_file_table + id.idx % SOURCE_FILE_NODE_COUNT;
+        for (int i = 0; i < node->file_count; i++) {
+            SourceFile *import = node->files + i;
+            if (import->id.idx == id.idx) { 
+                Declaration *decl_import = source_file_get_declaration(import, declaration_id);
+                if (decl_import) return decl_import; 
+            }
+        }
+        assert(false);
+    }
+    return NULL;
+}
+
+static void source_file_table_init_type(SourceFile *file, Declaration *decl) { 
+    decl->complex_type_state = DECLARATION_COMPLEX_TYPE_PARSING;
+    switch (decl->type) {
+        case DECLARATION_STRUCT:
+        case DECLARATION_UNION:
+            for (int i = 0; i < decl->data.d_struct_union.member_count; i++) {
+                MemberStructUnion *member = decl->data.d_struct_union.members + i;
+                switch (member->type.type) {
+                    case TYPE_PRIMITIVE:
+                        member->symbol_type = (SymbolType) {
+                            .is_primitive = false,
+                            .data.primitive = member->type.data.primitive
+                        };
+                        break;
+                    case TYPE_ID: {
+                        Declaration *decl_member = source_file_table_get_declaration(file, member->type.data.id);
+                        if (!decl_member) { 
+                            error_exit(member->type.location, "This type does not exist in the current scope.");
+                        }
+                        if (decl_member->type < DECLARATION_TYPE_MIN || DECLARATION_TYPE_MAX < decl_member->type) {
+                            error_exit(member->type.location, "This name is not a type declaration.");
+                        }
+                        switch (decl_member->complex_type_state) {
+                            case DECLARATION_COMPLEX_TYPE_UNPARSED:
+                            case DECLARATION_COMPLEX_TYPE_PARSING:
+                            case DECLARATION_COMPLEX_TYPE_PARSED:
+    
+                        }
+                    } break;
+                }
+            }
+            break;
+        case DECLARATION_ENUM:
+        case DECLARATION_FUNCTION:
+            break;
+    }
+    decl->complex_type_state = DECLARATION_COMPLEX_TYPE_PARSED;
+}
+
+void source_file_table_init(StringId main_source_file_id) {
+    source_file_parse(main_source_file_id); // Parse all files and declarations into the table.
+    for (int i = 0; i < SOURCE_FILE_TABLE_NODE_COUNT; i++) {
+        SourceFileTableNode *node = source_file_table.nodes + i;
+        for (int i = 0; i < node->file_count; i++) {
+            SourceFile *source_file = node->files + i;
+            for (int i = 0; i < SOURCE_FILE_NODE_COUNT; i++) {
+                SourceFileNode *node = source_file->nodes + i;
+                for (int i = 0; i < node->declaration_count; i++) {
+                    DeclarationId decl_id = node->declarations[i];
+                    Declaration *decl = declarations + decl_id.idx;
+
+                }
+            }
+        }
+    }
+

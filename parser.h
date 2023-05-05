@@ -209,7 +209,7 @@ typedef struct FunctionParameter {
     Location location;
     StringId id;
     Type type;
-    int type_idx;
+    int type_declaration_idx;
 } FunctionParameter;
 
 
@@ -217,6 +217,7 @@ typedef struct MemberStructUnion {
     Location location;
     StringId id;
     Type type;
+    SymbolType symbol_type;
 } MemberStructUnion;
 
 typedef struct MemberSum {
@@ -224,11 +225,18 @@ typedef struct MemberSum {
     StringId id;
     bool type_exists;
     Type type;
+    SymbolType symbol_type;
 } MemberSum;
 
 typedef struct Declaration {
     Location location;
     StringId id;
+    
+    enum {
+        DECLARATION_COMPLEX_TYPE_UNPARSED;
+        DECLARATION_COMPLEX_TYPE_PARSING;
+        DECLARATION_COMPLEX_TYPE_PARSED;
+    } complex_type_state;
 
     enum {
         DECLARATION_TYPE_MIN,
@@ -338,6 +346,4 @@ typedef struct SourceFile {
     SourceFileNode nodes[SOURCE_FILE_NODE_COUNT];
 } SourceFile;
 
-void source_file_parse(StringId id);
-Declaration *source_file_get(SourceFile *file, StringId id);
 #endif
