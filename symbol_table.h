@@ -6,34 +6,47 @@
 #include "lexer.h"
 #include "parser.h"
 
-typedef struct DeclarationNode {
-    int declaration_count;
-    int declaration_count_alloc;
-    Declaration *declarations;
-} DeclarationNode;
+typedef struct SourceFileMember {
+    StringId id;
+    int idx;
+} SourceFileMember;
+
+typedef struct SourceFileNode {
+    SourceFileMember *members;
+    int member_count;
+    int member_count_alloc;
+} SourceFileNode;
+
+#define SOURCE_FILE_NODE_COUNT 128
+typedef struct SourceFile {
+    StringId id;
+    int import_count;
+    StringId *imports;
+    SourceFileNode nodes[SOURCE_FILE_NODE_COUNT];
+} SourceFile;
+
+void source_file_print(SourceFile *file);
+void source_file_add(StringId path);
+void source_file_table_clear();
+SourceFile *source_file_table_get(StringId path);
+void source_file_table_free();
 
 typedef struct SymbolType {
     bool is_primitive;
     union {
         TokenType primitive;
-        StringId id;
+        int declaration_idx;
     } data;
 } SymbolType;
 
 bool symbol_type_equal(SymbolType lhs, SymbolType rhs);
 
+
 typedef struct Symbol {
     StringId id;
-    enum {
-        SYMBOL_VAR,
-        SYMBOL_DECLARATION
-    } type;
-    
-    union {
-        SymbolType var_type;
-        Declaration declaration;
-    } data;
+    SymbolType type;
 } Symbol;
+
 
 typedef struct SymbolNode {
     int symbol_count;
@@ -48,14 +61,11 @@ typedef struct SymbolTable {
     struct SymbolTable *previous;
 } SymbolTable;
 
+
 SymbolTable symbol_table_new(SymbolTable *previous); // previous can be null.
 void symbol_table_free_head(SymbolTable *table); // frees only the first symbol table, not the previous ones.
-bool symbol_table_has(const SymbolTable *table, StringId id);
 bool symbol_table_get(const SymbolTable *table, StringId id, Symbol *symbol);
-bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type);
-void symbol_table_check_scope(SymbolTable *table, Scope *scope);
-void symbol_table_check_functions(SymbolTable *table);
-void symbol_table_print(SymbolTable *table);
-SymbolTable symbol_table_from_file(const char *path);
+bool symbol_table_add_var(SymbolTable *table, SourceFile *file, StringId id, Type *type);
+void symbol_table_check_scope(SymbolTable *table, SourceFile *file, Scope *scope);
 
 #endif

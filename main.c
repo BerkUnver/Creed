@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -58,18 +59,30 @@ int main(int argc, char **argv) {
         putchar('\n');
 
         { // test parsing declarations
-            SymbolTable table = symbol_table_from_file("test/declaration.creed");
-            symbol_table_print(&table);
-            symbol_table_free_head(&table);
+            char *str = "test/declaration.creed";
+            char *str_copy = malloc(strlen(str) + sizeof(char));
+            strcpy(str_copy, str);
+            StringId path = string_cache_insert(str_copy);
+            
+            printf("source file path: %s\n", string_cache_get(path));
+            source_file_add(path);
+
+            SourceFile *file = source_file_table_get(path);
+            assert(file);
+            source_file_print(file);
+            source_file_table_free();
         }
 
+        /*
         putchar('\n');
+
 
         { // test typechecking
             SymbolTable table = symbol_table_from_file("test/symbol_table.creed");
             symbol_table_check_functions(&table); 
             symbol_table_free_head(&table);
         }
+        */
     }
 
     string_cache_free();

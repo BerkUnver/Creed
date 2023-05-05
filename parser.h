@@ -217,7 +217,6 @@ typedef struct MemberStructUnion {
     Location location;
     StringId id;
     Type type;
-    SymbolType symbol_type;
 } MemberStructUnion;
 
 typedef struct MemberSum {
@@ -225,19 +224,12 @@ typedef struct MemberSum {
     StringId id;
     bool type_exists;
     Type type;
-    SymbolType symbol_type;
 } MemberSum;
 
 typedef struct Declaration {
     Location location;
     StringId id;
     
-    enum {
-        DECLARATION_COMPLEX_TYPE_UNPARSED;
-        DECLARATION_COMPLEX_TYPE_PARSING;
-        DECLARATION_COMPLEX_TYPE_PARSED;
-    } complex_type_state;
-
     enum {
         DECLARATION_TYPE_MIN,
         DECLARATION_STRUCT = DECLARATION_TYPE_MIN,
@@ -325,25 +317,5 @@ typedef struct Declaration {
 Declaration declaration_parse(Lexer *lexer);
 void declaration_free(Declaration *declaration);
 void declaration_print(Declaration *declaration);
-
-typedef struct SourceFileMember {
-    StringId id;
-    int idx;
-} SourceFileMember;
-
-#define SOURCE_FILE_NODE_COUNT 128
-
-typedef struct SourceFileNode {
-    SourceFileMember *members;
-    int member_count;
-    int member_count_alloc;
-} SourceFileNode;
-
-typedef struct SourceFile {
-    StringId id;
-    int import_count;
-    StringId *imports;
-    SourceFileNode nodes[SOURCE_FILE_NODE_COUNT];
-} SourceFile;
 
 #endif
