@@ -5,7 +5,6 @@ Occupation enum {
 }
 
 Person struct {
-    name: []char;
     age: int;
     ssn: int;
     occupation: Occupation;
@@ -20,18 +19,12 @@ TestUnion union {
 Token sum {
     TOKEN_PAREN_OPEN;
     TOKEN_PAREN_CLOSE;
-    TOKEN_ID: []char;
+    TOKEN_ID: int;
     TOKEN_CLOSE;
 }
 
-
-main (args: [][]char) int {
-    println("Hello, World.");
-}
-
-factorial (i: int) int {
-    if i <= 0 return 1;
-    else return i * factorial(i - 1); 
+main () void {
+    i: int = 1 + 1;
 }
 
 

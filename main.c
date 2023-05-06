@@ -65,12 +65,12 @@ int main(int argc, char **argv) {
             StringId path = string_cache_insert(str_copy);
             
             printf("source file path: %s\n", string_cache_get(path));
-            source_file_add(path);
-
-            SourceFile *file = source_file_table_get(path);
+            
+            Project project = project_new(path);
+            SourceFile *file = project_get(&project, path);
             assert(file);
-            source_file_print(file);
-            source_file_table_free();
+            project_print(&project, file);
+            project_free(&project);
         }
 
         /*

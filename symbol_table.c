@@ -10,23 +10,28 @@
 #include "symbol_table.h"
 #include "token.h"
 
-static Declaration *declarations = NULL;
-static int declaration_count = 0;
-static int declaration_count_alloc = 0;
+/* How source files are parsed:
+ 
+ * In order to resolve imports, source files are parsed into a global table of source files
+ * Their imports are parsed into that table, and so on until the entire program is in the table.
+ * The declarations inside of the table are appended to a global list of declarations.
+ * Each file is only parsed once.
+ * 
+ * There are a few reasons we parse the declarations into a separate list instead of in the source file data structure.
+ *     We allow symbols with the same name to be declared in different files
+ *     When we translate each symbol, we can give it a unique identifier in C to prevent ambiguities.
+ *     
+ *     If a function in an imported module returns a data structure that was declarated in a module that was imported by the imported module,
+ *     or if a struct in an imported module has a member that is has the type of a declaration declared,
+ *     you need to be able to refer to that declaration properly. 
+ *     You can't do it with its name because that name might not be imported in the current file or it could be shadowed.
+ */
 
-#define SOURCE_FILE_TABLE_NODE_COUNT 512
-typedef struct SourceFileTableNode {
-    SourceFile *files;
-    int file_count;
-    int file_count_alloc;
-} SourceFileTableNode;
 
-static SourceFileTableNode source_file_table[SOURCE_FILE_TABLE_NODE_COUNT]; // Default allocates to all 0 so it is okay.
-
-void source_file_add(StringId path) {
+static void project_add(Project *project, StringId path) {
     // Check if source file was already parsed. If so, ignore it.
-    int source_file_idx = path.idx % SOURCE_FILE_TABLE_NODE_COUNT;
-    SourceFileTableNode *node = source_file_table + source_file_idx;
+    int source_file_idx = path.idx % PROJECT_NODE_COUNT;
+    ProjectNode *node = project->nodes + source_file_idx;
     for (int i = 0; i < node->file_count; i++) {
         if (node->files[i].id.idx == path.idx) return;
     }
@@ -66,29 +71,28 @@ void source_file_add(StringId path) {
         Declaration decl = declaration_parse(&lexer);
         int decl_idx = decl.id.idx % SOURCE_FILE_NODE_COUNT;
         SourceFileNode *file_node = source_file.nodes + decl_idx;
-        for (int i = 0; i < file_node->member_count; i++) {
-            if (decl.id.idx != file_node->members[i].id.idx) continue;
+        for (int i = 0; i < file_node->declaration_count; i++) {
+            if (decl.id.idx != file_node->declarations[i].id.idx) continue;
             error_exit(decl.location, "A declaration with this name is already defined in the same file.");
         }
-        file_node->member_count++;
-        if (file_node->member_count > file_node->member_count_alloc) {
-            if (file_node->member_count_alloc == 0) file_node->member_count_alloc = 2;
-            else file_node->member_count_alloc *= 2;
-            file_node->members = realloc(file_node->members, sizeof(SourceFileMember) * file_node->member_count_alloc);
+        file_node->declaration_count++;
+        if (file_node->declaration_count > file_node->declaration_count_alloc) {
+            if (file_node->declaration_count_alloc == 0) file_node->declaration_count_alloc = 2;
+            else file_node->declaration_count_alloc *= 2;
+            file_node->declarations = realloc(file_node->declarations, sizeof(SourceFileDeclaration) * file_node->declaration_count_alloc);
         }
 
-        declaration_count++;
-        if (declaration_count > declaration_count_alloc) {
-            if (declaration_count_alloc == 0) declaration_count_alloc = 512;
-            else declaration_count_alloc = (int) ((float) declaration_count_alloc * 1.5f);
-            declarations = realloc(declarations, sizeof(Declaration) * declaration_count_alloc);
+        project->declaration_count++;
+        if (project->declaration_count > project->declaration_count_alloc) {
+            project->declaration_count_alloc = (int) ((float) project->declaration_count_alloc * 1.5f);
+            project->declarations = realloc(project->declarations, sizeof(Declaration) * project->declaration_count_alloc);
         }
-        int declaration_idx = declaration_count - 1;
-        declarations[declaration_idx] = decl;
-        file_node->members[file_node->member_count - 1] = (SourceFileMember) {.id = decl.id, .idx = declaration_idx}; 
+        project->declarations[project->declaration_count - 1] = decl;
+        file_node->declarations[file_node->declaration_count - 1] = (SourceFileDeclaration) {.id = decl.id, .idx = project->declaration_count - 1}; 
     }
 
-    lexer_free(&lexer); 
+    lexer_free(&lexer);
+
     // Add the source file to the source file table.
     node->file_count++;
     if (node->file_count > node->file_count_alloc) {
@@ -100,12 +104,65 @@ void source_file_add(StringId path) {
 
     // Recusively parse imports (Has to happen after the source file is added to the source file table so it isn't parsed twice.)
     for (int i = 0; i < source_file.import_count; i++) {
-        source_file_add(source_file.imports[i]);
+        project_add(project, source_file.imports[i]);
     }
 }
 
-SourceFile *source_file_table_get(StringId path) {
-    SourceFileTableNode *node = source_file_table + path.idx % SOURCE_FILE_NODE_COUNT;
+Project project_new(StringId path) {
+    Project project;
+    memset(project.nodes, 0, sizeof(ProjectNode) * PROJECT_NODE_COUNT);
+    project.declaration_count_alloc = 512;
+    project.declaration_count = 0;
+    project.declarations = malloc(sizeof(Declaration) * project.declaration_count_alloc);
+    project_add(&project, path);
+    
+
+    for (int i = 0; i < PROJECT_NODE_COUNT; i++) {
+        ProjectNode *project_node = project.nodes + i;
+        for (int i = 0; i < project_node->file_count; i++) {
+            SourceFile *file = project_node->files + i;
+            for (int i = 0; i < SOURCE_FILE_NODE_COUNT; i++) {
+                SourceFileNode *file_node = file->nodes + i;
+                for (int i = 0; i < file_node->declaration_count; i++) {
+                    Declaration *decl = project.declarations + file_node->declarations[i].idx;
+                    if (decl->type != DECLARATION_FUNCTION) continue;
+                    SymbolTable table = symbol_table_new(NULL);
+
+                    for (int param_idx = 0; param_idx < decl->data.d_function.parameter_count; param_idx++) {
+                        FunctionParameter *param = decl->data.d_function.parameters + param_idx;
+                        if (!symbol_table_add_var(&table, param->id, &param->type)) {
+                            error_exit(decl->location, "A function's parameter names must be unique.");
+                        }
+                    }
+                   
+                    symbol_table_check_scope(&table, &decl->data.d_function.scope);
+                    symbol_table_free(&table);
+                }
+            }
+        }
+    }
+    return project;
+}
+
+void project_free(Project *project) {
+    for (int i = 0; i < project->declaration_count; i++) declaration_free(project->declarations + i);
+    free(project->declarations);
+    
+    for (int node_idx = 0; node_idx < PROJECT_NODE_COUNT; node_idx++) {
+        ProjectNode *node = project->nodes + node_idx;
+        for (int file_idx = 0; file_idx < node->file_count; file_idx++) {
+            SourceFile *file = node->files + file_idx;
+            for (int decl_node_idx = 0; decl_node_idx < SOURCE_FILE_NODE_COUNT; decl_node_idx++) {
+                free(file->nodes[decl_node_idx].declarations);
+            }
+            free(file->imports);
+        }
+        free(node->files);
+    }
+}
+
+SourceFile *project_get(Project *project, StringId path) { 
+    ProjectNode *node = project->nodes + path.idx % SOURCE_FILE_NODE_COUNT;
     for (int i = 0; i < node->file_count; i++) {
         SourceFile *file = node->files + i;
         if (file->id.idx == path.idx) return file;
@@ -113,84 +170,18 @@ SourceFile *source_file_table_get(StringId path) {
     return NULL;
 }
 
-void source_file_print(SourceFile *file) {
+void project_print(Project *project, SourceFile *file) {
     for (int i = 0; i < file->import_count; i++) {
         printf("%s %s\n", string_keywords[TOKEN_KEYWORD_IMPORT - TOKEN_KEYWORD_MIN], string_cache_get(file->imports[i]));
     }
     for (int i = 0; i < SOURCE_FILE_NODE_COUNT; i++) {
-        for (int j = 0; j < file->nodes[i].member_count; j++) {
+        for (int j = 0; j < file->nodes[i].declaration_count; j++) {
             putchar('\n');
-            declaration_print(declarations + file->nodes[i].members[j].idx);
+            declaration_print(project->declarations + file->nodes[i].declarations[j].idx);
         }
     }
 }
 
-static int source_file_get_declaration_idx(SourceFile *source_file, StringId declaration_id) {
-    SourceFileNode *node = source_file->nodes + declaration_id.idx % SOURCE_FILE_NODE_COUNT;
-    for (int i = 0; i < node->member_count; i++) {
-        if (node->members[i].id.idx == declaration_id.idx) return node->members[i].idx;
-    }
-    return -1;
-}
-
-static int source_file_table_get_declaration_idx(SourceFile *source_file, StringId declaration_id) {
-    // Try to find declaration in file
-    int decl_local = source_file_get_declaration_idx(source_file, declaration_id);
-    if (decl_local >= 0) return decl_local;
-
-    // Try to find declaration in imports
-    for (int i = source_file->import_count - 1; i >= 0; i--) { // search imports from last to first
-        SourceFile *import = source_file_table_get(source_file->imports[i]);
-        assert(import);    
-        int decl_import = source_file_get_declaration_idx(import, declaration_id);
-        if (decl_import >= 0) return decl_import; 
-    }
-    return -1;
-}
-
-void source_file_table_init(StringId main_path) {
-    source_file_add(main_path);
-    for (int i = 0; i < SOURCE_FILE_TABLE_NODE_COUNT; i++) {
-        SourceFileTableNode *table_node = source_file_table + i;
-        for (int i = 0; i < table_node->file_count; i++) {
-            SourceFile *file = table_node->files + i;
-            for (int i = 0; i < SOURCE_FILE_NODE_COUNT; i++) {
-                SourceFileNode *file_node = file->nodes + i;
-                for (int i = 0; i < file_node->member_count; i++) {
-                    Declaration *decl = declarations + file_node->members[i].idx;
-                    if (decl->type != DECLARATION_FUNCTION) continue;
-                    SymbolTable table = symbol_table_new(NULL);
-
-                    for (int param_idx = 0; param_idx < decl->data.d_function.parameter_count; param_idx++) {
-                        FunctionParameter *param = decl->data.d_function.parameters + param_idx;
-                        if (!symbol_table_add_var(&table, file, param->id, &param->type)) {
-                            error_exit(decl->location, "A function's parameter names must be unique.");
-                        }
-                    }
-                    symbol_table_check_scope(&table, file, &decl->data.d_function.scope);
-                    symbol_table_free_head(&table);
-                }
-            }
-        }
-    }
-}
-
-void source_file_table_free() {
-    for (int i = 0; i < declaration_count; i++) {
-        declaration_free(declarations + i);
-    }
-    free(declarations);
-    for (int table_idx = 0; table_idx < SOURCE_FILE_TABLE_NODE_COUNT; table_idx++) {
-        for (int file_idx = 0; file_idx < source_file_table[table_idx].file_count; file_idx++) {
-            SourceFile *file = source_file_table[table_idx].files + file_idx;
-            for (int decl_node_idx = 0; decl_node_idx < SOURCE_FILE_NODE_COUNT; decl_node_idx++) {
-                free(file->nodes[decl_node_idx].members);
-            }
-            free(file->imports);
-        }
-        free(source_file_table[table_idx].files);
-    }
-}
 
 bool symbol_type_equal(SymbolType lhs, SymbolType rhs) {
     return (lhs.is_primitive && rhs.is_primitive && lhs.data.primitive == rhs.data.primitive)
@@ -199,18 +190,19 @@ bool symbol_type_equal(SymbolType lhs, SymbolType rhs) {
 
 SymbolTable symbol_table_new(SymbolTable *previous) {
     SymbolTable table;
-    memset(table.nodes, 0, sizeof(SymbolNode) * SYMBOL_TABLE_NODE_COUNT);
-    table.previous = previous;
+    memset(table.nodes, 0, sizeof(SymbolTableNode) * SYMBOL_TABLE_NODE_COUNT);
+    table.is_last = false;
+    table.data.previous = previous;
     return table;
 }
 
-void symbol_table_free_head(SymbolTable *table) {
+void symbol_table_free(SymbolTable *table) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
         free(table->nodes[i].symbols);
     }
 }
 
-bool symbol_table_get(const SymbolTable *table, StringId id, Symbol *out) {
+bool symbol_table_get(SymbolTable *table, StringId id, Symbol *out) {
     int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
     while (table) {
         for (int i = 0; i < table->nodes[idx].symbol_count; i++) {
@@ -218,13 +210,46 @@ bool symbol_table_get(const SymbolTable *table, StringId id, Symbol *out) {
             *out = table->nodes[idx].symbols[i];
             return true; 
         }
-        table = table->previous;
+        table = table->data.previous;
     }
     return false;
 }
 
-bool symbol_table_add_var(SymbolTable *table, SourceFile *file, StringId id, Type *type) {
+static int source_file_get_declaration_idx(SourceFile *file, StringId declaration_id) {
+    SourceFileNode *node = file->nodes + declaration_id.idx % SOURCE_FILE_NODE_COUNT;
+    for (int i = 0; i < node->declaration_count; i++) {
+        if (node->declarations[i].id.idx == declaration_id.idx) return node->declarations[i].idx;
+    }
+    return -1;
+}
 
+Declaration *symbol_table_get_declaration(SymbolTable *table, StringId id, int *idx) {
+
+    while (!table->is_last) table = table->data.previous;
+    // Skip over symbol tables of outer scopes for now. If we add local types we will search them instead. 
+    
+    SourceFile *file = table->data.last.file;
+    Project *project = table->data.last.project;
+
+    int decl_local = source_file_get_declaration_idx(file, id);
+    if (decl_local >= 0) {
+        *idx = decl_local;
+        return project->declarations + decl_local;
+    }    
+    
+    for (int i = file->import_count - 1; i >= 0; i--) { // search imports from last to first
+        SourceFile *import = project_get(project, file->imports[i]);
+        assert(import); // Import is guaranteed to be valid 
+        int decl_import = source_file_get_declaration_idx(import, id);
+        if (decl_import < 0) continue;
+        *idx = decl_import;
+        return project->declarations + decl_import;
+    }
+    
+    return NULL;
+}
+
+bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
     int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
 
     // Check to see if it is already in the table
@@ -240,15 +265,16 @@ bool symbol_table_add_var(SymbolTable *table, SourceFile *file, StringId id, Typ
             break;
 
         case TYPE_ID: {
-            // If we eventually allow local types this will have to change.
-            int decl_idx = source_file_table_get_declaration_idx(file, type->data.id);
-            if (decl_idx < 0) {
+
+            int decl_idx;
+            Declaration *decl = symbol_table_get_declaration(table, type->data.id, &decl_idx);
+            if (!decl) {
                 error_exit(type->location, "This is not the name of a type currently in scope.");
             }
-            Declaration *decl = declarations + decl_idx;
             if (decl->type < DECLARATION_TYPE_MIN || DECLARATION_TYPE_MAX < decl->type) {
                 error_exit(type->location, "This not the name of a type.");
             }
+
             symbol_type.is_primitive = false;
             symbol_type.data.declaration_idx = decl_idx;
         } break;
@@ -268,13 +294,13 @@ bool symbol_table_add_var(SymbolTable *table, SourceFile *file, StringId id, Typ
         int count_alloc = 2;
         Symbol *symbols = malloc(sizeof(Symbol) * count_alloc);
         symbols[0] = symbol;
-        table->nodes[idx] = (SymbolNode) {
+        table->nodes[idx] = (SymbolTableNode) {
             .symbol_count = 1,
             .symbol_count_alloc = count_alloc,
             .symbols = symbols
         };
     } else {
-        SymbolNode node = table->nodes[idx];
+        SymbolTableNode node = table->nodes[idx];
         node.symbol_count++;
         if (node.symbol_count > node.symbol_count_alloc) {
             node.symbol_count_alloc *= 2;
@@ -399,18 +425,20 @@ SymbolType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
 
         case EXPR_ACCESS_MEMBER: {
             SymbolType type = symbol_table_check_expr(table, expr->data.access_member.operand);
-            if (type.is_primitive) error_exit(expr->location, "The type of the operand of a member access expression must be either a struct or union.");
-            Declaration *decl = declarations + type.data.declaration_idx;
+            if (type.is_primitive) error_exit(expr->location, "The type of the operand of a declaration access expression must be either a struct or union.");
+            
+            int decl_idx;
+            Declaration *decl = symbol_table_get_declaration(table, expr->data.access_member.member, &decl_idx);
             assert(DECLARATION_TYPE_MIN <= decl->type && decl->type <= DECLARATION_TYPE_MAX);
             
-            // Find the member of the type with this name
+            // Find the declaration of the type with this name
             for (int i = 0; i < decl->data.d_struct_union.member_count; i++) {
                 MemberStructUnion *member = decl->data.d_struct_union.members + i;
                 if (expr->data.access_member.member.idx != member->id.idx) continue;
-                assert(member->type.type == TYPE_PRIMITIVE); // TODO: temporary restriction: structs can only have members of primitive types.
+                assert(member->type.type == TYPE_PRIMITIVE); // TODO: temporary restriction: structs can only have declarations of primitive types.
                 return (SymbolType) {.is_primitive = true, .data.primitive = member->type.data.primitive};
             }
-            error_exit(expr->location, "This struct has no member with this name.");
+            error_exit(expr->location, "This struct has no declaration with this name.");
         } break;
         
         case EXPR_ACCESS_ARRAY:
@@ -438,10 +466,10 @@ SymbolType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
     assert(false);
 }
 
-void symbol_table_check_statement(SymbolTable *table, SourceFile *file, Statement *statement) {
+void symbol_table_check_statement(SymbolTable *table, Statement *statement) {
     switch (statement->type) {
         case STATEMENT_VAR_DECLARE: {
-            if (!symbol_table_add_var(table, file, statement->data.var_declare.id, &statement->data.var_declare.type)) {
+            if (!symbol_table_add_var(table, statement->data.var_declare.id, &statement->data.var_declare.type)) {
                 error_exit(statement->location, "A variable with this name already exists in this scope.");
             }
             Symbol symbol;
@@ -474,18 +502,18 @@ void symbol_table_check_statement(SymbolTable *table, SourceFile *file, Statemen
     }
 }
 
-void symbol_table_check_scope(SymbolTable *table, SourceFile *file, Scope *scope) {
+void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
     switch (scope->type) {
         case SCOPE_BLOCK: {
             SymbolTable table_new = symbol_table_new(table);
             for (int i = 0; i < scope->data.block.scope_count; i++) {
-                symbol_table_check_scope(&table_new, file, scope->data.block.scopes + i);
+                symbol_table_check_scope(&table_new, scope->data.block.scopes + i);
             }
-            symbol_table_free_head(&table_new);
+            symbol_table_free(&table_new);
         } break;
        
         case SCOPE_STATEMENT:
-            symbol_table_check_statement(table, file, &scope->data.statement);
+            symbol_table_check_statement(table, &scope->data.statement);
             break;
         
         case SCOPE_CONDITIONAL: {
@@ -493,20 +521,20 @@ void symbol_table_check_scope(SymbolTable *table, SourceFile *file, Scope *scope
             if (!type.is_primitive || type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
                 error_exit(scope->data.conditional.condition.location, "The expression of a while loop is expected to have a boolean type.");
             }
-            symbol_table_check_scope(table, file, scope->data.conditional.scope_if);
-            if (scope->data.conditional.scope_else) symbol_table_check_scope(table, file, scope->data.conditional.scope_else);
+            symbol_table_check_scope(table, scope->data.conditional.scope_if);
+            if (scope->data.conditional.scope_else) symbol_table_check_scope(table, scope->data.conditional.scope_else);
         } break;
 
         case SCOPE_LOOP_FOR: {
             SymbolTable table_new = symbol_table_new(table); 
-            symbol_table_check_statement(&table_new, file, &scope->data.loop_for.init);
+            symbol_table_check_statement(&table_new, &scope->data.loop_for.init);
             SymbolType type = symbol_table_check_expr(&table_new, &scope->data.loop_for.expr);
             if (!type.is_primitive || type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
                 error_exit(scope->data.loop_for.expr.location, "The expression of a for loop is expected to have a boolean type.");
             }
-            symbol_table_check_statement(&table_new, file, &scope->data.loop_for.step);
-            symbol_table_check_scope(&table_new, file, scope->data.loop_for.scope);
-            symbol_table_free_head(&table_new);
+            symbol_table_check_statement(&table_new, &scope->data.loop_for.step);
+            symbol_table_check_scope(&table_new, scope->data.loop_for.scope);
+            symbol_table_free(&table_new);
         } break;
         
         default: assert(false);
