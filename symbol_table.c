@@ -122,6 +122,9 @@ void project_free(Project *project) {
         for (int file_idx = 0; file_idx < node->file_count; file_idx++) {
             SourceFile *file = node->files + file_idx;
             for (int decl_node_idx = 0; decl_node_idx < SOURCE_FILE_NODE_COUNT; decl_node_idx++) {
+                for (int i = 0; i < file->nodes[decl_node_idx].declaration_count; i++) {
+                    declaration_free(file->nodes[decl_node_idx].declarations + i);
+                }
                 free(file->nodes[decl_node_idx].declarations);
             }
             free(file->imports);
@@ -193,7 +196,6 @@ static Declaration *source_file_get_declaration(SourceFile *file, StringId decla
 }
 
 Declaration *symbol_table_get_declaration(SymbolTable *table, StringId id) {
-
     while (!table->is_last) table = table->data.previous;
     // Skip over symbol tables of outer scopes for now. If we add local types we will search them instead. 
     
