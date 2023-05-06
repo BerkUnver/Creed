@@ -6,13 +6,8 @@
 #include "lexer.h"
 #include "parser.h"
 
-typedef struct SourceFileDeclaration {
-    StringId id; // The name of the declaration
-    int idx; // Its index in the list of declarations
-} SourceFileDeclaration;
-
 typedef struct SourceFileNode {
-    SourceFileDeclaration *declarations;
+    Declaration *declarations;
     int declaration_count;
     int declaration_count_alloc;
 } SourceFileNode;
@@ -25,6 +20,10 @@ typedef struct SourceFile {
     SourceFileNode nodes[SOURCE_FILE_NODE_COUNT];
 } SourceFile;
 
+#define SOURCE_FILE_FOR_EACH(decl, file) \
+    for (int node_idx = 0; node_idx < SOURCE_FILE_NODE_COUNT; node_idx++) \
+    for (decl = (file)->nodes[node_idx].declarations, int file_idx = 0; file_idx < (file)->nodes[node_idx].file_count; file_idx++, decl++)
+
 typedef struct ProjectNode { 
     SourceFile *files;
     int file_count;
@@ -33,9 +32,6 @@ typedef struct ProjectNode {
 
 #define PROJECT_NODE_COUNT 512
 typedef struct Project {
-    Declaration *declarations;
-    int declaration_count;
-    int declaration_count_alloc;
     ProjectNode nodes[PROJECT_NODE_COUNT];
 } Project;
 
@@ -48,7 +44,7 @@ typedef struct SymbolType {
     bool is_primitive;
     union {
         TokenType primitive;
-        int declaration_idx;
+        Declaration *declaration;
     } data;
 } SymbolType;
 
