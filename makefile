@@ -1,5 +1,5 @@
 APP_NAME = creed
-SOURCE = prelude.c string_builder.c string_cache.c token.c lexer.c parser.c symbol_table.c handlers.c main.c
+SOURCE = prelude.c string_builder.c string_cache.c token.c lexer.c parser.c handlers.c main.c
 
 all: run
 

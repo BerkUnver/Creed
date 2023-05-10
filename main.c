@@ -7,7 +7,6 @@
 #include "token.h"
 #include "parser.h"
 #include "string_cache.h"
-#include "symbol_table.h"
 
 int main(int argc, char **argv) {
     string_cache_init();
@@ -56,6 +55,7 @@ int main(int argc, char **argv) {
             scope_free(&scope);
         }
 
+        /*
         putchar('\n');
 
         { // test parsing declarations
@@ -69,11 +69,11 @@ int main(int argc, char **argv) {
             Project project = project_new(path);
             SourceFile *file = project_get(&project, path);
             assert(file);
-            project_print(&project, file);
+            source_file_print(file);
             project_free(&project);
         }
 
-        /*
+
         putchar('\n');
 
 

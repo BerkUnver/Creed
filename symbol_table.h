@@ -22,7 +22,7 @@ typedef struct SourceFile {
 
 #define SOURCE_FILE_FOR_EACH(decl, file) \
     for (int node_idx = 0; node_idx < SOURCE_FILE_NODE_COUNT; node_idx++) \
-    for (decl = (file)->nodes[node_idx].declarations, int file_idx = 0; file_idx < (file)->nodes[node_idx].file_count; file_idx++, decl++)
+    for (int decl_idx = (decl = (file)->nodes[node_idx].declarations, 0); decl_idx < (file)->nodes[node_idx].declaration_count; decl_idx++, decl++)
 
 typedef struct ProjectNode { 
     SourceFile *files;
@@ -35,10 +35,14 @@ typedef struct Project {
     ProjectNode nodes[PROJECT_NODE_COUNT];
 } Project;
 
+#define PROJECT_FOR_EACH(file, project) \
+    for (int node_idx = 0; node_idx < PROJECT_NODE_COUNT; node_idx++) \
+    for (int file_idx = (file = (project)->nodes[node_idx].files, 0); file_idx < (project)->nodes[node_idx].file_count; file++, file_idx++)
+
 Project project_new(StringId path);
 void project_free(Project *project);
 SourceFile *project_get(Project *project, StringId path);
-void project_print(Project *project, SourceFile *file);
+void source_file_print(SourceFile *file);
 
 typedef struct SymbolType {
     bool is_primitive;
@@ -65,14 +69,7 @@ typedef struct SymbolTableNode {
 
 typedef struct SymbolTable {
     SymbolTableNode nodes[SYMBOL_TABLE_NODE_COUNT];
-    bool is_last;
-    union {
-        struct SymbolTable *previous;
-        struct {
-            SourceFile *file;
-            Project *project;
-        } last;
-    } data;
+    struct SymbolTable *previous;
 } SymbolTable;
 
 SymbolTable symbol_table_new(SymbolTable *previous); // previous can be null.

@@ -10,9 +10,30 @@
 #include "symbol_table.h"
 #include "token.h"
 
+void source_file_print(SourceFile *file) {
+    for (int i = 0; i < file->import_count; i++) {
+        printf("%s %s\n", string_keywords[TOKEN_KEYWORD_IMPORT - TOKEN_KEYWORD_MIN], string_cache_get(file->imports[i]));
+    }
+    Declaration *decl;
+    SOURCE_FILE_FOR_EACH(decl, file) {
+        putchar('\n');
+        declaration_print(decl);
+    }
+}
+
+
+static Declaration *source_file_get_declaration(SourceFile *file, StringId declaration_id) {
+    SourceFileNode *node = file->nodes + declaration_id.idx % SOURCE_FILE_NODE_COUNT;
+    for (int i = 0; i < node->declaration_count; i++) {
+        if (node->declarations[i].id.idx == declaration_id.idx) return node->declarations + i;
+    }
+    return NULL;
+}
+
 static void project_add(Project *project, StringId path) {
     // Check if source file was already parsed. If so, ignore it.
     int source_file_idx = path.idx % PROJECT_NODE_COUNT;
+
     ProjectNode *node = project->nodes + source_file_idx;
     for (int i = 0; i < node->file_count; i++) {
         if (node->files[i].id.idx == path.idx) return;
@@ -83,36 +104,93 @@ static void project_add(Project *project, StringId path) {
     }
 }
 
+SourceFile *project_get(Project *project, StringId path) { 
+    ProjectNode *node = project->nodes + path.idx % SOURCE_FILE_NODE_COUNT;
+    for (int i = 0; i < node->file_count; i++) {
+        SourceFile *file = node->files + i;
+        if (file->id.idx == path.idx) return file;
+    }
+    return NULL;
+}
+
+static Declaration *project_get_declaration(Project *project, SourceFile *file, StringId id) { 
+    Declaration *decl = source_file_get_declaration(file, id);
+    if (decl) return decl;
+    
+    for (int i = file->import_count - 1; i >= 0; i--) { // search imports from last to first
+        SourceFile *import = project_get(project, file->imports[i]);
+        assert(import); // Import is guaranteed to be valid 
+        Declaration *decl = source_file_get_declaration(import, id);
+        if (decl) return decl;
+    }
+    return NULL;
+}
+
 Project project_new(StringId path) {
     Project project;
     memset(project.nodes, 0, sizeof(ProjectNode) * PROJECT_NODE_COUNT);
     project_add(&project, path);
     
+    // Inject type information into each function declaration.
+    SourceFile *file;
+    PROJECT_FOR_EACH(file, &project) {
+        Declaration *decl;
+        SOURCE_FILE_FOR_EACH(decl, file) {
+            if (decl->type != DECLARATION_FUNCTION) continue;
+            for (int param_idx = 0; param_idx < decl->data.d_function.parameter_count; param_idx++) {
+                FunctionParameter *param = decl->data.d_function.parameters + param_idx;
+                switch (param->type.type) {
+                    case TYPE_PRIMITIVE: {
+                        param->symbol_type = (SymbolType) {
+                            .is_primitive = true,
+                            .data.primitive = param->type.data.primitive;
+                        };
+                    } break;
 
-    for (int i = 0; i < PROJECT_NODE_COUNT; i++) {
-        ProjectNode *project_node = project.nodes + i;
-        for (int i = 0; i < project_node->file_count; i++) {
-            SourceFile *file = project_node->files + i;
-            for (int i = 0; i < SOURCE_FILE_NODE_COUNT; i++) {
-                SourceFileNode *file_node = file->nodes + i;
-                for (int i = 0; i < file_node->declaration_count; i++) {
-                    Declaration *decl = file_node->declarations + i;
-                    if (decl->type != DECLARATION_FUNCTION) continue;
-                    SymbolTable table = symbol_table_new(NULL);
-
-                    for (int param_idx = 0; param_idx < decl->data.d_function.parameter_count; param_idx++) {
-                        FunctionParameter *param = decl->data.d_function.parameters + param_idx;
-                        if (!symbol_table_add_var(&table, param->id, &param->type)) {
-                            error_exit(decl->location, "A function's parameter names must be unique.");
+                    case TYPE_ID: {
+                        Declaration *decl_type = project_get_declaration(project, file, param->type.data.id);
+                        if (!decl_type) error_exit(param->type.location, "This type does not exist.");
+                        if (decl_type->type < DECLARATION_TYPE_MIN || DECLARATION_TYPE_MAX < decl_type->type) {
+                            error_exit(param->type.location, "This is not the name of a type.");
                         }
-                    }
-                   
-                    symbol_table_check_scope(&table, &decl->data.d_function.scope);
-                    symbol_table_free(&table);
+                        param->symbol_type = (SymbolType) {
+                            .is_primitive = false,
+                            .data.declaration = decl_type
+                        };
+                    } break;
+
+                    case TYPE_PTR:
+                    case TYPE_PTR_NULLABLE:
+                    case TYPE_ARRAY:
+                        assert(false);
+
                 }
             }
         }
     }
+
+    // Typecheck each function.
+    PROJECT_FOR_EACH(file, &project) {
+        Declaration *decl;
+        SOURCE_FILE_FOR_EACH(decl, file) {
+            if (decl->type != DECLARATION_FUNCTION) continue;
+            SymbolTable table;
+            memset(table.nodes, 0, sizeof(SymbolTableNode) * SYMBOL_TABLE_NODE_COUNT);
+            table.is_last = true;
+            table.data.last.project = &project;
+            table.data.last.file = file;
+            
+            for (int i = 0; i < decl->data.d_function.parameter_count; i++) {
+                FunctionParameter *param = decl->data.d_function.parameters + i;
+                if (symbol_table_add_var(&table, param->id, param->symbol_type)) continue;
+                error_exit(param->location, "A parameter's name must be unique.");
+            }
+
+            symbol_table_check_scope(&table, &decl->data.d_function.scope);
+            symbol_table_free(&table);
+        }
+    }
+
     return project;
 }
 
@@ -132,28 +210,6 @@ void project_free(Project *project) {
         free(node->files);
     }
 }
-
-SourceFile *project_get(Project *project, StringId path) { 
-    ProjectNode *node = project->nodes + path.idx % SOURCE_FILE_NODE_COUNT;
-    for (int i = 0; i < node->file_count; i++) {
-        SourceFile *file = node->files + i;
-        if (file->id.idx == path.idx) return file;
-    }
-    return NULL;
-}
-
-void project_print(Project *project, SourceFile *file) {
-    for (int i = 0; i < file->import_count; i++) {
-        printf("%s %s\n", string_keywords[TOKEN_KEYWORD_IMPORT - TOKEN_KEYWORD_MIN], string_cache_get(file->imports[i]));
-    }
-    for (int i = 0; i < SOURCE_FILE_NODE_COUNT; i++) {
-        for (int j = 0; j < file->nodes[i].declaration_count; j++) {
-            putchar('\n');
-            declaration_print(file->nodes[i].declarations + j);
-        }
-    }
-}
-
 
 bool symbol_type_equal(SymbolType lhs, SymbolType rhs) {
     return (lhs.is_primitive && rhs.is_primitive && lhs.data.primitive == rhs.data.primitive)
@@ -186,35 +242,16 @@ bool symbol_table_get(SymbolTable *table, StringId id, Symbol *out) {
     }
     return false;
 }
-
-static Declaration *source_file_get_declaration(SourceFile *file, StringId declaration_id) {
-    SourceFileNode *node = file->nodes + declaration_id.idx % SOURCE_FILE_NODE_COUNT;
-    for (int i = 0; i < node->declaration_count; i++) {
-        if (node->declarations[i].id.idx == declaration_id.idx) return node->declarations + i;
-    }
-    return NULL;
-}
-
 Declaration *symbol_table_get_declaration(SymbolTable *table, StringId id) {
     while (!table->is_last) table = table->data.previous;
     // Skip over symbol tables of outer scopes for now. If we add local types we will search them instead. 
     
     SourceFile *file = table->data.last.file;
     Project *project = table->data.last.project;
-
-    Declaration *decl = source_file_get_declaration(file, id);
-    if (decl) return decl;
-    
-    for (int i = file->import_count - 1; i >= 0; i--) { // search imports from last to first
-        SourceFile *import = project_get(project, file->imports[i]);
-        assert(import); // Import is guaranteed to be valid 
-        Declaration *decl = source_file_get_declaration(import, id);
-        if (decl) return decl;
-    }
-    return NULL;
+    return project_get_declaration(project, file);
 }
 
-bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
+bool symbol_table_add_var(SymbolTable *table, StringId id, SymbolType *type) {
     int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
 
     // Check to see if it is already in the table
@@ -222,35 +259,9 @@ bool symbol_table_add_var(SymbolTable *table, StringId id, Type *type) {
         if (table->nodes[idx].symbols[i].id.idx == id.idx) return false;
     }
     
-    SymbolType symbol_type; // Get the type.
-    switch (type->type) {
-        case TYPE_PRIMITIVE:
-            symbol_type.is_primitive = true;
-            symbol_type.data.primitive = type->data.primitive;
-            break;
-
-        case TYPE_ID: {
-            Declaration *decl = symbol_table_get_declaration(table, type->data.id);
-            if (!decl) {
-                error_exit(type->location, "This is not the name of a type currently in scope.");
-            }
-            if (decl->type < DECLARATION_TYPE_MIN || DECLARATION_TYPE_MAX < decl->type) {
-                error_exit(type->location, "This not the name of a type.");
-            }
-
-            symbol_type.is_primitive = false;
-            symbol_type.data.declaration = decl;
-        } break;
-
-        case TYPE_PTR: // TODO: handle these.
-        case TYPE_PTR_NULLABLE:
-        case TYPE_ARRAY:
-            assert(false);
-    }
-
     Symbol symbol = {
         .id = id,
-        .type = symbol_type
+        .type = type
     };
     
     if (table->nodes[idx].symbol_count == 0) {
@@ -377,6 +388,7 @@ SymbolType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     }
                     return symbol_type_lhs;
                 
+
                 default: 
                     assert(false);
 
@@ -407,6 +419,7 @@ SymbolType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
         
         case EXPR_ACCESS_ARRAY:
         case EXPR_FUNCTION_CALL:
+
             assert(false);
         
         case EXPR_ID: {
@@ -433,12 +446,13 @@ SymbolType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
 void symbol_table_check_statement(SymbolTable *table, Statement *statement) {
     switch (statement->type) {
         case STATEMENT_VAR_DECLARE: {
+            
             if (!symbol_table_add_var(table, statement->data.var_declare.id, &statement->data.var_declare.type)) {
                 error_exit(statement->location, "A variable with this name already exists in this scope.");
             }
             Symbol symbol;
             assert(symbol_table_get(table, statement->data.var_declare.id, &symbol));
-
+            
             if (statement->data.var_declare.has_assign) {
                 SymbolType expr_type = symbol_table_check_expr(table, &statement->data.var_declare.assign);
                 if (!symbol_type_equal(symbol.type, expr_type)) {
@@ -462,7 +476,21 @@ void symbol_table_check_statement(SymbolTable *table, Statement *statement) {
             }
         } break;
 
-        default: assert(false);
+        case STATEMENT_ASSIGN:
+            assert(false);
+
+        case STATEMENT_EXPR: {
+            SymbolType type = symbol_table_check_expr(table, &statement->data.expr);
+            if (!type.is_primitive || type.data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
+                error_exit(statement->data.expr.location, "The type of an expression statement is expected to be void.");
+                // This does not allow for discarding the values of functions. Should we allow it?
+            }
+        } break;
+
+        case STATEMENT_LABEL:
+        case STATEMENT_LABEL_GOTO:
+        case STATEMENT_RETURN:
+            assert(false);
     }
 }
 

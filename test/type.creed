@@ -6,8 +6,5 @@ main (args: [][]char) int {
 	return var;
 	return arr;
 
-	retunr 0;
-	
-
-
+	return 0;
 }

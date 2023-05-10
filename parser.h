@@ -14,12 +14,18 @@ typedef struct Type {
         TYPE_PTR,
         TYPE_PTR_NULLABLE,
         TYPE_ARRAY,
+        TYPE_FUNCTION
     } type;
 
     union {
         TokenType primitive;
         struct Type *sub_type;
         StringId id;
+        struct {
+            struct Type *params;
+            int param_count;
+            struct Type *result;
+        } function;
     } data;
 } Type;
 
@@ -209,7 +215,6 @@ typedef struct FunctionParameter {
     Location location;
     StringId id;
     Type type;
-    int type_declaration_idx;
 } FunctionParameter;
 
 

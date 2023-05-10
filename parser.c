@@ -30,6 +30,44 @@ Type type_parse(Lexer *lexer) {
             } 
             type_modifier = TYPE_ARRAY;
         } break;
+        
+        case TOKEN_PAREN_OPEN: {
+            lexer_token_get(lexer);
+            int param_count = 0;
+            Type *params = NULL;
+            
+            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {            
+                int param_count_alloc = 2;
+                params = malloc(param_count_alloc * sizeof(Type));
+                while (true) {
+                    param_count++;
+                    if (param_count > param_count_alloc) {
+                        param_count_alloc *= 2;
+                        params = realloc(params, param_count_alloc * sizeof(Type));
+                    }
+                    params[param_count - 1] = type_parse(lexer);
+                    Token peek = lexer_token_peek(lexer);
+                    if (peek.type == TOKEN_COMMA) {
+                        lexer_token_get(lexer);
+                        continue;
+                    }
+                    if (peek.type == TOKEN_PAREN_CLOSE) break;
+                    error_exit(peek.location, "Expected a comma or a closing parenthesis after a function type declaration parameter.");
+                }
+            }
+            lexer_token_get(lexer);
+
+            Type *result = malloc(sizeof(Type));
+            *result = type_parse(lexer);
+            
+            return (Type) {
+                .location = location_expand(token.location, result->location),
+                .type = TYPE_FUNCTION,
+                .data.function.params = params,
+                .data.function.param_count = param_count,
+                .data.function.result = result 
+            };
+        } break;
 
         case TOKEN_ID:
             lexer_token_get(lexer);
@@ -64,6 +102,10 @@ Type type_parse(Lexer *lexer) {
 
 void type_free(Type *type) {
     switch (type->type) {   
+        case TYPE_PRIMITIVE:
+        case TYPE_ID:
+            break;
+
         case TYPE_PTR:
         case TYPE_PTR_NULLABLE:
         case TYPE_ARRAY:
@@ -71,12 +113,21 @@ void type_free(Type *type) {
             free(type->data.sub_type);
             break;
 
-        default: break;
+        case TYPE_FUNCTION:
+            for (int i = 0; i < type->data.function.param_count; i++) type_free(type->data.function.params + i);
+            free(type->data.function.params);
+            type_free(type->data.function.result);
+            free(type->data.function.result);
+            break;
     }
 }
 
 void type_print(Type *type) {
     switch (type->type) {
+        case TYPE_PRIMITIVE:
+            print(string_keywords[type->data.primitive - TOKEN_KEYWORD_MIN]);
+            break;
+        
         case TYPE_ID:
             print(string_cache_get(type->data.id));
             break;
@@ -97,9 +148,17 @@ void type_print(Type *type) {
             type_print(type->data.sub_type);
             break;
 
-        case TYPE_PRIMITIVE:
-            print(string_keywords[type->data.primitive - TOKEN_KEYWORD_MIN]);
-            // TODO: Add printing primitives here.
+        case TYPE_FUNCTION:
+            putchar(TOKEN_PAREN_OPEN);
+            if (type->data.function.param_count > 0) {
+                for (int i = 0; i < type->data.function.param_count - 1; i++) {
+                    type_print(type->data.function.params + i);
+                    printf("%c ", TOKEN_COMMA);
+                }
+                type_print(type->data.function.params + type->data.function.param_count - 1);
+            }
+            printf("%c ", TOKEN_PAREN_CLOSE);
+            type_print(type->data.function.result);
             break;
     }
 }
