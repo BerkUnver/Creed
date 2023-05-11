@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include "prelude.h"
 
+void print_indent(int count) {
+    for (int i = 0; i < count; i++) print("    ");
+}
 Location location_expand(Location begin, Location end) {
     return (Location) {
         .line_start = begin.line_start,

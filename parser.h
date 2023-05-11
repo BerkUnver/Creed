@@ -101,11 +101,36 @@ Expr expr_parse(Lexer *lexer);
 void expr_free(Expr *expr);
 void expr_print(Expr *expr);
 
+typedef struct FunctionParameter {
+    Location location;
+    StringId id;
+    Type type;
+} FunctionParameter;
+
+typedef struct MemberStructUnion {
+    Location location;
+    StringId id;
+    Type type;
+} MemberStructUnion;
+
+typedef struct MemberSum {
+    Location location;
+    StringId id;
+    bool type_exists;
+    Type type;
+} MemberSum;
+
 typedef struct Statement {
     Location location;
     
     enum {
-        STATEMENT_VAR_DECLARE, 
+        STATEMENT_DECLARE, 
+        
+        STATEMENT_ENUM,
+        STATEMENT_STRUCT,
+        STATEMENT_UNION,
+        STATEMENT_SUM,
+
         STATEMENT_INCREMENT,
         STATEMENT_DEINCREMENT,
         STATEMENT_ASSIGN,
@@ -117,11 +142,44 @@ typedef struct Statement {
 
     union {
         struct {
-            Type type;
             StringId id;
-            bool has_assign;
-            Expr assign;
-        } var_declare;
+            enum {
+                STATEMENT_DECLARE_CONSTANT,
+                STATEMENT_DECLARE_MUTABLE,
+            } type;
+
+            union {
+                struct {
+                    bool type_exists;
+                    Type type;
+                    Expr value;
+                } constant;
+                
+                struct {
+                    Type type;
+                    bool value_exists;
+                    Expr value;
+                } mutable;
+            } data;
+        } declare;
+        
+        struct {
+            StringId id;
+            MemberStructUnion *members;
+            int member_count;
+        } struct_union;
+        
+        struct {
+            StringId id;
+            MemberSum *members;
+            int member_count;
+        } sum;
+
+        struct {
+            StringId id;
+            StringId *members;
+            int member_count;
+        } enumeration;
 
         Expr increment;
         Expr deincrement;
@@ -153,7 +211,7 @@ typedef struct MatchCase {
 
 Statement statement_parse(Lexer *lexer);
 void statement_free(Statement *statement);
-void statement_print(Statement *statement);
+void statement_print(Statement *statement, int indent);
 
 typedef struct Scope {
     Location location;
@@ -210,117 +268,4 @@ typedef struct Scope {
 Scope scope_parse(Lexer *lexer);
 void scope_free(Scope *scope);
 void scope_print(Scope *scope, int indentation);
-
-typedef struct FunctionParameter {
-    Location location;
-    StringId id;
-    Type type;
-} FunctionParameter;
-
-
-typedef struct MemberStructUnion {
-    Location location;
-    StringId id;
-    Type type;
-} MemberStructUnion;
-
-typedef struct MemberSum {
-    Location location;
-    StringId id;
-    bool type_exists;
-    Type type;
-} MemberSum;
-
-typedef struct Declaration {
-    Location location;
-    StringId id;
-    
-    enum {
-        DECLARATION_TYPE_MIN,
-        DECLARATION_STRUCT = DECLARATION_TYPE_MIN,
-        DECLARATION_UNION,
-        DECLARATION_SUM,
-        DECLARATION_ENUM,
-        DECLARATION_TYPE_MAX = DECLARATION_ENUM,
-        DECLARATION_FUNCTION,
-        // DECLARATION_CONSTANT
-        
-        /* We need to figure out how to handle globals much better.
-         * Right now, we just have constants as literals, i.e.
-         * 
-         * CONSTANT_1 128
-         * CONSTANT_2 256
-         * 
-         * We cannot hande the addition of constants, i.e.
-         * CONSTANT_3 CONSTANT_1 + CONSTANT_2
-         * 
-         * We could handle that, but then it introduces a syntactical ambiguity between function arguments and parenthesized expressions.
-         
-         * CONSTANT_3 (CONSTANT_1 + CONSTANT_2)
-         * main () void { }
-         
-         * I believe differenciating between these would make it an LR grammar.
-         * A way to resolve this would be to add a "fn" keyword before every function. I'm not opposed to this, and also makes lamdas and function type declarations easier.
-         *
-         * main fn () void { }
-         *
-         * However, there is another issue. How do we resolve mutable globals?
-         * We could just parse them like normal declarations.
-         *
-         * global_1: int = 3;
-         *
-         * However, this would require semicolons after them and requiring semicolons after globals but not constants is weird.
-         *
-         * CONSTANT_1 128;
-         *
-         * Does this imply having semicolons after type and function declarations?
-         * Right now, the following is legal.
-         *
-         * main () int return EXIT_FAILURE;
-         *
-         * We would have to require 2 semicolons after a single-line function declaration, one for the function body and for the function declaration itself.
-         *
-         * main () int return EXIT_FAILURE;;
-         * 
-         * This is really, really dumb, and avoiding semicolons after function declarations would be good.
-         * However, this would also mean function declarations would have to imply the end of a statement when direcly assigned to a constant name.
-         * This might imply something weird about lambdas.
-         *
-         * I feel like not having a constant assignment operator is just asking for syntactic ambiguities at this point as well.
-         *
-         * main :: fn () void { }
-         */
-    } type;
-
-    union {
-        struct {
-            MemberStructUnion *members;
-            int member_count;
-        } d_struct_union;
-        
-        struct {
-            MemberSum *members;
-            int member_count;
-        } d_sum;
-
-        struct {
-            StringId *members;
-            int member_count;
-        } d_enum;
-        
-        struct {
-            FunctionParameter *parameters;
-            int parameter_count;
-            Type return_type;
-            int return_type_id;
-            Scope scope;
-        } d_function;
-    } data;
-
-} Declaration;
-
-Declaration declaration_parse(Lexer *lexer);
-void declaration_free(Declaration *declaration);
-void declaration_print(Declaration *declaration);
-
 #endif

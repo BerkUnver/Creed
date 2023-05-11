@@ -1,4 +1,34 @@
 {
+    a: int;
+    a: int = 1;
+    a :: 1;
+    
+    Struct1 struct {
+        a: int;
+        b: bool;
+        c: SomeOtherComplexType;
+    };
+    
+    Union1 union {
+        x: int;
+        y: float64;
+        z: bool;
+        w: SomeOtherComplexType;
+    };
+    
+    Enum1 enum {
+        ENUM_1;
+        ENUM_2;
+        ENUM_3;
+    };
+    
+    Sum1 sum {
+        VAL_1: int;
+        VAL_2;
+        VAL_3: SomeOtherComplexType;
+    };
+
+
     j: bool = false;
     
     for i: int = 0; i < 0; p: int = 0 {

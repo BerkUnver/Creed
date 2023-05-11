@@ -1,9 +1,9 @@
 #include <assert.h>
 #include "handlers.h"
-#include "symbol_table.h"
 #include "parser.h"
 #include "string_cache.h"
 
+/*
 SymbolTable * symbol_table;
 
 char * get_complex_type(Type creadz_type, char * c_prim_type) {
@@ -63,6 +63,7 @@ void handle_function_declaration(Declaration * func) {
     // char * id = string_cache_get(func->id);
     // char * c_type = get_type(creadz_type);
 }
+*/
 
 void handle_semicolon() {
     printf(";\n");      // TO DO: Only print semicolons after scopes that are declarations??

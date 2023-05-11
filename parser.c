@@ -493,123 +493,312 @@ void expr_print(Expr *expr) {
 }
 
 Statement statement_parse(Lexer *lexer) {
-    if (lexer_token_peek_2(lexer).type == TOKEN_COLON) {
-        Token token_id = lexer_token_peek(lexer);
-        if (token_id.type != TOKEN_ID) {
-            error_exit(token_id.location, "Expected the name of a variable to be an id.");
-        }
-        lexer_token_get(lexer);
-        lexer_token_get(lexer); // get colon
-
-        Statement statement;
-
-        Type type = type_parse(lexer);
-        if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
-            lexer_token_get(lexer);
-            statement.data.var_declare.assign = expr_parse(lexer);
-            statement.data.var_declare.has_assign = true;
-        } else {
-            statement.data.var_declare.has_assign = false;
-        }
-
-        statement.location = location_expand(token_id.location, type.location);
-        statement.type = STATEMENT_VAR_DECLARE;
-        statement.data.var_declare.id = token_id.data.id;
-        statement.data.var_declare.type = type;
-        return statement;
-    }
-
-    switch (lexer_token_peek(lexer).type) {
-        case TOKEN_INCREMENT: {
-            Token token_increment = lexer_token_get(lexer);
-            Expr expr = expr_parse(lexer);
-            return (Statement) {
-                .location = location_expand(token_increment.location, expr.location),
-                .type = STATEMENT_INCREMENT,
-                .data.increment = expr
-            };
-        }
-
-        case TOKEN_DEINCREMENT: {
-            Token token_deincrement = lexer_token_get(lexer);
-            Expr expr = expr_parse(lexer);
-            return (Statement) {
-                .location = location_expand(token_deincrement.location, expr.location),
-                .type = STATEMENT_DEINCREMENT,
-                .data.deincrement = expr
-            };
-        }
-        
-        case TOKEN_KEYWORD_LABEL: {
-            Token token_label = lexer_token_get(lexer);
+    switch (lexer_token_peek_2(lexer).type) {
+        case TOKEN_COLON: {
             Token token_id = lexer_token_peek(lexer);
             if (token_id.type != TOKEN_ID) {
-                error_exit(token_id.location, "Expected an identifier as a label.");
+                error_exit(token_id.location, "Expected the name of a variable to be an id.");
             }
             lexer_token_get(lexer);
-            return (Statement) {
-                .location = location_expand(token_label.location, token_id.location),
-                .type = STATEMENT_LABEL,
-                .data.label = token_id.data.id
-            };
-            break;
-        }
-        
-        case TOKEN_KEYWORD_GOTO: {
-            Token token_goto = lexer_token_get(lexer);
-            Token token_id = lexer_token_peek(lexer);
-            if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the label of a goto statement to be an identifier.");
-            lexer_token_get(lexer);
-            return (Statement) {
-                .location = location_expand(token_goto.location, token_id.location),
-                .type = STATEMENT_LABEL_GOTO,
-                .data.label_goto = token_id.data.id
-            };
-            break;
-        }
+            lexer_token_get(lexer); // get colon
+           
+            Statement statement;
+            statement.type = STATEMENT_DECLARE;
+            statement.data.declare.id = token_id.data.id;
 
-        case TOKEN_KEYWORD_RETURN: {
-            Token token_return = lexer_token_get(lexer);
-            Expr expr = expr_parse(lexer);
-            return (Statement) {
-                .location = location_expand(token_return.location, expr.location),
-                .type = STATEMENT_RETURN,
-                .data.return_expr = expr, 
-            };
-        }
-
-        default: {
-            Expr expr = expr_parse(lexer);
-            Token token_assign = lexer_token_peek(lexer);
-            
-            if (token_assign.type < TOKEN_ASSIGN_MIN || TOKEN_ASSIGN_MAX < token_assign.type) {
-                return (Statement) {
-                    .location = expr.location,
-                    .type = STATEMENT_EXPR,
-                    .data.expr = expr
-                };
-            } else {
+            if (lexer_token_peek(lexer).type == TOKEN_COLON) {
                 lexer_token_get(lexer);
                 Expr value = expr_parse(lexer);
-                return (Statement) {
-                    .location = location_expand(expr.location, expr.location),
-                    .type = STATEMENT_ASSIGN,
-                    .data.assign.assignee = expr,
-                    .data.assign.value = value,
-                    .data.assign.type = token_assign.type
+                statement.data.declare.type = STATEMENT_DECLARE_CONSTANT;
+                statement.data.declare.data.constant.value = value;
+                statement.data.declare.data.constant.type_exists = false;
+                statement.location = location_expand(token_id.location, value.location);
+            } else {
+                Type type = type_parse(lexer);
+                if (lexer_token_peek(lexer).type == TOKEN_COLON) {
+                    lexer_token_get(lexer);
+                    Expr value = expr_parse(lexer);
+                    statement.data.declare.type = STATEMENT_DECLARE_CONSTANT;
+                    statement.data.declare.data.constant.value = value;
+                    statement.data.declare.data.constant.type_exists = true;
+                    statement.data.declare.data.constant.type = type;
+                    statement.location = location_expand(token_id.location, value.location);
+                } else if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
+                    lexer_token_get(lexer);
+                    Expr value = expr_parse(lexer);
+                    statement.data.declare.type = STATEMENT_DECLARE_MUTABLE;
+                    statement.data.declare.data.mutable.value = value;
+                    statement.data.declare.data.mutable.value_exists = true;
+                    statement.data.declare.data.mutable.type = type;
+                    statement.location = location_expand(token_id.location, value.location);
+                } else {
+                    statement.data.declare.type = STATEMENT_DECLARE_MUTABLE;
+                    statement.data.declare.data.mutable.value_exists = false;
+                    statement.data.declare.data.mutable.type = type;
+                    statement.location = location_expand(token_id.location, type.location);
+                }
+            }
+            return statement;
+        } break;
+
+        case TOKEN_KEYWORD_ENUM: {
+            Token token_id = lexer_token_get(lexer);
+            if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the name of an enumeration to be an identifier.");
+            lexer_token_get(lexer);
+
+            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
+                error_exit(token_id.location, "Expected an opening curly brace starting an enum declaration.");
+            }
+            lexer_token_get(lexer);
+            
+            int member_count = 0;
+            int member_count_alloc = 2;
+            StringId *members = malloc(sizeof(StringId) * member_count_alloc);
+            
+            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                Token token_id = lexer_token_get(lexer);
+                if (token_id.type != TOKEN_ID) {
+                    error_exit(token_id.location, "Expected an identifier as the name of an enum.");
+                }
+                member_count++;
+                if (member_count > member_count_alloc) {
+                    member_count_alloc *= 2;
+                    members = realloc(members, sizeof(StringId) * member_count_alloc);
+                }
+                members[member_count - 1] = token_id.data.id;
+                if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
+                    error_exit(token_id.location, "Expected a semicolon after an enum member.");
+                }
+                lexer_token_get(lexer);
+            }
+
+            Token enum_token_end = lexer_token_get(lexer);
+            return (Statement) {
+                .type = STATEMENT_ENUM,
+                .data.enumeration.id = token_id.data.id,
+                .data.enumeration.member_count = member_count,
+                .data.enumeration.members = members,
+                .location = location_expand(token_id.location, enum_token_end.location),
+            };
+        } break;
+
+        case TOKEN_KEYWORD_STRUCT:
+        case TOKEN_KEYWORD_UNION: {
+            Token token_id = lexer_token_get(lexer);
+            if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected an identifier as the name of a struct.");
+            int type = lexer_token_get(lexer).type == TOKEN_KEYWORD_STRUCT ? STATEMENT_STRUCT : STATEMENT_UNION;
+
+            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
+                error_exit(token_id.location, "Expected an opening curly brace when declaring a complex type.");
+            }
+            lexer_token_get(lexer);
+            
+            int member_count = 0;
+            int member_count_alloc = 2;
+            MemberStructUnion *members = malloc(sizeof(MemberStructUnion) * member_count_alloc);
+            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                Token token_id = lexer_token_get(lexer);
+                if (token_id.type != TOKEN_ID) {
+                    error_exit(token_id.location, "Expected the name of a type member here.");
+                }
+                if (lexer_token_get(lexer).type != TOKEN_COLON) {
+                    error_exit(token_id.location, "Expected a colon after the name of a member in a complex type declaration.");
+                }
+                Type type = type_parse(lexer);
+                if (lexer_token_get(lexer).type != TOKEN_SEMICOLON) {
+                    error_exit(location_expand(token_id.location, type.location), "Expected a semicolon after a member in a complex type declaration."); 
+                }
+                member_count++;
+                if (member_count > member_count_alloc) {
+                    member_count_alloc *= 2;
+                    members = realloc(members, sizeof(MemberStructUnion) * member_count_alloc);
+                }
+                members[member_count - 1] = (MemberStructUnion) {
+                    .location = location_expand(token_id.location, type.location),
+                    .id = token_id.data.id,
+                    .type = type
                 };
             }
-        }
+            Token token_end = lexer_token_get(lexer);
+            return (Statement) {
+                .type = type,
+                .location = location_expand(token_id.location, token_end.location),
+                .data.struct_union.id = token_id.data.id,
+                .data.struct_union.member_count = member_count,
+                .data.struct_union.members = members
+            };
+        } break;
+        
+        case TOKEN_KEYWORD_SUM: {
+            Token token_id = lexer_token_get(lexer);
+            if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected an identifier as the name of a sum type.");
+            lexer_token_get(lexer);
+
+            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
+                error_exit(token_id.location, "Expected an opening curly brace when declaring a sum type.");
+            }
+            lexer_token_get(lexer);
+            
+            int member_count = 0;
+            int member_count_alloc = 2;
+            MemberSum *members = malloc(sizeof(MemberSum) * member_count_alloc);
+
+            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
+                Token sum_token_id = lexer_token_get(lexer);
+                if (sum_token_id.type != TOKEN_ID) {
+                    error_exit(sum_token_id.location, "Expected an identifier as the name of a sum member.");
+                }
+
+                MemberSum member;
+                member.id = sum_token_id.data.id;
+                if (lexer_token_peek(lexer).type == TOKEN_COLON) {
+                    lexer_token_get(lexer);
+                    member.type_exists = true;
+                    member.type = type_parse(lexer);
+                } else member.type_exists = false;
+
+                member_count++;
+                if (member_count > member_count_alloc) {
+                    member_count_alloc *= 2;
+                    members = realloc(members, sizeof(MemberSum) * member_count_alloc);
+                }
+                members[member_count - 1] = member;
+
+                if (lexer_token_get(lexer).type != TOKEN_SEMICOLON) {
+                    error_exit(sum_token_id.location, "Expected a semicolon after a sum member.");
+                }
+            }
+            Token token_end = lexer_token_get(lexer);
+            
+            return (Statement) {
+                .location = location_expand(token_id.location, token_end.location),
+                .type = STATEMENT_SUM,
+                .data.sum.id = token_id.data.id,
+                .data.sum.member_count = member_count,
+                .data.sum.members = members
+            };
+        } break;
+        
+        default:
+            switch (lexer_token_peek(lexer).type) {
+                case TOKEN_INCREMENT: {
+                    Token token_increment = lexer_token_get(lexer);
+                    Expr expr = expr_parse(lexer);
+                    return (Statement) {
+                        .location = location_expand(token_increment.location, expr.location),
+                        .type = STATEMENT_INCREMENT,
+                        .data.increment = expr
+                    };
+                }
+
+                case TOKEN_DEINCREMENT: {
+                    Token token_deincrement = lexer_token_get(lexer);
+                    Expr expr = expr_parse(lexer);
+                    return (Statement) {
+                        .location = location_expand(token_deincrement.location, expr.location),
+                        .type = STATEMENT_DEINCREMENT,
+                        .data.deincrement = expr
+                    };
+                }
+                
+                case TOKEN_KEYWORD_LABEL: {
+                    Token token_label = lexer_token_get(lexer);
+                    Token token_id = lexer_token_peek(lexer);
+                    if (token_id.type != TOKEN_ID) {
+                        error_exit(token_id.location, "Expected an identifier as a label.");
+                    }
+                    lexer_token_get(lexer);
+                    return (Statement) {
+                        .location = location_expand(token_label.location, token_id.location),
+                        .type = STATEMENT_LABEL,
+                        .data.label = token_id.data.id
+                    };
+                    break;
+                }
+                
+                case TOKEN_KEYWORD_GOTO: {
+                    Token token_goto = lexer_token_get(lexer);
+                    Token token_id = lexer_token_peek(lexer);
+                    if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the label of a goto statement to be an identifier.");
+                    lexer_token_get(lexer);
+                    return (Statement) {
+                        .location = location_expand(token_goto.location, token_id.location),
+                        .type = STATEMENT_LABEL_GOTO,
+                        .data.label_goto = token_id.data.id
+                    };
+                    break;
+                }
+
+                case TOKEN_KEYWORD_RETURN: {
+                    Token token_return = lexer_token_get(lexer);
+                    Expr expr = expr_parse(lexer);
+                    return (Statement) {
+                        .location = location_expand(token_return.location, expr.location),
+                        .type = STATEMENT_RETURN,
+                        .data.return_expr = expr, 
+                    };
+                }
+
+                default: {
+                    Expr expr = expr_parse(lexer);
+                    Token token_assign = lexer_token_peek(lexer);
+                    
+                    if (token_assign.type < TOKEN_ASSIGN_MIN || TOKEN_ASSIGN_MAX < token_assign.type) {
+                        return (Statement) {
+                            .location = expr.location,
+                            .type = STATEMENT_EXPR,
+                            .data.expr = expr
+                        };
+                    } else {
+                        lexer_token_get(lexer);
+                        Expr value = expr_parse(lexer);
+                        return (Statement) {
+                            .location = location_expand(expr.location, expr.location),
+                            .type = STATEMENT_ASSIGN,
+                            .data.assign.assignee = expr,
+                            .data.assign.value = value,
+                            .data.assign.type = token_assign.type
+                        };
+                    }
+                }
+            }
+            break;
     }
 }
 
 void statement_free(Statement *statement) {
     switch (statement->type) {
-        case STATEMENT_VAR_DECLARE:
-            type_free(&statement->data.var_declare.type);
-            if (statement->data.var_declare.has_assign) {
-                expr_free(&statement->data.var_declare.assign);
+        case STATEMENT_DECLARE:
+            switch (statement->data.declare.type) {
+                case STATEMENT_DECLARE_CONSTANT:
+                    expr_free(&statement->data.declare.data.constant.value);
+                    if (statement->data.declare.data.constant.type_exists) {
+                        type_free(&statement->data.declare.data.constant.type);
+                    }
+                    break;
+                case STATEMENT_DECLARE_MUTABLE:
+                    type_free(&statement->data.declare.data.mutable.type);
+                    if (statement->data.declare.data.mutable.value_exists) {
+                        expr_free(&statement->data.declare.data.mutable.value);
+                    }
+                    break;
             }
+            break;
+        case STATEMENT_ENUM:
+            free(statement->data.enumeration.members);
+            break;
+        case STATEMENT_STRUCT:
+        case STATEMENT_UNION:
+            for (int i = 0; i < statement->data.struct_union.member_count; i++) {
+                type_free(&statement->data.struct_union.members[i].type);
+            }
+            free(statement->data.struct_union.members);
+            break;
+        case STATEMENT_SUM:
+            for (int i = 0; i < statement->data.sum.member_count; i++) {
+                if (statement->data.sum.members[i].type_exists) type_free(&statement->data.sum.members[i].type);
+            }
+            free(statement->data.sum.members);
             break;
         case STATEMENT_INCREMENT:
             expr_free(&statement->data.increment);
@@ -635,17 +824,68 @@ void statement_free(Statement *statement) {
     }
 }
 
-void statement_print(Statement *statement) {
+void statement_print(Statement *statement, int indent) {
     switch (statement->type) {
-        case STATEMENT_VAR_DECLARE:
-            print(string_cache_get(statement->data.var_declare.id));
-            putchar(TOKEN_COLON);
-            putchar(' ');
-            type_print(&statement->data.var_declare.type);
-            if (statement->data.var_declare.has_assign) {
-                printf(" = ");
-                expr_print(&statement->data.var_declare.assign);
+        case STATEMENT_DECLARE:
+            print(string_cache_get(statement->data.declare.id));
+            switch (statement->data.declare.type) {
+                case STATEMENT_DECLARE_CONSTANT:
+                    if (statement->data.declare.data.constant.type_exists) {
+                        printf("%c ", TOKEN_COLON);
+                        type_print(&statement->data.declare.data.constant.type);
+                        printf(" %c ", TOKEN_COLON);
+                    } else {
+                        printf(" %c%c ", TOKEN_COLON, TOKEN_COLON);
+                    }
+                    expr_print(&statement->data.declare.data.constant.value);
+                    break;
+                case STATEMENT_DECLARE_MUTABLE:
+                    printf("%c ", TOKEN_COLON);
+                    type_print(&statement->data.declare.data.mutable.type);
+                    if (statement->data.declare.data.mutable.value_exists) {
+                        printf(" %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
+                        expr_print(&statement->data.declare.data.mutable.value);
+                    }
+                    break;
             }
+            break;
+        case STATEMENT_ENUM:
+            printf("%s %s %c\n", string_cache_get(statement->data.enumeration.id), string_keywords[TOKEN_KEYWORD_ENUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < statement->data.enumeration.member_count; i++) {
+                print_indent(indent + 1);
+                printf("%s%c\n", string_cache_get(statement->data.enumeration.members[i]), TOKEN_SEMICOLON);
+            }
+            print_indent(indent);
+            putchar(TOKEN_CURLY_BRACE_CLOSE);
+            break;
+
+        case STATEMENT_STRUCT:
+        case STATEMENT_UNION: {
+            const char *keyword = string_keywords[(statement->type == STATEMENT_STRUCT ? TOKEN_KEYWORD_STRUCT : TOKEN_KEYWORD_UNION) - TOKEN_KEYWORD_MIN];
+            printf("%s %s %c\n", string_cache_get(statement->data.struct_union.id), keyword, TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < statement->data.struct_union.member_count; i++) {
+                print_indent(indent + 1);
+                printf("%s%c ", string_cache_get(statement->data.struct_union.members[i].id), TOKEN_COLON);
+                type_print(&statement->data.struct_union.members[i].type);
+                printf("%c\n", TOKEN_SEMICOLON);
+            }
+            print_indent(indent);
+            putchar(TOKEN_CURLY_BRACE_CLOSE);
+        } break;
+        case STATEMENT_SUM:
+            printf("%s %s %c\n", string_cache_get(statement->data.sum.id), string_keywords[TOKEN_KEYWORD_SUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < statement->data.sum.member_count; i++) {
+                print_indent(indent + 1);
+                MemberSum member = statement->data.sum.members[i];
+                printf("%s", string_cache_get(member.id));
+                if (member.type_exists) {
+                    printf("%c ", TOKEN_COLON);
+                    type_print(&member.type);
+                }
+                printf("%c\n", TOKEN_SEMICOLON);
+            }
+            print_indent(indent);
+            putchar(TOKEN_CURLY_BRACE_CLOSE);
             break;
         case STATEMENT_INCREMENT:
             print("++"); // I don't like doing this, but idk how to do this better right now.
@@ -933,7 +1173,7 @@ void scope_free(Scope *scope) {
 void scope_print(Scope *scope, int indentation) {
     switch (scope->type) {
         case SCOPE_STATEMENT:
-            statement_print(&scope->data.statement);
+            statement_print(&scope->data.statement, indentation);
             putchar(TOKEN_SEMICOLON);
             putchar('\n');
             break;
@@ -945,7 +1185,7 @@ void scope_print(Scope *scope, int indentation) {
             putchar(' ');
             scope_print(scope->data.conditional.scope_if, indentation);
             if (scope->data.conditional.scope_else) {
-                for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
+                print_indent(indentation);
                 print(string_keywords[TOKEN_KEYWORD_ELSE - TOKEN_KEYWORD_MIN]);
                 putchar(' ');
                 scope_print(scope->data.conditional.scope_else, indentation);
@@ -954,11 +1194,11 @@ void scope_print(Scope *scope, int indentation) {
         case SCOPE_LOOP_FOR:
             print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
             putchar(' ');
-            statement_print(&scope->data.loop_for.init);
+            statement_print(&scope->data.loop_for.init, indentation);
             printf("%c ", TOKEN_SEMICOLON);
             expr_print(&scope->data.loop_for.expr);
             printf("%c ", TOKEN_SEMICOLON);
-            statement_print(&scope->data.loop_for.step);
+            statement_print(&scope->data.loop_for.step, indentation);
             putchar(' ');
             scope_print(scope->data.loop_for.scope, indentation);
             break;
@@ -982,10 +1222,10 @@ void scope_print(Scope *scope, int indentation) {
         case SCOPE_BLOCK:
             printf("%c\n", TOKEN_CURLY_BRACE_OPEN);
             for (int i = 0; i < scope->data.block.scope_count; i++) {
-                for (int j = 0; j <= indentation; j++) print(STR_INDENTATION);
+                print_indent(indentation + 1);
                 scope_print(scope->data.block.scopes + i, indentation + 1);
             }
-            for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
+            print_indent(indentation);
             printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
             break;
 
@@ -996,306 +1236,17 @@ void scope_print(Scope *scope, int indentation) {
             printf(" %c\n", TOKEN_CURLY_BRACE_OPEN);
             
             for (int i = 0; i < scope->data.match.case_count; ++i) {
-                for (int j = 0; j < indentation; ++j) print(STR_INDENTATION);
-                
+                print_indent(indentation); 
                 printf("%s ", string_operators[TOKEN_OP_BITWISE_OR - TOKEN_OP_MIN]);
                 print(string_cache_get(scope->data.match.cases[i].match_id));
                 printf(" ->\n");
                 for (int j = 0; j < scope->data.match.cases[i].scope_count; ++j) {
-                    for (int j = 0; j <= indentation; ++j) {
-                        print(STR_INDENTATION);
-                    }
+                    print_indent(indentation + 1);
                     scope_print(scope->data.match.cases[i].scopes + j, indentation + 1);
                 }
             }
-
-            for (int i = 0; i < indentation; i++) print(STR_INDENTATION);
+            print_indent(indentation);
             printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
-            break;
-    }
-}
-
-Declaration declaration_parse(Lexer *lexer) {
-    Token identifier = lexer_token_get(lexer);
-    if (identifier.type != TOKEN_ID) {
-        error_exit(identifier.location, "Expected a non-keyword identifier for the union member.");
-    }
-    
-    Declaration decl;
-    decl.id = identifier.data.id;
-
-    Token keyword = lexer_token_get(lexer);
-    switch (keyword.type) {
-
-        case TOKEN_KEYWORD_ENUM: {
-            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
-                error_exit(keyword.location, "Expected an opening curly brace starting an enum declaration.");
-            }
-            lexer_token_get(lexer);
-            
-            int member_count = 0;
-            int member_count_alloc = 2;
-            StringId *members = malloc(sizeof(StringId) * member_count_alloc);
-            
-            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
-                Token token_id = lexer_token_get(lexer);
-                if (token_id.type != TOKEN_ID) {
-                    error_exit(token_id.location, "Expected an identifier as the value of an enum.");
-                }
-                member_count++;
-                if (member_count > member_count_alloc) {
-                    member_count_alloc *= 2;
-                    members = realloc(members, sizeof(StringId) * member_count_alloc);
-                }
-                members[member_count - 1] = token_id.data.id;
-                if (lexer_token_peek(lexer).type != TOKEN_SEMICOLON) {
-                    error_exit(token_id.location, "Expected a semicolon after an enum member.");
-                }
-                lexer_token_get(lexer);
-            }
-
-            Token enum_token_end = lexer_token_get(lexer);
-            decl.location = location_expand(identifier.location, enum_token_end.location);
-            decl.type = DECLARATION_ENUM;
-            decl.data.d_enum.member_count = member_count;
-            decl.data.d_enum.members = members;
-        } break;
-
-        case TOKEN_KEYWORD_STRUCT:
-        case TOKEN_KEYWORD_UNION: {
-            int declaration_type;
-            if (keyword.type == TOKEN_KEYWORD_STRUCT) declaration_type = DECLARATION_STRUCT;
-            else if (keyword.type == TOKEN_KEYWORD_UNION) declaration_type = DECLARATION_UNION;
-            else assert(false);
-
-            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
-                error_exit(keyword.location, "Expected an opening curly brace when declaring a complex type.");
-            }
-            lexer_token_get(lexer);
-            
-            int member_count = 0;
-            int member_count_alloc = 2;
-            MemberStructUnion *members = malloc(sizeof(MemberStructUnion) * member_count_alloc);
-            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
-                Token token_id = lexer_token_get(lexer);
-                if (token_id.type != TOKEN_ID) {
-                    error_exit(token_id.location, "Expected the name of a type member here.");
-                }
-                if (lexer_token_get(lexer).type != TOKEN_COLON) {
-                    error_exit(token_id.location, "Expected a colon after the name of a member in a complex type declaration.");
-                }
-                Type type = type_parse(lexer);
-                if (lexer_token_get(lexer).type != TOKEN_SEMICOLON) {
-                    error_exit(location_expand(token_id.location, type.location), "Expected a semicolon after a member in a complex type declaration."); 
-                }
-                member_count++;
-                if (member_count > member_count_alloc) {
-                    member_count_alloc *= 2;
-                    members = realloc(members, sizeof(MemberStructUnion) * member_count_alloc);
-                }
-                members[member_count - 1] = (MemberStructUnion) {
-                    .location = location_expand(token_id.location, type.location),
-                    .id = token_id.data.id,
-                    .type = type
-                };
-            }
-            Token token_end = lexer_token_get(lexer);
-            decl.location = location_expand(identifier.location, token_end.location);
-            decl.type = declaration_type;
-            decl.data.d_struct_union.member_count = member_count;
-            decl.data.d_struct_union.members = members;
-        } break;
-        
-        case TOKEN_KEYWORD_SUM: {
-            if (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_OPEN) {
-                error_exit(keyword.location, "Expected an opening curly brace when declaring a sum type.");
-            }
-            lexer_token_get(lexer);
-            
-            int member_count = 0;
-            int member_count_alloc = 2;
-            MemberSum *members = malloc(sizeof(MemberSum) * member_count_alloc);
-
-            while (lexer_token_peek(lexer).type != TOKEN_CURLY_BRACE_CLOSE) {
-                Token sum_token_id = lexer_token_get(lexer);
-                if (sum_token_id.type != TOKEN_ID) {
-                    error_exit(sum_token_id.location, "Expected an identifier as the name of a sum member.");
-                }
-
-                MemberSum member;
-                member.id = sum_token_id.data.id;
-                if (lexer_token_peek(lexer).type == TOKEN_COLON) {
-                    lexer_token_get(lexer);
-                    member.type_exists = true;
-                    member.type = type_parse(lexer);
-                } else member.type_exists = false;
-
-                member_count++;
-                if (member_count > member_count_alloc) {
-                    member_count_alloc *= 2;
-                    members = realloc(members, sizeof(MemberSum) * member_count_alloc);
-                }
-                members[member_count - 1] = member;
-
-                if (lexer_token_get(lexer).type != TOKEN_SEMICOLON) {
-                    error_exit(sum_token_id.location, "Expected a semicolon after a sum member.");
-                }
-            }
-            Token token_end = lexer_token_get(lexer);
-
-            decl.location = location_expand(identifier.location, token_end.location);
-            decl.type = DECLARATION_SUM;
-            decl.data.d_sum.member_count = member_count;
-            decl.data.d_sum.members = members;
-        } break;
-
-        case TOKEN_PAREN_OPEN: {
-            FunctionParameter *parameters = NULL;
-            int parameter_count = 0;
-
-            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
-                int parameter_count_allocated = 2;
-                parameters = malloc(sizeof(FunctionParameter) * parameter_count_allocated);
-
-                while (true) {
-                    Token parameter_id = lexer_token_peek(lexer);
-                    if (parameter_id.type != TOKEN_ID) {
-                        error_exit(parameter_id.location, "Expected the name of a function parameter to be a non-keyword literal.");
-                    }
-                    lexer_token_get(lexer);
-                    if (lexer_token_peek(lexer).type != TOKEN_COLON) {
-                        error_exit(parameter_id.location, "Expected a colon after a function parameter name.");
-                    }
-                    lexer_token_get(lexer);
-                    Type type = type_parse(lexer);
-                    parameter_count++;
-                    if (parameter_count > parameter_count_allocated) {
-                        parameter_count_allocated *= 2;
-                        parameters = realloc(parameters, sizeof(FunctionParameter) * parameter_count_allocated);
-                    }
-                    parameters[parameter_count - 1] = (FunctionParameter) {
-                        .location = location_expand(parameter_id.location, type.location),
-                        .id = parameter_id.data.id,
-                        .type = type
-                    };
-
-                    if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
-                        lexer_token_get(lexer); 
-                        continue;
-                    }
-
-                    if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) break;
-                }
-            }
-
-            lexer_token_get(lexer);
-            Type return_type = type_parse(lexer);
-            Scope scope = scope_parse(lexer);
-
-            decl.location = location_expand(identifier.location, scope.location);
-            decl.type = DECLARATION_FUNCTION;
-            decl.data.d_function.parameters = parameters;
-            decl.data.d_function.parameter_count = parameter_count;
-            decl.data.d_function.return_type = return_type;
-            decl.data.d_function.scope = scope;
-        } break;
-
-        default: 
-            error_exit(keyword.location, "Expected a literal or function declaration here.");
-    }
-
-    return decl;
-}
-
-void declaration_free(Declaration *declaration) {
-    switch (declaration->type) {
-        case DECLARATION_STRUCT:
-        case DECLARATION_UNION:
-            for (int i = 0; i < declaration->data.d_struct_union.member_count; i++) {
-                type_free(&declaration->data.d_struct_union.members[i].type);
-            }
-            free(declaration->data.d_struct_union.members);
-            break;
-
-            
-        case DECLARATION_SUM:
-            for (int i = 0; i < declaration->data.d_sum.member_count; i++) {
-                MemberSum member = declaration->data.d_sum.members[i];
-                if (member.type_exists) type_free(&member.type);
-            }
-            free(declaration->data.d_sum.members);
-            break;
-
-        case DECLARATION_ENUM:
-            free(declaration->data.d_enum.members);
-            break;
-
-        case DECLARATION_FUNCTION:
-            for (int i = 0; i < declaration->data.d_function.parameter_count; i++) {
-                type_free(&declaration->data.d_function.parameters[i].type);
-            }
-            free(declaration->data.d_function.parameters);
-            type_free(&declaration->data.d_function.return_type);
-            scope_free(&declaration->data.d_function.scope);
-            break;
-    }
-}
-
-void declaration_print(Declaration *declaration) {
-    printf("%s ", string_cache_get(declaration->id));
-    switch (declaration->type) {
-        case DECLARATION_ENUM:
-            printf("%s %c\n", string_keywords[TOKEN_KEYWORD_ENUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
-            for (int i = 0; i < declaration->data.d_enum.member_count; i++) {
-                printf("%s%s%c\n", STR_INDENTATION, string_cache_get(declaration->data.d_enum.members[i]), TOKEN_SEMICOLON);
-            }
-            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
-            break;
-        
-        case DECLARATION_STRUCT:
-            print(string_keywords[TOKEN_KEYWORD_STRUCT - TOKEN_KEYWORD_MIN]);
-            goto complex_type_print;
-        case DECLARATION_UNION:
-            print(string_keywords[TOKEN_KEYWORD_UNION - TOKEN_KEYWORD_MIN]);
-            complex_type_print:
-            printf(" %c\n", TOKEN_CURLY_BRACE_OPEN);
-            for (int i = 0; i < declaration->data.d_struct_union.member_count; i++) {
-                printf("%s%s%c ", STR_INDENTATION, string_cache_get(declaration->data.d_struct_union.members[i].id), TOKEN_COLON);
-                type_print(&declaration->data.d_struct_union.members[i].type);
-                printf("%c\n", TOKEN_SEMICOLON);
-            }
-            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);    
-            break;
-
-        case DECLARATION_SUM:
-            printf("%s %c\n", string_keywords[TOKEN_KEYWORD_SUM - TOKEN_KEYWORD_MIN], TOKEN_CURLY_BRACE_OPEN);
-            for (int i = 0; i < declaration->data.d_sum.member_count; i++) {
-                MemberSum member = declaration->data.d_sum.members[i];
-                printf("%s%s", STR_INDENTATION, string_cache_get(member.id));
-                if (member.type_exists) {
-                    printf("%c ", TOKEN_COLON);
-                    type_print(&member.type);
-                }
-                printf("%c\n", TOKEN_SEMICOLON);
-            }
-            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
-            break;
-
-        case DECLARATION_FUNCTION:
-            putchar(TOKEN_PAREN_OPEN);
-            if (declaration->data.d_function.parameter_count > 0) {
-                for (int i = 0; i < declaration->data.d_function.parameter_count - 1; i++) {
-                    printf("%s%c ", string_cache_get(declaration->data.d_function.parameters[i].id), TOKEN_COLON);
-                    type_print(&declaration->data.d_function.parameters[i].type);
-                    putchar(TOKEN_COMMA);
-                }
-                printf("%s%c ", string_cache_get(declaration->data.d_function.parameters[declaration->data.d_function.parameter_count - 1].id), TOKEN_COLON);
-                type_print(&declaration->data.d_function.parameters[declaration->data.d_function.parameter_count - 1].type);
-            }
-            printf("%c ", TOKEN_PAREN_CLOSE);
-            type_print(&declaration->data.d_function.return_type);
-            putchar(' ');
-            scope_print(&declaration->data.d_function.scope, 0);
             break;
     }
 }

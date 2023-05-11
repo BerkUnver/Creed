@@ -14,9 +14,12 @@ int main(int argc, char **argv) {
     if (argc >= 2) {
         Lexer lexer = lexer_new(argv[1]);
         while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
-            Declaration declaration = declaration_parse(&lexer);
-            declaration_print(&declaration);
-            declaration_free(&declaration);
+            Statement statement = statement_parse(&lexer);
+            if (lexer_token_get(&lexer).type != TOKEN_SEMICOLON) {
+                error_exit(statement.location, "Expected a semicolon after a top-level statement.");
+            }
+            statement_print(&statement, 0);
+            statement_free(&statement);
             putchar('\n');
         }
         lexer_free(&lexer);

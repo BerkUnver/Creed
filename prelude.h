@@ -3,7 +3,8 @@
 // This defines commonly used constructs throughout the compiler.
 
 #include "string_cache.h"
-#define STR_INDENTATION "   "
+
+void print_indent(int count);
 
 typedef struct Location {
     int line_start;
