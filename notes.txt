@@ -1,0 +1,92 @@
+/* --------------------------------------------------- */
+/*
+ * If forward declarations do not exist:
+ *
+ * Pass 1: Parse the source file and put its declarations into a table.
+ * 
+ * Pass 2: Loop through the complex types in the table and attach type information to their members.
+            Complex types have a flag with 3 states, TYPE_INFO_MISSING, TYPE_INFO_CALCULATING, TYPE_INFO_PRESENT.
+            When you are matching the members of a complex type, you set the flag from TYPE_INFO_MISSING to TYPE_INFO_CALCULATING.
+            If a member type is a primitive type, then give it that type.
+            If a member type is a complex type (identifier, array, pointers(?)) then look it up.
+            If the looked-up type flag is TYPE_INFO_MISSING, recurse and attach type info to it.
+            If the looked-up type flag is TYPE_INFO_CALCULATING:
+                If it is not behind a pointer or array, then it is a circular type reference and that is an error.
+                If the type is, then get its type id. This implies that when a type is resolving its members it has already been added to the list of types.
+            If the looked-up type flag is TYPE_INFO_PRESENT, then continue.
+
+ * Pass 3: Give functions and globals type information.
+ *
+ * Pass 4: Typecheck the bodies of functions.
+ *
+ *
+ *
+ * --------------------------------------------------
+ *
+ *  If forward declarations exist:
+ *
+ *  func : (int) void;
+ *
+ *  func :: (i: int) void { };
+ *
+ *  What forward declarations could look like
+ *
+ * 
+ *
+ *
+ *  Struct1 struct;
+ *
+ *  Struct2 struct {
+ *      i: int;
+ *      j: Struct1;
+ *  };
+ *
+ *  Struct1 struct {
+ *      i: int;
+ *      j: Struct2;
+ *  };
+ *
+ *  
+ *
+ *  You would have to recursively check the members of Struct1 to make sure they do not directly reference Struct1.
+ *  Potentially less efficient than doing the algorithm described in Pass 2, but much simpler.
+ *
+ *  Functions:
+ *  
+ *  If you try to reference the members of a struct that is declared but not defined, then that is a compile error, and that's ok.
+ *  Having forward declarations implies you can do typechecking and code output while you are parsing.
+ *  This adds complexity to the parser and couples the code.
+ */
+
+
+// What translation to C might look like
+
+// Creed code 
+
+main :: (args: [][]char) void {
+
+}
+
+
+// C output
+
+typedef unsigned long long uint64;
+
+
+struct Array_char;
+struct Array_Array_char;
+
+
+struct Array_char {
+    uint64 size;
+    char *data;
+}
+
+struct Array_Array_char {
+    uint64 size;
+    struct Array_char data;
+}
+
+void main(Array_Array_char args) {
+
+}
