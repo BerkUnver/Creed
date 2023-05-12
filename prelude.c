@@ -104,7 +104,7 @@ void print_literal_char(char c) {
     }
 }
 
-_Noreturn void error_exit(Location location, const char *error) {
+void error_exit(Location location, const char *error) {
     location_print(location);
     print(": ");
     puts(error);

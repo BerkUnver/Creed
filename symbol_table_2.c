@@ -10,11 +10,12 @@ SymbolTable symbol_table_new(StringId path) {
     // No imports for now.
     
     while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
-        Declaration decl = declaration_parse(&lexer);
-        int idx = decl.id.idx % SYMBOL_TABLE_NODE_COUNT;
+        Statement statement = statement_parse(&lexer);
+        int idx 
+        int idx = statement.id.idx % SYMBOL_TABLE_NODE_COUNT;
         for (int i = 0; i < table.nodes[idx].symbol_count; i++) {
-            if (table.nodes[idx].symbols[i].id.idx == decl.id.idx) {
-                error_exit(decl.location, "A declaration with this name already exists.");
+            if (table.nodes[idx].symbols[i].id.idx == statement.id.idx) {
+                error_exit(statement.location, "A declaration with this name already exists.");
             }
         }
 
@@ -31,4 +32,8 @@ SymbolTable symbol_table_new(StringId path) {
         table.nodes[idx].symbols[table.nodes[idx].symbol_count - 1] = decl;
     }
     lexer_free(&lexer);
+    
+
+    Statement *statement
+    SYMBOL_TABLE_FOR_EACH(
 }

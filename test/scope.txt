@@ -81,7 +81,7 @@
     else c;
     if a { }
     if a > 0 { } else { }
-    
+    if a > 0 { } else if a < 0 { } else { }  
     func1: () void;
     func2: (int) void;
     func3: (int, int) void;

@@ -4,7 +4,7 @@ SOURCE = prelude.c string_builder.c string_cache.c token.c lexer.c parser.c hand
 all: run
 
 build: ${SOURCE}
-	gcc ${SOURCE} -o ${APP_NAME} -Wall -Werror -std=c99 -lm -g
+	gcc ${SOURCE} -o ${APP_NAME} -Wall -Werror -pedantic -std=c99 -lm -g
 
 run:
 	make build

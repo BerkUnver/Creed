@@ -129,32 +129,22 @@ typedef struct MemberSum {
     Type type;
 } MemberSum;
 
-typedef struct Statement {
+typedef struct Declaration {
     Location location;
-    
+    StringId id;
     enum {
-        STATEMENT_DECLARE, 
-        
-        STATEMENT_ENUM,
-        STATEMENT_STRUCT,
-        STATEMENT_UNION,
-        STATEMENT_SUM,
-
-        STATEMENT_INCREMENT,
-        STATEMENT_DEINCREMENT,
-        STATEMENT_ASSIGN,
-        STATEMENT_EXPR,
-        STATEMENT_LABEL,
-        STATEMENT_LABEL_GOTO,
-        STATEMENT_RETURN
+       DECLARATION_VAR,
+       DECLARATION_ENUM,
+       DECLARATION_STRUCT,
+       DECLARATION_UNION,
+       DECLARATION_SUM
     } type;
 
     union {
         struct {
-            StringId id;
             enum {
-                STATEMENT_DECLARE_CONSTANT,
-                STATEMENT_DECLARE_MUTABLE,
+                DECLARATION_VAR_CONSTANT,
+                DECLARATION_VAR_MUTABLE,
             } type;
 
             union {
@@ -170,26 +160,46 @@ typedef struct Statement {
                     Expr value;
                 } mutable; // This is syntax-highlighted in vim because 'mutable' is a c++ keyword and it can't differenciate between c++ headers and c headers.
             } data;
-        } declare;
+        } var;
         
         struct {
-            StringId id;
             MemberStructUnion *members;
             int member_count;
         } struct_union;
         
         struct {
-            StringId id;
             MemberSum *members;
             int member_count;
         } sum;
 
         struct {
-            StringId id;
             StringId *members;
             int member_count;
         } enumeration;
 
+    } data;
+} Declaration;
+
+Declaration declaration_parse(Lexer *lexer);
+void declaration_free(Declaration *decl);
+void declaration_print(Declaration *decl, int indent);
+
+typedef struct Statement {
+    Location location;
+    
+    enum {
+        STATEMENT_DECLARATION, 
+        STATEMENT_INCREMENT,
+        STATEMENT_DEINCREMENT,
+        STATEMENT_ASSIGN,
+        STATEMENT_EXPR,
+        STATEMENT_LABEL,
+        STATEMENT_LABEL_GOTO,
+        STATEMENT_RETURN
+    } type;
+
+    union {
+        Declaration declaration;
         Expr increment;
         Expr deincrement;
         

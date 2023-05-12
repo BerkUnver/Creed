@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
             Scope scope = scope_parse(&lexer);
             lexer_free(&lexer);
             scope_print(&scope, 0);
+            putchar('\n');
             scope_free(&scope);
         }
 
