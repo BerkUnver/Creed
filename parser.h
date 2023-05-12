@@ -140,6 +140,7 @@ typedef struct Declaration {
        DECLARATION_SUM
     } type;
 
+    int type_info_idx; // Only initialized when the type is not DECLARATION_VAR
     union {
         struct {
             enum {
@@ -176,7 +177,6 @@ typedef struct Declaration {
             StringId *members;
             int member_count;
         } enumeration;
-
     } data;
 } Declaration;
 
