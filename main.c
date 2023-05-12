@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
             Lexer lexer = lexer_new("test/expr.txt");
             Expr expr = expr_parse(&lexer); 
             lexer_free(&lexer);
-            expr_print(&expr);
+            expr_print(&expr, 0);
             expr_free(&expr);
         }
 

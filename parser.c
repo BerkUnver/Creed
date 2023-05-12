@@ -176,21 +176,80 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
         int unary_type;
         case TOKEN_PAREN_OPEN: {
             Token token_open = lexer_token_get(lexer);
+           
+            // Le epic hack: You can differenciate function parameter lists from parenthesized expressions as follows.
+            // Check if the token after the open parenthesis is a close parenthesis (Empty parameter list)
+            // Check if the 2nd token afte the open parenthesis is a colon (One parameter at least)
 
-            Expr *parenthesized = malloc(sizeof(Expr));
-            *parenthesized = expr_parse(lexer);
-            
-            if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
-                Location location = location_expand(token_open.location, parenthesized->location);
-                error_exit(location, "Expected a closing parenthesis at the end of a parenthesized expression."); 
-            }        
-            Token token_close = lexer_token_get(lexer);
-            
-            expr = (Expr) {
-                .location = location_expand(token_open.location, token_close.location),
-                .type = EXPR_PAREN,
-                .data.parenthesized = parenthesized
-            };
+            if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) {
+                lexer_token_get(lexer);
+                
+                Type result = type_parse(lexer);
+                Scope *scope = malloc(sizeof(Scope));
+                *scope = scope_parse(lexer);
+
+                expr.type = EXPR_FUNCTION;
+                expr.location = location_expand(token_open.location, scope->location);
+                expr.data.function.params = NULL;
+                expr.data.function.param_count = 0;
+                expr.data.function.result = result;
+                expr.data.function.scope = scope;
+            } else if (lexer_token_peek_2(lexer).type == TOKEN_COLON) {
+                int param_count = 0;
+                int param_count_alloc = 2;
+                FunctionParameter *params = malloc(sizeof(FunctionParameter) * param_count_alloc);
+                while (true) {
+                    Token token_id = lexer_token_get(lexer);
+                    if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the name of a parameter of a function to be an identifier.");
+                    Token token_colon = lexer_token_get(lexer);
+                    if (token_colon.type != TOKEN_COLON) error_exit(token_id.location, "Expected a colon after the name of a function parameter.");
+                    Type type = type_parse(lexer);
+                    
+                    param_count++;
+                    if (param_count > param_count_alloc) {
+                        param_count_alloc *= 2;
+                        params = realloc(params, sizeof(FunctionParameter) * param_count_alloc);
+                    }
+                    
+                    params[param_count - 1] = (FunctionParameter) {
+                        .location = location_expand(token_id.location, type.location),
+                        .id = token_id.data.id,
+                        .type = type
+                    };
+
+                    Token token_end = lexer_token_get(lexer);
+                    if (token_end.type == TOKEN_COLON) lexer_token_get(lexer);
+                    else if (token_end.type == TOKEN_PAREN_CLOSE) break;
+                    else error_exit(params[param_count - 1].location, "Expected a comma or closing parenthesis after a function parameter.");
+                }
+
+                Type result = type_parse(lexer);
+                
+                Scope *scope = malloc(sizeof(Scope));
+                *scope = scope_parse(lexer);
+
+                expr.type = EXPR_FUNCTION;
+                expr.location = location_expand(token_open.location, scope->location);
+                expr.data.function.params = params;
+                expr.data.function.param_count = param_count;
+                expr.data.function.result = result;
+                expr.data.function.scope = scope;
+            } else { 
+                Expr *parenthesized = malloc(sizeof(Expr));
+                *parenthesized = expr_parse(lexer);
+                
+                if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {
+                    Location location = location_expand(token_open.location, parenthesized->location);
+                    error_exit(location, "Expected a closing parenthesis at the end of a parenthesized expression."); 
+                }        
+                Token token_close = lexer_token_get(lexer);
+                
+                expr = (Expr) {
+                    .location = location_expand(token_open.location, token_close.location),
+                    .type = EXPR_PAREN,
+                    .data.parenthesized = parenthesized
+                };
+            }
         } break;
 
         case TOKEN_ID: {
@@ -403,7 +462,17 @@ void expr_free(Expr *expr) {
             expr_free(expr->data.access_array.index);
             free(expr->data.access_array.index);
             break;
-        
+
+        case EXPR_FUNCTION:
+            for (int i = 0; i < expr->data.function.param_count; i++) {
+                type_free(&expr->data.function.params[i].type);
+            }
+            free(expr->data.function.params);
+            type_free(&expr->data.function.result);
+            scope_free(expr->data.function.scope);
+            free(expr->data.function.scope);
+            break;
+
         case EXPR_FUNCTION_CALL:
             for (int i = 0; i < expr->data.function_call.param_count; i++) {
                 expr_free(&expr->data.function_call.params[i]);
@@ -420,24 +489,24 @@ void expr_free(Expr *expr) {
     }
 }
 
-void expr_print(Expr *expr) { 
+void expr_print(Expr *expr, int indent) { 
     switch (expr->type) {
         case EXPR_PAREN:
             putchar(TOKEN_PAREN_OPEN);
-            expr_print(expr->data.parenthesized);
+            expr_print(expr->data.parenthesized, indent);
             putchar(TOKEN_PAREN_CLOSE);
             break;
 
         case EXPR_UNARY:
             putchar(expr->data.unary.type);
-            expr_print(expr->data.unary.operand);
+            expr_print(expr->data.unary.operand, indent);
             break;
         
         case EXPR_BINARY:
             putchar('('); // these are for debug purposes to make sure operator precedence is working properly. Remove?
-            expr_print(expr->data.binary.lhs);
+            expr_print(expr->data.binary.lhs, indent);
             printf(" %s ", string_operators[expr->data.binary.operator - TOKEN_OP_MIN]);
-            expr_print(expr->data.binary.rhs);
+            expr_print(expr->data.binary.rhs, indent);
             putchar(')');
             break;
         
@@ -455,7 +524,7 @@ void expr_print(Expr *expr) {
 
         case EXPR_TYPECAST:
             putchar('(');
-            expr_print(expr->data.typecast.operand);
+            expr_print(expr->data.typecast.operand, indent);
             printf(" %s ", string_keywords[TOKEN_KEYWORD_TYPECAST - TOKEN_KEYWORD_MIN]);
             type_print(&expr->data.typecast.cast_to);
             putchar(')');
@@ -463,29 +532,45 @@ void expr_print(Expr *expr) {
         
         case EXPR_ACCESS_MEMBER:
             putchar('(');
-            expr_print(expr->data.access_member.operand);
+            expr_print(expr->data.access_member.operand, indent);
             putchar(')');
             putchar(TOKEN_DOT);
             print(string_cache_get(expr->data.access_member.member));
             break;
 
         case EXPR_ACCESS_ARRAY:
-            expr_print(expr->data.access_array.operand);
+            expr_print(expr->data.access_array.operand, indent);
             putchar(TOKEN_BRACKET_OPEN);
-            expr_print(expr->data.access_array.index);
+            expr_print(expr->data.access_array.index, indent);
             putchar(TOKEN_BRACKET_CLOSE);
             break;
-        
+       
+        case EXPR_FUNCTION:
+            putchar(TOKEN_PAREN_OPEN);
+            if (expr->data.function.param_count > 0) { 
+                for (int i = 0; i < expr->data.function.param_count - 1; i++) {
+                    printf("%s%c ", string_cache_get(expr->data.function.params[i].id), TOKEN_COLON);
+                    type_print(&expr->data.function.params[i].type);
+                    putchar(TOKEN_COMMA);
+                }
+                printf("%s%c ", string_cache_get(expr->data.function.params[expr->data.function.param_count - 1].id), TOKEN_COLON);
+                type_print(&expr->data.function.params[expr->data.function.param_count - 1].type);
+                putchar(TOKEN_COMMA);
+            }
+            printf("%c ", TOKEN_PAREN_CLOSE);
+            scope_print(expr->data.function.scope, indent);
+            break;
+
         case EXPR_FUNCTION_CALL:
-            expr_print(expr->data.function_call.function);
+            expr_print(expr->data.function_call.function, indent);
             putchar(TOKEN_PAREN_OPEN);
             if (expr->data.function_call.param_count > 0) {
                 int last_param_idx = expr->data.function_call.param_count - 1;
                 for (int i = 0; i < last_param_idx; i++) {
-                    expr_print(&expr->data.function_call.params[i]);
+                    expr_print(&expr->data.function_call.params[i], indent);
                     printf("%c ", TOKEN_COMMA);
                 }
-                expr_print(&expr->data.function_call.params[last_param_idx]);
+                expr_print(&expr->data.function_call.params[last_param_idx], indent);
             }
             putchar(TOKEN_PAREN_CLOSE);
             break;
@@ -837,14 +922,14 @@ void statement_print(Statement *statement, int indent) {
                     } else {
                         printf(" %c%c ", TOKEN_COLON, TOKEN_COLON);
                     }
-                    expr_print(&statement->data.declare.data.constant.value);
+                    expr_print(&statement->data.declare.data.constant.value, indent);
                     break;
                 case STATEMENT_DECLARE_MUTABLE:
                     printf("%c ", TOKEN_COLON);
                     type_print(&statement->data.declare.data.mutable.type);
                     if (statement->data.declare.data.mutable.value_exists) {
                         printf(" %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
-                        expr_print(&statement->data.declare.data.mutable.value);
+                        expr_print(&statement->data.declare.data.mutable.value, indent);
                     }
                     break;
             }
@@ -889,19 +974,19 @@ void statement_print(Statement *statement, int indent) {
             break;
         case STATEMENT_INCREMENT:
             print("++"); // I don't like doing this, but idk how to do this better right now.
-            expr_print(&statement->data.increment);
+            expr_print(&statement->data.increment, indent);
             break;
         case STATEMENT_DEINCREMENT:
             print("--");
-            expr_print(&statement->data.deincrement);
+            expr_print(&statement->data.deincrement, indent);
             break;
         case STATEMENT_ASSIGN:
-            expr_print(&statement->data.assign.assignee);
+            expr_print(&statement->data.assign.assignee, indent);
             printf(" %s ", string_assigns[statement->data.assign.type - TOKEN_ASSIGN_MIN]);
-            expr_print(&statement->data.assign.value);
+            expr_print(&statement->data.assign.value, indent);
             break;
         case STATEMENT_EXPR:
-            expr_print(&statement->data.expr);
+            expr_print(&statement->data.expr, indent);
             break;
         case STATEMENT_LABEL:
             printf("%s %s", string_keywords[TOKEN_KEYWORD_LABEL - TOKEN_KEYWORD_MIN], string_cache_get(statement->data.label));
@@ -911,7 +996,7 @@ void statement_print(Statement *statement, int indent) {
             break;
         case STATEMENT_RETURN:
             printf("%s ", string_keywords[TOKEN_KEYWORD_RETURN - TOKEN_KEYWORD_MIN]);
-            expr_print(&statement->data.return_expr);
+            expr_print(&statement->data.return_expr, indent);
             break;
     }  
 }
@@ -1170,83 +1255,85 @@ void scope_free(Scope *scope) {
     }
 }
 
-void scope_print(Scope *scope, int indentation) {
+void scope_print(Scope *scope, int indent) {
     switch (scope->type) {
         case SCOPE_STATEMENT:
-            statement_print(&scope->data.statement, indentation);
+            statement_print(&scope->data.statement, indent);
             putchar(TOKEN_SEMICOLON);
-            putchar('\n');
             break;
             
         case SCOPE_CONDITIONAL:
             print(string_keywords[TOKEN_KEYWORD_IF - TOKEN_KEYWORD_MIN]);
             putchar(' ');
-            expr_print(&scope->data.conditional.condition);
+            expr_print(&scope->data.conditional.condition, indent);
             putchar(' ');
-            scope_print(scope->data.conditional.scope_if, indentation);
+            scope_print(scope->data.conditional.scope_if, indent);
             if (scope->data.conditional.scope_else) {
-                print_indent(indentation);
+                print_indent(indent);
                 print(string_keywords[TOKEN_KEYWORD_ELSE - TOKEN_KEYWORD_MIN]);
                 putchar(' ');
-                scope_print(scope->data.conditional.scope_else, indentation);
+                scope_print(scope->data.conditional.scope_else, indent);
             }
             break;
+
         case SCOPE_LOOP_FOR:
             print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
             putchar(' ');
-            statement_print(&scope->data.loop_for.init, indentation);
+            statement_print(&scope->data.loop_for.init, indent);
             printf("%c ", TOKEN_SEMICOLON);
-            expr_print(&scope->data.loop_for.expr);
+            expr_print(&scope->data.loop_for.expr, indent);
             printf("%c ", TOKEN_SEMICOLON);
-            statement_print(&scope->data.loop_for.step, indentation);
+            statement_print(&scope->data.loop_for.step, indent);
             putchar(' ');
-            scope_print(scope->data.loop_for.scope, indentation);
+            scope_print(scope->data.loop_for.scope, indent);
             break;
 
         case SCOPE_LOOP_FOR_EACH:
             print(string_keywords[TOKEN_KEYWORD_FOR - TOKEN_KEYWORD_MIN]);
             printf(" %s %s ", string_cache_get(scope->data.loop_for_each.element), string_keywords[TOKEN_KEYWORD_IN - TOKEN_KEYWORD_MIN]);
-            expr_print(&scope->data.loop_for_each.array);
+            expr_print(&scope->data.loop_for_each.array, indent);
             putchar(' ');
-            scope_print(scope->data.loop_for_each.scope, indentation);
+            scope_print(scope->data.loop_for_each.scope, indent);
             break;
             
         case SCOPE_LOOP_WHILE:
             print(string_keywords[TOKEN_KEYWORD_WHILE - TOKEN_KEYWORD_MIN]);
             putchar(' ');
-            expr_print(&scope->data.loop_while.expr);
+            expr_print(&scope->data.loop_while.expr, indent);
             putchar(' ');
-            scope_print(scope->data.loop_while.scope, indentation);
+            scope_print(scope->data.loop_while.scope, indent);
             break;
 
         case SCOPE_BLOCK:
             printf("%c\n", TOKEN_CURLY_BRACE_OPEN);
             for (int i = 0; i < scope->data.block.scope_count; i++) {
-                print_indent(indentation + 1);
-                scope_print(scope->data.block.scopes + i, indentation + 1);
+                print_indent(indent + 1);
+                scope_print(scope->data.block.scopes + i, indent + 1);
+                putchar('\n');
             }
-            print_indent(indentation);
-            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
+            print_indent(indent);
+            putchar(TOKEN_CURLY_BRACE_CLOSE);
             break;
 
         case SCOPE_MATCH:
             print(string_keywords[TOKEN_KEYWORD_MATCH - TOKEN_KEYWORD_MIN]);
             putchar(' ');
-            expr_print(&scope->data.match.expr);
+            expr_print(&scope->data.match.expr, indent);
             printf(" %c\n", TOKEN_CURLY_BRACE_OPEN);
             
             for (int i = 0; i < scope->data.match.case_count; ++i) {
-                print_indent(indentation); 
+                print_indent(indent); 
                 printf("%s ", string_operators[TOKEN_OP_BITWISE_OR - TOKEN_OP_MIN]);
                 print(string_cache_get(scope->data.match.cases[i].match_id));
                 printf(" ->\n");
                 for (int j = 0; j < scope->data.match.cases[i].scope_count; ++j) {
-                    print_indent(indentation + 1);
-                    scope_print(scope->data.match.cases[i].scopes + j, indentation + 1);
+                    print_indent(indent + 1);
+                    scope_print(scope->data.match.cases[i].scopes + j, indent + 1);
+                    putchar('\n');
                 }
             }
-            print_indent(indentation);
-            printf("%c\n", TOKEN_CURLY_BRACE_CLOSE);
+            print_indent(indent);
+            putchar(TOKEN_CURLY_BRACE_CLOSE);
             break;
     }
 }

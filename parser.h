@@ -33,6 +33,13 @@ Type type_parse(Lexer *lexer);
 void type_print(Type *type);
 void type_free(Type *type);
 
+struct Scope;
+typedef struct FunctionParameter {
+    Location location;
+    StringId id;
+    Type type;
+} FunctionParameter;
+
 typedef struct Expr {
     Location location;
     
@@ -43,6 +50,7 @@ typedef struct Expr {
         EXPR_TYPECAST,
         EXPR_ACCESS_MEMBER,
         EXPR_ACCESS_ARRAY,
+        EXPR_FUNCTION,
         EXPR_FUNCTION_CALL,
         EXPR_ID,
         EXPR_LITERAL,
@@ -69,6 +77,13 @@ typedef struct Expr {
             struct Expr *lhs; // lhs means left-hand side
             struct Expr *rhs; // rhs means right-hand side
         } binary;
+
+        struct {
+            FunctionParameter *params;
+            int param_count;
+            Type result;
+            struct Scope *scope; // has to be a ptr because Scope contains expressions.
+        } function;
 
         struct {
             struct Expr *function;
@@ -99,13 +114,7 @@ typedef struct Expr {
 
 Expr expr_parse(Lexer *lexer);
 void expr_free(Expr *expr);
-void expr_print(Expr *expr);
-
-typedef struct FunctionParameter {
-    Location location;
-    StringId id;
-    Type type;
-} FunctionParameter;
+void expr_print(Expr *expr, int indent);
 
 typedef struct MemberStructUnion {
     Location location;
@@ -159,7 +168,7 @@ typedef struct Statement {
                     Type type;
                     bool value_exists;
                     Expr value;
-                } mutable;
+                } mutable; // This is syntax-highlighted in vim because 'mutable' is a c++ keyword and it can't differenciate between c++ headers and c headers.
             } data;
         } declare;
         
@@ -197,8 +206,6 @@ typedef struct Statement {
         Expr return_expr;
     } data;
 } Statement;
-
-struct Scope;
 
 typedef struct MatchCase {
     Location location;

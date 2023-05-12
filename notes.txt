@@ -1,4 +1,11 @@
-
+/* New function syntax
+ * 
+ * main :: (args: char[][]) int { ... };
+ *
+ * The double semicolon means constant assignment, and we need the semicolon at the end because it is a statement.
+ * There are ways to hack around this, but I think just having it is more elegant.
+ *
+ */
 
 /* Ideas for Tom
  *

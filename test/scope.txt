@@ -2,6 +2,17 @@
     a: int;
     a: int = 1;
     a :: 1;
+
+    func :: () void {
+        i: int = 0;
+        z: float = 0;
+        for j: int = 0; j < 10; ++j {
+            println("Loop");
+        }
+    };
+   
+    array_map(array, (i: int) int return i * 2;); // Lambdas
+    array_map(array, (i: int) int { return i * 2; });
     
     Struct1 struct {
         a: int;
