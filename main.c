@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
             while (true) {
                 Token token = lexer_token_get(&lexer);
                 token_print(&token);
-                printf("\t\t\t[%i -> %i. type %i]\n", token.location.idx_start, token.location.idx_end, token.type);
+                printf("\t\t\t[%i type %i]\n", token.location.idx_line + 1, token.type);
                 if (token.type == TOKEN_NULL || (TOKEN_ERROR_MIN <= token.type && token.type <= TOKEN_ERROR_MAX)) break;
             }
         }

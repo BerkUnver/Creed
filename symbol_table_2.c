@@ -21,6 +21,74 @@ bool symbol_table_insert(SymbolTable table, Declaration decl) {
     return true;
 }
 
+Declaration *symbol_table_get(SymbolTable table, StringId id) {
+    int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
+    for (int i = 0; i < table.nodes[idx].declaration_count; i++) {
+        if (table.nodes[idx].declarations[i]->id.idx == id.idx) {
+            return table.nodes[idx].declarations[i];
+        }
+    }
+}
+
+static void symbol_table_declaration_init(SymbolTable table; Declaration *decl) {
+    switch (decl->state) {
+        case DECLARATION_STATE_UNINTIALIZED:
+            switch (decl->type) {
+                case DECLARATION_VAR: break;
+
+                case DECLARATION_ENUM: {
+                    error_exit(decl->location, "Enums are currently not supported.");
+                } break;
+
+                case DECLARATION_STRUCT:
+                case DECLARATION_UNION: {
+                    decl->state = DECLARATION_STATE_INITIALZING;
+
+                    for (int i = 0; i < member_count; i++) {
+                        StringId id = decl->data.struct_union.members[i].id;
+                        for (int j = 0; j < member_count; j++) {
+                            if (i == j) continue;
+                            if (decl->data.struct_union.members[j].idx == id.idx) {
+                                error_exit(decl->location, "This struct contains duplicate members.");
+                            }
+                        }
+
+                        switch (decl->data.struct_union.members[i].type.type) {
+                            case TYPE_PRIMITIVE: 
+                                break;
+                            case TYPE_ID: {
+                                Declaration *decl_member_type = symbol_table_get(table, id);
+                                if (!decl_member_type) {
+                                    error_exit(decl->data.struct_union.members[i].type.location, "This type does not exist in the current scope.");
+                                }
+                                if (decl_member_type->type == DECLARATION_VAR) {
+                                    error_exit(decl->data.struct_union.members[i].type.location, "This is the name of a variable, not a type.");
+                                }
+                                symbol_table_declaration_init(table, decl_member_type);
+                            } break;
+
+                            case TYPE_PTR:
+                            case TYPE_PTR_NULLABLE:
+                            case TYPE_ARRAY:
+                            case TYPE_FUNCTION:
+                                assert(false);
+                        }
+                    }
+                    decl->state = DECLARATIO_STATE_INITIALIZED;
+                } break;
+
+                case DECLARATION_SUM: {
+                    error_exit(decl->location, "Sum types are currently not supported.");
+                } break;
+            }
+        case DECLARATION_STATE_INITIALIZING: 
+            error_exit(decl->location, "This complex type contains a circular reference.");
+            break;
+        case DECLARATION_STATE_INITIALIZED:
+            break;
+    }
+}
+
 SymbolTable symbol_table_new(StringId path) {
     SymbolTable table;
     memset(&table, 0, sizeof(SymbolTable));
@@ -41,48 +109,8 @@ SymbolTable symbol_table_new(StringId path) {
     }
     lexer_free(&lexer);
     
-
-    int type_count = 0;
-    int type_count_alloc = 2;
-    TypeInfo *types = malloc(sizeof(TypeInfo) * type_count_alloc);
-    
     Declaration *decl;
     SYMBOL_TABLE_FOR_EACH(decl, table) {
-        if (decl->type == DECLARATION_VAR) continue;
-        type_count++;
-        if (type_count > type_count_alloc) {
-            type_count_alloc *= 2;
-            types = realloc(types, sizeof(TypeInfo) * type_count_alloc);
-        }
-        types[type_count - 1] = (TypeInfo) {
-            .state = TYPE_INFO_STATE_UNINITIALIZED;
-        }
-        decl->type_info_idx = type_count - 1;
-    }
-
-    SYMBOL_TABLE_FOR_EACH(decl, table) {
-        switch (decl->type) {
-            case DECLARATION_VAR:
-                break;
-
-            case DECLARATION_ENUM: {
-                int member_count = decl->data.enumeration.member_count;
-                StringId *members = malloc(sizeof(StringId) * member_count);
-                for (int i = 0; i < member_count; i++) {
-                    StringId member = decl->data.enumeration.members[i];
-                    for (int j = 0; j < member_count; j++) {
-                        if (i == j) continue;
-                        if (decl->data.enumeration.members[j].idx == member.idx) {
-                            error_exit(decl->location, "This enum contains duplicate members.");
-                        }
-                    }
-                    members[i] = member;
-                }
-                
-                types[decl->type_info_idx].data->enumeration.member_count = member_count;
-                types[decl->type_info_idx].data->enumeration.members = members;
-                
-            } break;
-        }
+        symbol_table_declaration_init(table, decl);
     }
 }

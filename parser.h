@@ -5,6 +5,8 @@
 #include "lexer.h"
 #include "token.h"
 
+struct Declaration;
+
 typedef struct Type {
     Location location;
 
@@ -19,8 +21,18 @@ typedef struct Type {
 
     union {
         TokenType primitive;
+        
         struct Type *sub_type;
+       
         StringId id;
+        
+        /*
+        struct {
+            StringId type_declaration_id;
+            struct Declaration *type_declaration;
+        } id;
+        */
+
         struct {
             struct Type *params;
             int param_count;
@@ -34,6 +46,7 @@ void type_print(Type *type);
 void type_free(Type *type);
 
 struct Scope;
+
 typedef struct FunctionParameter {
     Location location;
     StringId id;
@@ -140,7 +153,12 @@ typedef struct Declaration {
        DECLARATION_SUM
     } type;
 
-    int type_info_idx; // Only initialized when the type is not DECLARATION_VAR
+    enum {
+        DECLARATION_STATE_UNINITIALIZED,
+        DECLARATION_STATE_INITIALIZING,
+        DECLARATION_STATE_INITIALIZED
+    } state;
+
     union {
         struct {
             enum {
