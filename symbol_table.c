@@ -82,8 +82,27 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
                                 Type *sub_type = decl->data.struct_union.members[i].type.sub_type;
                                 while (sub_type->type == TYPE_PTR || sub_type->type == TYPE_PTR_NULLABLE 
                             }*/
-                            case TYPE_FUNCTION:
-                                assert(false);
+                            assert(false);
+                            case TYPE_FUNCTION: {
+                                Declaration *decl_member = decl->data.struct_union.members[i].type;
+                                int param_count = decl_member.data.function.param_count;
+                                for (int j = 0; j < param_count; j++) {
+                                    Declaration *param_type = symbol_table_get(table, decl_member.data.function.params[j]);
+                                    if (!param_type) {
+                                        error_exit(decl_member.location, "This parameter type does not exist in the current scope.");
+                                    }
+                                    if (param_type->type == DECLARATION_VAR) {
+                                        error_exit(decl_member.location, "This is the name of a variable, not a type.");
+                                    }
+                                }
+                                Declaration *return_type = symbol_table_get(table, decl_member.data.function.result);
+                                if (!return_type) {
+                                    error_exit(decl_member.location, "This return type does not exist in the current scope.");
+                                }
+                                if (return_type->type == DECLARATION_VAR) {
+                                    error_exit(decl_member.location, "This is the name of a variable, not a type.");
+                                }
+                            } break;
                         }
                     }
                     decl->state = DECLARATION_STATE_INITIALIZED;
