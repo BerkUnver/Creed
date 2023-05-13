@@ -1357,3 +1357,46 @@ void scope_print(Scope *scope, int indent) {
             break;
     }
 }
+
+SourceFile source_file_parse(StringId path) {
+    Lexer lexer = lexer_new(path);
+   
+    // Ignoring imports for now
+
+    int decl_count = 0;
+    int decl_count_alloc = 4;
+    Declaration *decls = malloc(sizeof(Declaration) * decl_count_alloc);
+
+    while (lexer_token_peek(&lexer).type != TOKEN_NULL) {
+        Declaration decl = declaration_parse(&lexer);
+        if (lexer_token_get(&lexer).type != TOKEN_SEMICOLON) {
+            error_exit(decl.location, "Expected a semicolon after a declaration.");
+        }
+        
+        decl_count++;
+        if (decl_count > decl_count_alloc) {
+            decl_count_alloc = (int) ((float) decl_count_alloc * 1.5f);
+            decls = realloc(decls, sizeof(Declaration) * decl_count_alloc);
+        }
+        decls[decl_count - 1] = decl;
+    }
+
+    return (SourceFile) {
+        .declarations = decls,
+        .declaration_count = decl_count
+    };
+}
+
+void source_file_free(SourceFile *file) {
+    for (int i = 0; i < file->declaration_count; i++) {
+        declaration_free(file->declarations + i);
+    }
+    free(file->declarations);
+}
+
+void source_file_print(SourceFile *file) {
+    for (int i = 0; i < file->declaration_count; i++) {
+        declaration_print(file->declarations + i, 0);
+        printf("%c\n\n", TOKEN_SEMICOLON);
+    }
+}

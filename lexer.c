@@ -9,12 +9,14 @@
 #include "string_builder.h"
 #include "token.h"
 
-Lexer lexer_new(const char *path) {
+
+Lexer lexer_new(StringId path) {
     
     struct stat st;
-    FILE *file = fopen(path, "r");
-    if (stat(path, &st) < 0 || !file) {
-        printf("Failed to read file %s.", path);
+    const char *path_string = string_cache_get(path);
+    FILE *file = fopen(path_string, "r");
+    if (stat(path_string, &st) < 0 || !file) {
+        printf("Failed to read file %s.", path_string);
         exit(EXIT_FAILURE);
     }
 
@@ -23,14 +25,10 @@ Lexer lexer_new(const char *path) {
     fclose(file);
     str[size / sizeof(char)] = '\0';
 
-    char *path_copy = malloc(sizeof(char) * (strlen(path) + 1));
-    strcpy(path_copy, path);
-
-    StringId file_name = string_cache_insert(path_copy);
     StringId file_content = string_cache_insert(str); 
 
     return (Lexer) {
-        .file_name = file_name,
+        .file_name = path,
         .file_content = file_content,
         .file_content_ptr = string_cache_get(file_content),
         .idx_line = 0,

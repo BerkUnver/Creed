@@ -299,4 +299,13 @@ typedef struct Scope {
 Scope scope_parse(Lexer *lexer);
 void scope_free(Scope *scope);
 void scope_print(Scope *scope, int indentation);
+
+typedef struct SourceFile {
+    Declaration *declarations;
+    int declaration_count;
+} SourceFile;
+
+SourceFile source_file_parse(StringId path);
+void source_file_free(SourceFile *file);
+void source_file_print(SourceFile *file);
 #endif

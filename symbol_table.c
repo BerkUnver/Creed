@@ -5,10 +5,24 @@
 #include "lexer.h"
 #include "symbol_table.h"
 
-bool symbol_table_insert(SymbolTable *table, Declaration decl) {
-    int idx = decl.id.idx % SYMBOL_TABLE_NODE_COUNT;
+void expr_type_free(ExprType *type) {
+    switch (type->type) {
+        case EXPR_TYPE_PRIMITIVE:
+        case EXPR_TYPE_DECLARATION:
+            break;
+        case EXPR_TYPE_PTR:
+        case EXPR_TYPE_PTR_NULLABLE:
+        case EXPR_TYPE_ARRAY:
+            expr_type_free(type->data.sub_type);
+            free(type->data.sub_type);
+            break;
+    }
+}
+
+bool symbol_table_insert(SymbolTable *table, Declaration *decl) {
+    int idx = decl->id.idx % SYMBOL_TABLE_NODE_COUNT;
     for (int i = 0; i < table->nodes[idx].declaration_count; i++) {
-        if (table->nodes[idx].declarations[i]->id.idx == decl.id.idx) return false;
+        if (table->nodes[idx].declarations[i]->id.idx == decl->id.idx) return false;
     }
 
     table->nodes[idx].declaration_count++;
@@ -22,19 +36,19 @@ bool symbol_table_insert(SymbolTable *table, Declaration decl) {
         table->nodes[idx].declarations = realloc(table->nodes[idx].declarations, sizeof(Declaration *) * table->nodes[idx].declaration_count_alloc);
     }
 
-    Declaration *decl_ptr = malloc(sizeof(Declaration));
-    *decl_ptr = decl;
-    table->nodes[idx].declarations[table->nodes[idx].declaration_count - 1] = decl_ptr;
+    table->nodes[idx].declarations[table->nodes[idx].declaration_count - 1] = decl;
     return true;
 }
 
-Declaration *symbol_table_get(SymbolTable table, StringId id) {
+Declaration *symbol_table_get(SymbolTable *table, StringId id) {
     int idx = id.idx % SYMBOL_TABLE_NODE_COUNT;
-    for (int i = 0; i < table.nodes[idx].declaration_count; i++) {
-        if (table.nodes[idx].declarations[i]->id.idx == id.idx) {
-            return table.nodes[idx].declarations[i];
+    for (int i = 0; i < table->nodes[idx].declaration_count; i++) {
+        if (table->nodes[idx].declarations[i]->id.idx == id.idx) {
+            return table->nodes[idx].declarations[i];
         }
     }
+
+    if (table->previous) return symbol_table_get(table->previous, id);
     return NULL;
 }
 
@@ -65,7 +79,7 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
                             case TYPE_PRIMITIVE: 
                                 break;
                             case TYPE_ID: {
-                                Declaration *decl_member_type = symbol_table_get(table, decl->data.struct_union.members[i].type.data.id.type_declaration_id);
+                                Declaration *decl_member_type = symbol_table_get(&table, decl->data.struct_union.members[i].type.data.id.type_declaration_id);
                                 if (!decl_member_type) {
                                     error_exit(decl->data.struct_union.members[i].type.location, "This type does not exist in the current scope.");
                                 }
@@ -78,13 +92,9 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
 
                             case TYPE_PTR:
                             case TYPE_PTR_NULLABLE:
-                            case TYPE_ARRAY: /*{
-                                Type *sub_type = decl->data.struct_union.members[i].type.sub_type;
-                                while (sub_type->type == TYPE_PTR || sub_type->type == TYPE_PTR_NULLABLE 
-                            }*/
-                            assert(false);
-                            case TYPE_FUNCTION: {
- break;
+                            case TYPE_ARRAY:
+                            case TYPE_FUNCTION:
+                                assert(false);
                         }
                     }
                     decl->state = DECLARATION_STATE_INITIALIZED;
@@ -104,23 +114,75 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
     }
 }
 
-SymbolTable symbol_table_new(StringId path) {
+/*
+ExprType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
+    switch (expr->type) {
+        case EXPR_PAREN:
+            return symbol_table_check_expr(table, expr->data.parenthesized);
+        case EXPR_UNARY: {
+            ExprType expr_type = symbol_table_check_expr(table, expr->data.unary.operand);
+            if (expr_type.type != EXPR_TYPE_PRIMITIVE) {
+                error_exit(expr->location, "The operand of a unary expression must have a primitive type.");
+            }
+            TokenType type = expr_type.data.primitive;
+            switch (expr->data.unary.type) {
+                case EXPR_UNARY_LOGICAL_NOT:
+                    if (type != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
+                    return expr_type;
+                default: assert(false);
+            }
+        } break;
+
+        case EXPR_BINARY: {
+            ExprType expr_type_lhs = symbol_table_check_expr(table, expr->data.binary.lhs);
+            ExprType expr_type_rhs = symbol_table_check_expr(table, expr->data.binary.rhs);
+            if (expr_type_lhs.type != EXPR_TYPE_PRIMITIVE || expr_type_rhs.type != EXPR_TYPE_PRIMITIVE) {
+                error_exit(expr->location, "The operands of a binary expression must both be of a primitive type.");
+            }
+            // unfinished
+        } break;
+
+        default: assert(false);
+    }
+}
+
+void symbol_table_check_scope(SymbolTable *table, Scope *scope) { 
+    switch (scope->type) {
+        case SCOPE_BLOCK: {
+            SymbolTable table_scope;
+            memset(&table_scope, 0, sizeof(SymbolTable));
+            table_scope.previous = table;
+            for (int i = 0; i < scope->data.block.scope_count; i++) {
+                symbol_table_check_scope(&table_scope, scope->data.block.scopes + i);
+            }
+        } break;
+
+        case SCOPE_STATEMENT: {
+            switch (scope->data.statement.type) {
+                case STATEMENT_DECLARATION: assert(false);
+                case STATEMENT_INCREMENT: {
+                    Declaration *decl = symbol_table_get(table, scope->data.statement.data.increment);
+                } break; 
+                case STATEMENT_DEINCREMENT:
+            }
+        } break;
+    }
+}
+*/
+
+void symbol_table_free(SymbolTable *table) {
+    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
+        free(table->nodes[i].declarations);
+    }
+}
+
+void typecheck(SourceFile *file) {
     SymbolTable table;
     memset(&table, 0, sizeof(SymbolTable));
-    
-    Lexer lexer = lexer_new(string_cache_get(path));
-
-    // No imports for now.
-    
-    while (lexer_token_peek(&lexer).type != TOKEN_NULL) {
-        Declaration decl = declaration_parse(&lexer);
-        if (lexer_token_get(&lexer).type != TOKEN_SEMICOLON) {
-            error_exit(decl.location, "Expected a semicolon after a declaration.");
-        }
-        
-        if (!symbol_table_insert(&table, decl)) {
-            error_exit(decl.location, "This declaration has a duplicate name.");
-        }
+   
+    for (int i = 0; i < file->declaration_count; i++) {
+        if (symbol_table_insert(&table, file->declarations + i)) continue;
+        error_exit(file->declarations[i].location, "This declaration has a duplicate name.");
     }
     
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
@@ -129,15 +191,5 @@ SymbolTable symbol_table_new(StringId path) {
         symbol_table_declaration_init(table, decl);
     }
 
-    return table;
-}
-
-void symbol_table_free(SymbolTable *table) {
-    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
-        for (int j = 0; j < table->nodes[i].declaration_count; j++) {
-            declaration_free(table->nodes[i].declarations[j]);
-            free(table->nodes[i].declarations[j]);
-        }
-        free(table->nodes[i].declarations);
-    }
+    symbol_table_free(&table);
 }

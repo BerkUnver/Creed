@@ -83,41 +83,11 @@ StringId string_cache_insert(char *string) {
 
 }
 
-/*
-StringId string_cache_insert_clone(const char *string) {
-
-    unsigned long hash = string_hash_djb2(string);
-    int idx = (int) (hash % (unsigned long) STRING_TABLE_LENGTH);
-    
-    for (int i = 0; i < string_table[idx].node_count; i++) {
-        if (string_table[idx].nodes[i].hash == hash && !strcmp(string_table[idx].nodes[i].string, string)) {
-            return string_table[idx].nodes[i].id;
-        }
-    }
-
-    // insert the string into the StringId -> char* array;
-    StringId id = { .idx = strings_length};
-    strings_length++;
-    if (strings_length > strings_length_alloc) {
-        strings_length_alloc = (int) (strings_length_alloc * STRINGS_REALLOC_MULTIPLIER);
-        strings = realloc(strings, strings_length_alloc * sizeof(char *));
-    }
-
-    char *string_copy = strcpy(malloc(sizeof(char) * (strlen(string) + 1)), string);  
-    strings[id.idx] = string_copy;
-    
-    // insert the string into the hashtable
-    string_table[idx].node_count++;
-    string_table[idx].nodes = realloc(string_table[idx].nodes, sizeof(StringNode) * string_table[idx].node_count);
-    string_table[idx].nodes[string_table[idx].node_count - 1] = (StringNode) {
-        .string = string_copy,
-        .hash = hash,
-        .id = id
-    };
-
-    return id;
+StringId string_cache_insert_static(const char *string) {
+    char *string_copy = malloc(sizeof(char) * (strlen(string) + 1));
+    strcpy(string_copy, string);
+    return string_cache_insert(string_copy);
 }
-*/
 
 char *string_cache_get(StringId id) {
     return strings[id.idx];

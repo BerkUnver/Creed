@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
     string_cache_init();
     
     if (argc >= 2) {
-        Lexer lexer = lexer_new(argv[1]);
+        Lexer lexer = lexer_new(string_cache_insert_static(argv[1]));
         while (lexer_token_peek(&lexer).type != TOKEN_NULL) {
             Statement statement = statement_parse(&lexer);
             if (lexer_token_get(&lexer).type != TOKEN_SEMICOLON) {
@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
     } else {
 
         { // test lexer getting tokens
-            Lexer lexer = lexer_new("test/lexer.txt");
+            Lexer lexer = lexer_new(string_cache_insert_static("test/lexer.txt"));
             while (true) {
                 Token token = lexer_token_get(&lexer);
                 token_print(&token);
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         putchar('\n');
        
         { // test parsing expressions.
-            Lexer lexer = lexer_new("test/expr.txt");
+            Lexer lexer = lexer_new(string_cache_insert_static("test/expr.txt"));
             Expr expr = expr_parse(&lexer); 
             expr_print(&expr, 0);
             expr_free(&expr);
@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
         putchar('\n');
 
         { // test parsing scopes
-            Lexer lexer = lexer_new("test/scope.txt");
+            Lexer lexer = lexer_new(string_cache_insert_static("test/scope.txt"));
             Scope scope = scope_parse(&lexer);
             scope_print(&scope, 0);
             putchar('\n');
@@ -56,16 +56,12 @@ int main(int argc, char **argv) {
 
         putchar('\n');
         
-        { // test parsing declarations
-            char str[] = "test/declaration.creed";
-            char *str_copy = malloc(sizeof(str));
-            strcpy(str_copy, str);
-            StringId path = string_cache_insert(str_copy);
-           
-            SymbolTable table = symbol_table_new(path);
-            symbol_table_free(&table);
+        { // test parsing a file
+            SourceFile file = source_file_parse(string_cache_insert_static("test/declaration.creed"));
+            source_file_print(&file);
+            typecheck(&file);
+            source_file_free(&file);
         }
-        
     }
 
     string_cache_free();
