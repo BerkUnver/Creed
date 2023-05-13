@@ -71,15 +71,114 @@ const char * get_type(Type creadz_type) {
     return c_prim_type;
 }
 
-// TO DO: Add literal printing
-void handle_literals(Literal literal) {
+void handle_literals(Literal * literal) {
+    switch (literal->type) {
+        case LITERAL_STRING:
+            putchar('"');
+            int idx = 0;
+            char * string = string_cache_get(literal->data.l_string);
+            while (string[idx] != '\0') {
+                print_literal_char(string[idx]);
+                idx++;
+            }
+            putchar('"');
+            break;
+        case LITERAL_INT8:
+            printf("%d", literal->data.l_int8);  
+            break;     
+        case LITERAL_INT16:
+            printf("%hi", literal->data.l_int16);     
+            break;  
+        case LITERAL_INT:
+            printf("%d", literal->data.l_int);     
+            break;  
+        case LITERAL_INT64:
+            printf("%lldll", literal->data.l_int64);       
+            break; 
+        case LITERAL_UINT8:
+            printf("%uu", literal->data.l_uint8);
+            break;
+        case LITERAL_UINT16:
+            printf("%huu", literal->data.l_uint16);
+            break;
+        case LITERAL_UINT:
+            printf("%uu", literal->data.l_uint);
+            break;
+        case LITERAL_UINT64:
+            printf("%lluull", literal->data.l_uint64);
+            break;
+        case LITERAL_FLOAT:
+            printf("%ff", literal->data.l_float);
+            break;
+        case LITERAL_FLOAT64:
+            printf("%lf", literal->data.l_float64);
+            break;
+        case LITERAL_CHAR:
+            printf("%c", literal->data.l_char);
+            break;
+    }
+}
+
+// TO DO: Add statement handling
+void handle_statement(Statement * statement) {
 
 }
 
 // TO DO: Add scope handling
 void handle_scope(Scope * scope) {
+    switch(scope->type) {
+        case SCOPE_STATEMENT:
+            handle_statement(&scope->data.statement);
+            handle_statement_end();
+            break;
 
-}
+        case SCOPE_CONDITIONAL:
+            printf("if (");
+            handle_expr(&scope->data.conditional.condition);
+            printf(") ");
+            handle_scope(scope->data.conditional.scope_if);
+            if (scope->data.conditional.scope_else) {
+                printf("\nelse ");
+                handle_scope(scope->data.conditional.scope_else);
+            }
+            break;
+            
+        case SCOPE_LOOP_FOR:
+            printf("for (");
+            handle_statement(&scope->data.loop_for.init);
+            printf("%c ", TOKEN_SEMICOLON);
+            handle_expr(&scope->data.loop_for.expr);
+            printf("%c ", TOKEN_SEMICOLON);
+            handle_statement(&scope->data.loop_for.step);
+            printf(") ");
+            handle_scope(scope->data.loop_for.scope);
+            break;
+            
+        // TO DO: Get size of array for iteration
+        case SCOPE_LOOP_FOR_EACH:
+            // printf("for (int i = 0; i < ");
+            break;
+            
+        case SCOPE_LOOP_WHILE:
+            printf("while (");
+            handle_expr(&scope->data.loop_while.expr);
+            printf(")");
+            handle_scope(scope->data.loop_while.scope);
+            break;
+
+        case SCOPE_BLOCK:
+            printf(" {\n");
+            for (int i = 0; i < scope->data.block.scope_count; i++) {
+                handle_scope(&scope->data.block.scopes[i]);
+                putchar('\n');
+            }
+            putchar(TOKEN_CURLY_BRACE_CLOSE);
+
+        // TO DO: Handle match statements?
+        case SCOPE_MATCH:
+            break;
+    }
+}   
 
 void handle_expr(Expr * expr) {
     switch(expr->type) {
@@ -157,7 +256,7 @@ void handle_expr(Expr * expr) {
             break;
 
         case EXPR_LITERAL:
-            handle_literals(expr->data.literal);
+            handle_literals(&expr->data.literal);
             break;
 
         case EXPR_LITERAL_BOOL:
@@ -175,3 +274,23 @@ void handle_expr(Expr * expr) {
 void handle_statement_end() {
     printf(";\n");
 }
+
+void handle_declaration(Declaration * declaration) {
+
+}
+
+void handle_driver(SourceFile * file) {
+    // First pass
+    for (int i = 0; i < file->declaration_count; i++) {
+        if (file->declarations[i].type != DECLARATION_VAR) {
+            handle_declaration(&file->declarations[i]);
+        }
+    }
+
+    // Second Pass
+    for (int j = 0; j < file->declaration_count; j++) {
+        if (file->declarations[j].type == DECLARATION_VAR) {
+            handle_declaration(&file->declarations[j]);
+        }
+    }
+}   
