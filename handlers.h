@@ -2,8 +2,7 @@
 
 #include "parser.h"
 
-/*
-void handle_arithmetic_expr(Expr * expr);
-void handle_semicolon();
-void handle_function_declaration(Declaration * func);
-*/
+void handle_expr(Expr * expr);
+void handle_arithmetic_expr(Expr * lhs, Expr * rhs, TokenType op);
+void handle_statement_end();
+
