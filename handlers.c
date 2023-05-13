@@ -4,7 +4,7 @@
 #include "handlers.h"
 #include "parser.h"
 #include "string_cache.h"
-#include "symbol_table_2.h"
+#include "symbol_table.h"
 
 SymbolTable * symbol_table;
 

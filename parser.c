@@ -579,64 +579,49 @@ void expr_print(Expr *expr, int indent) {
 Declaration declaration_parse(Lexer *lexer) {
     Token token_id = lexer_token_get(lexer);
     if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the name of a declaration to be an identifier.");
+    
+    Declaration decl;
+    decl.id = token_id.data.id;
+    decl.state = DECLARATION_STATE_UNINITIALIZED;
 
     switch (lexer_token_peek(lexer).type) {
         case TOKEN_COLON: {
-            if (token_id.type != TOKEN_ID) {
-                error_exit(token_id.location, "Expected the name of a variable to be an id.");
-            }
             lexer_token_get(lexer);
-           
+            decl.type = DECLARATION_VAR;
+            
             if (lexer_token_peek(lexer).type == TOKEN_COLON) {
                 lexer_token_get(lexer);
                 Expr value = expr_parse(lexer);
-                return (Declaration) {
-                    .id = token_id.data.id,
-                    .location = location_expand(token_id.location, value.location),
-                    .type = DECLARATION_VAR,
-                    .data.var.type = DECLARATION_VAR_CONSTANT,
-                    .data.var.data.constant.value = value,
-                    .data.var.data.constant.type_exists = false
-                };
+                decl.location = location_expand(token_id.location, value.location);
+                decl.data.var.type = DECLARATION_VAR_CONSTANT;
+                decl.data.var.data.constant.value = value;
+                decl.data.var.data.constant.type_exists = false;
             } else {
                 Type type = type_parse(lexer);
                 if (lexer_token_peek(lexer).type == TOKEN_COLON) {
                     lexer_token_get(lexer);
                     Expr value = expr_parse(lexer);
-                    return (Declaration) {
-                        .id = token_id.data.id,
-                        .location = location_expand(token_id.location, value.location),
-                        .type = DECLARATION_VAR,
-                        .data.var.type = DECLARATION_VAR_CONSTANT,
-                        .data.var.data.constant.value = value,
-                        .data.var.data.constant.type_exists = true,
-                        .data.var.data.constant.type = type,
-                    };
+                    decl.location = location_expand(token_id.location, value.location);
+                    decl.data.var.type = DECLARATION_VAR_CONSTANT;
+                    decl.data.var.data.constant.value = value;
+                    decl.data.var.data.constant.type_exists = true;
+                    decl.data.var.data.constant.type = type;
                 } else if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
                     lexer_token_get(lexer);
                     Expr value = expr_parse(lexer);
-                    return (Declaration) {
-                        .id = token_id.data.id,
-                        .location = location_expand(token_id.location, value.location),
-                        .type = DECLARATION_VAR,
-                        .data.var.type = DECLARATION_VAR_MUTABLE,
-                        .data.var.data.mutable.type = type,
-                        .data.var.data.mutable.value_exists = true,
-                        .data.var.data.mutable.value = value,
-                    };
+                    decl.location = location_expand(token_id.location, value.location);
+                    decl.data.var.type = DECLARATION_VAR_MUTABLE;
+                    decl.data.var.data.mutable.type = type;
+                    decl.data.var.data.mutable.value_exists = true;
+                    decl.data.var.data.mutable.value = value;
                 } else {
-                    return (Declaration) {
-                        .id = token_id.data.id,
-                        .location = location_expand(token_id.location, type.location),
-                        .type = DECLARATION_VAR,
-                        .data.var.type = DECLARATION_VAR_MUTABLE,
-                        .data.var.data.mutable.value_exists = false,
-                        .data.var.data.mutable.type = type,
-
-                    };
+                    decl.location = location_expand(token_id.location, type.location);
+                    decl.data.var.type = DECLARATION_VAR_MUTABLE;
+                    decl.data.var.data.mutable.value_exists = false;
+                    decl.data.var.data.mutable.type = type;
                 }
             }
-        }
+        } break;
 
         case TOKEN_KEYWORD_ENUM: {
             lexer_token_get(lexer);
@@ -668,13 +653,10 @@ Declaration declaration_parse(Lexer *lexer) {
             }
 
             Token enum_token_end = lexer_token_get(lexer);
-            return (Declaration) {
-                .id = token_id.data.id,
-                .location = location_expand(token_id.location, enum_token_end.location),
-                .type = DECLARATION_ENUM,
-                .data.enumeration.member_count = member_count,
-                .data.enumeration.members = members,
-            };
+            decl.location = location_expand(token_id.location, enum_token_end.location);
+            decl.type = DECLARATION_ENUM;
+            decl.data.enumeration.member_count = member_count;
+            decl.data.enumeration.members = members;
         } break;
 
         case TOKEN_KEYWORD_STRUCT:
@@ -713,13 +695,10 @@ Declaration declaration_parse(Lexer *lexer) {
                 };
             }
             Token token_end = lexer_token_get(lexer);
-            return (Declaration) {
-                .id = token_id.data.id,
-                .location = location_expand(token_id.location, token_end.location),
-                .type = type,
-                .data.struct_union.member_count = member_count,
-                .data.struct_union.members = members
-            };
+            decl.location = location_expand(token_id.location, token_end.location);
+            decl.type = type;
+            decl.data.struct_union.member_count = member_count;
+            decl.data.struct_union.members = members;
         } break;
         
         case TOKEN_KEYWORD_SUM: {
@@ -756,20 +735,17 @@ Declaration declaration_parse(Lexer *lexer) {
             }
             Token token_end = lexer_token_get(lexer);
 
-            return (Declaration) {
-                .id = token_id.data.id,
-                .location = location_expand(token_id.location, token_end.location),
-                .type = DECLARATION_SUM,
-                .data.sum.member_count = member_count,
-                .data.sum.members = members
-            };
+            decl.location = location_expand(token_id.location, token_end.location);
+            decl.type = DECLARATION_SUM;
+            decl.data.sum.member_count = member_count;
+            decl.data.sum.members = members;
         } break;
 
         default: {
-            error_exit(lexer_token_peek(lexer).location, "Expected a type keyword or a colon after the name of a declaration.");
             return (Declaration) {0}; 
         } break;
     }
+    return decl;
 }
 
 void declaration_free(Declaration *decl) {
@@ -1157,7 +1133,7 @@ Scope scope_parse(Lexer *lexer) {
             };
         }
 
-        // not including the _ (defualt case) for now.
+        // not including the _ (default case) for now.
         case TOKEN_KEYWORD_MATCH: {
             Token token_match = lexer_token_get(lexer);
             Expr expr = expr_parse(lexer);
@@ -1207,9 +1183,13 @@ Scope scope_parse(Lexer *lexer) {
                     case_count_allocated *= 2; // double the size for matches
                     cases = realloc(cases, sizeof(MatchCase) * case_count_allocated);
                 }
+              
+                Location location = scope_count == 0 
+                    ? location_expand(token_pipe.location, token_lambda.location)
+                    : location_expand(token_pipe.location, scopes[scope_count - 1].location);
                 
                 cases[case_count - 1] = (MatchCase) {
-                    .location = location_expand(token_id.location, scopes[scope_count - 1].location),
+                    .location = location,
                     .match_id = token_id.data.id,
                     .declares = false, // TODO: add parsing for a declared var in match
                     .scope_count = scope_count,

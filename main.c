@@ -7,6 +7,7 @@
 #include "token.h"
 #include "parser.h"
 #include "string_cache.h"
+#include "symbol_table.h"
 
 int main(int argc, char **argv) {
     string_cache_init();
@@ -53,34 +54,18 @@ int main(int argc, char **argv) {
             scope_free(&scope);
         }
 
-        /*
         putchar('\n');
-
+        
         { // test parsing declarations
-            char *str = "test/declaration.creed";
-            char *str_copy = malloc(strlen(str) + sizeof(char));
+            char str[] = "test/declaration.creed";
+            char *str_copy = malloc(sizeof(str));
             strcpy(str_copy, str);
             StringId path = string_cache_insert(str_copy);
-            
-            printf("source file path: %s\n", string_cache_get(path));
-            
-            Project project = project_new(path);
-            SourceFile *file = project_get(&project, path);
-            assert(file);
-            source_file_print(file);
-            project_free(&project);
+           
+            SymbolTable table = symbol_table_new(path);
+            symbol_table_free(&table);
         }
-
-
-        putchar('\n');
-
-
-        { // test typechecking
-            SymbolTable table = symbol_table_from_file("test/symbol_table.creed");
-            symbol_table_check_functions(&table); 
-            symbol_table_free_head(&table);
-        }
-        */
+        
     }
 
     string_cache_free();

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +12,7 @@
 Lexer lexer_new(const char *path) {
     
     struct stat st;
-    FILE *file = fopen(path, "r+");
+    FILE *file = fopen(path, "r");
     if (stat(path, &st) < 0 || !file) {
         printf("Failed to read file %s.", path);
         exit(EXIT_FAILURE);
@@ -20,7 +21,7 @@ Lexer lexer_new(const char *path) {
     char *str = malloc(st.st_size + sizeof(char));
     size_t size = fread(str, 1, st.st_size, file);
     fclose(file);
-    str[size] = '\0';
+    str[size / sizeof(char)] = '\0';
 
     char *path_copy = malloc(sizeof(char) * (strlen(path) + 1));
     strcpy(path_copy, path);

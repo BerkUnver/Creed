@@ -111,16 +111,20 @@ void error_exit(Location location, const char *error) {
     const char *file = string_cache_get(location.file_content);
     int idx_start_line = location.idx_start;
     while (idx_start_line > 0 && file[idx_start_line - 1] != '\n') idx_start_line--;
+    
     putchar('\n');
-
     print(CMD_GREEN);
     fwrite(file + idx_start_line, sizeof(char), location.idx_start - idx_start_line, stdout);
+    
     print(CMD_RED);
     fwrite(file + location.idx_start, sizeof(char), location.idx_end - location.idx_start, stdout);
     print(CMD_GREEN);
+    
     int idx_end_line = location.idx_end;
     while (file[idx_end_line] != '\n' && file[idx_end_line] != '\0') idx_end_line++;
+    
     fwrite(file + location.idx_end, sizeof(char), idx_end_line - location.idx_end, stdout);
-    print(CMD_RESET"\n");
+    print(CMD_RESET"\n\n");
+    
     exit(EXIT_SUCCESS);
 }

@@ -1,30 +1,21 @@
-Occupation enum {
-    OCCUPATION_PROFESSOR;
-    OCCUPATION_STUDENT;
-    OCCUPATION_NONE;
-}
+StructSimple struct {
+    a: int;
+    b: float;
+    c: int8;
+};
 
-Person struct {
-    age: int;
-    ssn: int;
-    occupation: Occupation;
-}
+StructComplex struct {
+    member: StructSimple;
+};
 
-TestUnion union {
-    val1: int;
-    val2: float;
-    val3: bool;
-}
+StructForwardDeclare struct {
+    member: StructPostDeclare;
+};
 
-Token sum {
-    TOKEN_PAREN_OPEN;
-    TOKEN_PAREN_CLOSE;
-    TOKEN_ID: int;
-    TOKEN_CLOSE;
-}
+StructPostDeclare struct {
+    member: StructSimple;
+};
 
-main () void {
+main :: () void {
     i: int = 1 + 1;
-}
-
-
+};
