@@ -65,7 +65,7 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
                             case TYPE_PRIMITIVE: 
                                 break;
                             case TYPE_ID: {
-                                Declaration *decl_member_type = symbol_table_get(table, decl->data.struct_union.members[i].type.data.id);
+                                Declaration *decl_member_type = symbol_table_get(table, decl->data.struct_union.members[i].type.data.id.type_declaration_id);
                                 if (!decl_member_type) {
                                     error_exit(decl->data.struct_union.members[i].type.location, "This type does not exist in the current scope.");
                                 }
@@ -73,11 +73,15 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
                                     error_exit(decl->data.struct_union.members[i].type.location, "This is the name of a variable, not a type.");
                                 }
                                 symbol_table_declaration_init(table, decl_member_type);
+                                decl->data.struct_union.members[i].type.data.id.type_declaration = decl_member_type; 
                             } break;
 
                             case TYPE_PTR:
                             case TYPE_PTR_NULLABLE:
-                            case TYPE_ARRAY:
+                            case TYPE_ARRAY: /*{
+                                Type *sub_type = decl->data.struct_union.members[i].type.sub_type;
+                                while (sub_type->type == TYPE_PTR || sub_type->type == TYPE_PTR_NULLABLE 
+                            }*/
                             case TYPE_FUNCTION:
                                 assert(false);
                         }

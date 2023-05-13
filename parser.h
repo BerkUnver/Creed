@@ -23,15 +23,11 @@ typedef struct Type {
         TokenType primitive;
         
         struct Type *sub_type;
-       
-        StringId id;
         
-        /*
         struct {
             StringId type_declaration_id;
             struct Declaration *type_declaration;
         } id;
-        */
 
         struct {
             struct Type *params;

@@ -74,7 +74,8 @@ Type type_parse(Lexer *lexer) {
             return (Type) {
                 .location = token.location,
                 .type = TYPE_ID,
-                .data.id = token.data.id
+                .data.id.type_declaration_id = token.data.id,
+                .data.id.type_declaration = NULL // Just set this to null for now so we get a segfault if we try to access it.
             };
         
         default:
@@ -129,7 +130,7 @@ void type_print(Type *type) {
             break;
         
         case TYPE_ID:
-            print(string_cache_get(type->data.id));
+            print(string_cache_get(type->data.id.type_declaration_id));
             break;
         
         case TYPE_PTR:
