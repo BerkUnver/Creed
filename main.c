@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
     
     if (argc >= 2) {
         Lexer lexer = lexer_new(argv[1]);
-        while (lexer_token_peek(&lexer).type != TOKEN_EOF) {
+        while (lexer_token_peek(&lexer).type != TOKEN_NULL) {
             Statement statement = statement_parse(&lexer);
             if (lexer_token_get(&lexer).type != TOKEN_SEMICOLON) {
                 error_exit(statement.location, "Expected a semicolon after a top-level statement.");
@@ -22,7 +22,6 @@ int main(int argc, char **argv) {
             statement_free(&statement);
             putchar('\n');
         }
-        lexer_free(&lexer);
     } else {
 
         { // test lexer getting tokens
@@ -30,12 +29,9 @@ int main(int argc, char **argv) {
             while (true) {
                 Token token = lexer_token_get(&lexer);
                 token_print(&token);
-                print("\t\t\t[");
-                location_print(token.location);
-                printf(". type %i]\n", token.type);
-                if (token.type == TOKEN_EOF || (TOKEN_ERROR_MIN <= token.type && token.type <= TOKEN_ERROR_MAX)) break;
+                printf("\t\t\t[%i -> %i. type %i]\n", token.location.idx_start, token.location.idx_end, token.type);
+                if (token.type == TOKEN_NULL || (TOKEN_ERROR_MIN <= token.type && token.type <= TOKEN_ERROR_MAX)) break;
             }
-            lexer_free(&lexer);
         }
 
         putchar('\n');
@@ -43,7 +39,6 @@ int main(int argc, char **argv) {
         { // test parsing expressions.
             Lexer lexer = lexer_new("test/expr.txt");
             Expr expr = expr_parse(&lexer); 
-            lexer_free(&lexer);
             expr_print(&expr, 0);
             expr_free(&expr);
         }
@@ -53,7 +48,6 @@ int main(int argc, char **argv) {
         { // test parsing scopes
             Lexer lexer = lexer_new("test/scope.txt");
             Scope scope = scope_parse(&lexer);
-            lexer_free(&lexer);
             scope_print(&scope, 0);
             putchar('\n');
             scope_free(&scope);

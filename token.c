@@ -23,16 +23,8 @@ char *string_assigns[] = {
     "=", "&&=" , "||=", "&=", "|=", "^=", "<<=", ">>=", "+=", "-=", "*=", "/=", "%="
 };
 
-char *int_type_specs[] = {
-    "i8", "i16", "i", "i64", "u8", "u16", "u", "u64"
-};
-
-char *float_type_specs[] = {
-    "f", "f64"
-};
-
 bool char_is_single_char_token_type(int c) { 
-    return c == TOKEN_EOF
+    return c == TOKEN_NULL
         || c == TOKEN_PAREN_OPEN
         || c == TOKEN_PAREN_CLOSE
         || c == TOKEN_CURLY_BRACE_OPEN
@@ -56,8 +48,8 @@ void token_print(Token *token) {
         literal_print(&token->data.literal);
     else if (token->type == TOKEN_ID)
         print(string_cache_get(token->data.id));
-    else if (token->type == TOKEN_EOF) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
-        print("EOF");
+    else if (token->type == TOKEN_NULL) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
+        print("NULL");
     else if (token->type == TOKEN_UNARY_LOGICAL_NOT)
         putchar('!');
     else if (token->type == TOKEN_LAMBDA)
@@ -71,9 +63,7 @@ void token_print(Token *token) {
     else if (TOKEN_ASSIGN_MIN <= token->type && token->type <= TOKEN_ASSIGN_MAX)
         print(string_assigns[token->type - TOKEN_ASSIGN_MIN]);
     else if (TOKEN_ERROR_MIN <= token->type && token->type <= TOKEN_ERROR_MAX) {
-        print("[Error ");
-        location_print(token->location);
-        print(". ");
+        print("[Error! ");
         
         switch (token->type) {
             case TOKEN_ERROR_LITERAL_CHAR_ILLEGAL_ESCAPE:

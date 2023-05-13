@@ -6,11 +6,11 @@
 #include "token.h"
 
 typedef struct Lexer {
-    FILE *file;
-    
-    // these tell where the lexer currently is, including peeked tokens.
-    int line_idx;
-    int char_idx;
+    StringId file_name;
+    StringId file_content;
+    const char *file_content_ptr; // We keep a raw pointer to this so we can access it quickly.
+    int idx_char;
+    int idx_line;
 
     int peeks;
     Token peek1;

@@ -13,7 +13,7 @@
 #define DELIMITER_LITERAL_CHAR '\''
 
 typedef enum TokenType {
-    TOKEN_EOF = EOF,
+    TOKEN_NULL = '\0',
 
     TOKEN_PAREN_OPEN = '(',
     TOKEN_PAREN_CLOSE = ')',

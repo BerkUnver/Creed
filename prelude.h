@@ -7,14 +7,15 @@
 void print_indent(int count);
 
 typedef struct Location {
-    int line_start;
-    int line_end;
-    int char_start;
-    int char_end;
+    StringId file_name;
+    StringId file_content;
+    
+    int idx_start;
+    int idx_line;
+    int idx_end;
 } Location;
 
 Location location_expand(Location begin, Location end);
-void location_print(Location location);
 
 typedef struct Literal {
     enum {

@@ -767,7 +767,7 @@ Declaration declaration_parse(Lexer *lexer) {
 
         default: {
             error_exit(lexer_token_peek(lexer).location, "Expected a type keyword or a colon after the name of a declaration.");
-            return (Declaration) {{ 0 }}; 
+            return (Declaration) {0}; 
         } break;
     }
 }

@@ -1,4 +1,4 @@
-
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,16 +8,12 @@ void print_indent(int count) {
     for (int i = 0; i < count; i++) print("    ");
 }
 Location location_expand(Location begin, Location end) {
-    return (Location) {
-        .line_start = begin.line_start,
-        .char_start = begin.char_start,
-        .line_end = end.line_end,
-        .char_end = end.char_end
-    };
-}
+    assert(begin.file_name.idx == end.file_name.idx);
+    assert(begin.file_content.idx == end.file_content.idx);
 
-void location_print(Location location) {
-    printf("(%i, %i) -> (%i, %i)", location.line_start + 1, location.char_start + 1, location.line_end + 1, location.char_end + 1);
+    Location location = begin;
+    location.idx_end = end.idx_end;
+    return location;
 }
 
 void literal_print(Literal *literal) {
@@ -104,9 +100,27 @@ void print_literal_char(char c) {
     }
 }
 
+#define CMD_RED "\x1B[31m"
+#define CMD_GREEN "\x1B[32m"
+#define CMD_RESET "\x1B[0m"
+
 void error_exit(Location location, const char *error) {
-    location_print(location);
-    print(": ");
-    puts(error);
-    exit(0);
+
+    printf("Error! %s\n%s:%i\n", error, string_cache_get(location.file_name), location.idx_line + 1);
+    
+    const char *file = string_cache_get(location.file_content);
+    int idx_start_line = location.idx_start;
+    while (idx_start_line > 0 && file[idx_start_line - 1] != '\n') idx_start_line--;
+    putchar('\n');
+
+    print(CMD_GREEN);
+    fwrite(file + idx_start_line, sizeof(char), location.idx_start - idx_start_line, stdout);
+    print(CMD_RED);
+    fwrite(file + location.idx_start, sizeof(char), location.idx_end - location.idx_start, stdout);
+    print(CMD_GREEN);
+    int idx_end_line = location.idx_end;
+    while (file[idx_end_line] != '\n' && file[idx_end_line] != '\0') idx_end_line++;
+    fwrite(file + location.idx_end, sizeof(char), idx_end_line - location.idx_end, stdout);
+    print(CMD_RESET"\n");
+    exit(EXIT_SUCCESS);
 }
