@@ -48,6 +48,7 @@ Type type_parse(Lexer *lexer);
 void type_print(Type *type);
 void type_free(Type *type);
 bool type_equal(Type *lhs, Type *rhs);
+Type type_clone(Type *type);
 
 struct Scope;
 
@@ -171,7 +172,7 @@ typedef struct Declaration {
                     
                     union {
                         Type type_explicit;
-                        Type *type_implicit; // A pointer to another type.
+                        Type type_implicit; // A pointer to another type.
                     } data;
 
                     Expr value;

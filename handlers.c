@@ -287,7 +287,7 @@ void handle_declaration(Declaration * declaration) {
             switch (declaration->data.var.type) {
                 case DECLARATION_VAR_CONSTANT: {
                     // Berk comment: TODO: account for type inference of constants.
-                    const char * type = get_type(*declaration->data.var.data.constant.data.type_implicit);
+                    const char * type = get_type(declaration->data.var.data.constant.data.type_implicit);
                     if (declaration->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
                         type = get_type(declaration->data.var.data.constant.data.type_explicit);
                     }

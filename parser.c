@@ -205,6 +205,40 @@ bool type_equal(Type *lhs, Type *rhs) {
     assert(false);
 }
 
+Type type_clone(Type *type) {
+    switch (type->type) {
+        case TYPE_PRIMITIVE:
+        case TYPE_ID: 
+            return *type;
+        
+        case TYPE_PTR:
+        case TYPE_PTR_NULLABLE:
+        case TYPE_ARRAY: {
+             Type *sub_clone = malloc(sizeof(Type));
+             *sub_clone = type_clone(type->data.sub_type);
+             Type clone = *type;
+             clone.data.sub_type = type;
+             return clone;
+         } break;
+
+        case TYPE_FUNCTION: {
+            int param_count = type->data.function.param_count;
+            FunctionParameter *params_clone = malloc(sizeof(FunctionParameter) * param_count);
+            memcpy(params_clone, type->data.function.params, sizeof(FunctionParameter) * param_count);
+            for (int i = 0; i < param_count; i++) {
+                params_clone[i].type = type_clone(&type->data.function.params[i].type);
+            }
+            Type *result_clone = malloc(sizeof(Type));
+            *result_clone = type_clone(type->data.function.result);
+            Type clone = *type;
+            clone.data.function.params = params_clone;
+            clone.data.function.result = result_clone;
+            return clone;
+        } break;
+    }
+    assert(false);
+}
+
 static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, function calls, and member accesses
     Expr expr;
     switch (lexer_token_peek(lexer).type) {
@@ -738,6 +772,17 @@ void declaration_free(Declaration *decl) {
         case DECLARATION_VAR:
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
+                    switch (decl->data.var.data.constant.type) {
+                        case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
+                            type_free(&decl->data.var.data.constant.data.type_explicit);
+                            break;
+                        
+                        case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
+                            if (decl->state == DECLARATION_STATE_INITIALIZED) {
+                                type_free(&decl->data.var.data.constant.data.type_implicit);
+                            }
+                            break;
+                    }
                     expr_free(&decl->data.var.data.constant.value);
                     if (decl->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
                         type_free(&decl->data.var.data.constant.data.type_explicit);

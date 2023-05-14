@@ -5,10 +5,12 @@
 #include <stdbool.h>
 
 typedef struct ExprResult {
-    Type *type;
+    Type type;
     bool is_rval;
     bool is_constant;
 } ExprResult;
+
+void expr_result_free(ExprResult *result);
 
 typedef struct SymbolTableNode {
     Declaration **declarations;
@@ -25,7 +27,7 @@ typedef struct SymbolTable {
 bool symbol_table_insert(SymbolTable *table, Declaration *decl);
 Declaration *symbol_table_get(SymbolTable *table, StringId id);
 void symbol_table_resolve_type(SymbolTable *table, Type *type);
-ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr, bool is_comptime);
+ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr);
 void symbol_table_check_scope(SymbolTable *table, Scope *scope);
 void symbol_table_free(SymbolTable *table);
 
