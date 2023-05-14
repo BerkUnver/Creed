@@ -71,7 +71,16 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
     switch (decl->state) {
         case DECLARATION_STATE_UNINITIALIZED:
             switch (decl->type) {
-                case DECLARATION_VAR: break;
+                case DECLARATION_VAR: {
+                    /*
+                    switch (decl->data.var.type) {
+                        case DECLARATION_VAR_CONSTANT:
+                            bool rval_discard;
+                            Type *value_type = symbol_table_check_expr(&table, &decl->data.var.constant.value);
+                        case DECLARATION_VAR_MUTABLE:
+                    }
+                    */
+                } break;
 
                 case DECLARATION_ENUM: {
                     error_exit(decl->location, "Enums are currently not supported.");
@@ -79,8 +88,8 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
 
                 case DECLARATION_STRUCT:
                 case DECLARATION_UNION: {
-                    decl->state = DECLARATION_STATE_INITIALIZING;
 
+                    decl->state = DECLARATION_STATE_INITIALIZING;
                     for (int i = 0; i < decl->data.struct_union.member_count; i++) {
                         StringId member_id = decl->data.struct_union.members[i].id;
                         for (int j = 0; j < decl->data.struct_union.member_count; j++) {
@@ -226,7 +235,7 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
 
         case EXPR_FUNCTION: {
             symbol_table_resolve_type(table, &expr->data.function.type);
-            // symbol_table_check_scope(table, expr->data.function.scope);
+            symbol_table_check_scope(table, expr->data.function.scope);
             *is_rval = false;
             return &expr->data.function.type;
         } break;
@@ -253,8 +262,16 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
 
         case SCOPE_STATEMENT: {
             switch (scope->data.statement.type) {
-                case STATEMENT_DECLARATION: 
-                    assert(false);
+                case STATEMENT_DECLARATION:
+                    if (scope->data.statement.data.declaration.type == DECLARATION_VAR) {
+
+                    } else {
+
+                        if (!symbol_table_insert(table, &scope->data.statement.data.declaration)) {
+                            error_exit(scope->data.statement.location, "This scope already has a declaration with this name.");
+                        }
+                        symbol_table_declaration_init(table, &scope->data.statement.data.declaration);
+                    }
                     break;
 
                 case STATEMENT_INCREMENT: {
@@ -293,7 +310,9 @@ void typecheck(SourceFile *file) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
     for (int j = 0; j < table.nodes[i].declaration_count; j++) {
         Declaration *decl = table.nodes[i].declarations[j];
-        symbol_table_declaration_init(&table, decl);
+        if (decl->type != DECLARATION_VAR) {
+            symbol_table_declaration_init(&table, decl);
+        }
     }
 
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
@@ -318,7 +337,7 @@ void typecheck(SourceFile *file) {
             } break;
             
             case DECLARATION_VAR_MUTABLE: {
-                if (&decl->data.var.data.mutable.value_exists) {
+                if (decl->data.var.data.mutable.value_exists) {
                     Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.mutable.value, &rval_discard, true);
                     if (!type_equal(value_type, &decl->data.var.data.mutable.type)) {
                         error_exit(decl->location, "The type of this variable and its assigned expression are not the same.");
@@ -327,6 +346,6 @@ void typecheck(SourceFile *file) {
             } break;
         }
     }
-
+    
     symbol_table_free(&table);
 }
