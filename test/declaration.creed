@@ -16,6 +16,9 @@ StructPostDeclare struct {
     member: StructSimple;
 };
 
+i: int : j;
+j: int = i;
+
 main :: () void {
     i: int = 1 + 1;
 };

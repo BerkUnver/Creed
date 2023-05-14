@@ -68,18 +68,42 @@ void symbol_table_resolve_type(SymbolTable *table, Type *type) {
 }
 
 static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl) {
-    switch (decl->state) {
+    int decl_state = decl->state;
+    decl->state = DECLARATION_STATE_INITIALIZING;
+
+    switch (decl_state) {
         case DECLARATION_STATE_UNINITIALIZED:
             switch (decl->type) {
                 case DECLARATION_VAR: {
-                    /*
                     switch (decl->data.var.type) {
-                        case DECLARATION_VAR_CONSTANT:
-                            bool rval_discard;
-                            Type *value_type = symbol_table_check_expr(&table, &decl->data.var.constant.value);
-                        case DECLARATION_VAR_MUTABLE:
+                        case DECLARATION_VAR_CONSTANT: {
+                            ExprResult result = symbol_table_check_expr(table, &decl->data.var.data.constant.value, true);
+                            if (!result.is_constant) error_exit(decl->location, "The value of a constant must itself be derivable from constants.");
+                            
+                            switch (decl->data.var.data.constant.type) {
+                                case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
+                                    symbol_table_resolve_type(table, &decl->data.var.data.constant.data.type_explicit); 
+                                    if (!type_equal(result.type, &decl->data.var.data.constant.data.type_explicit)) {
+                                        error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
+                                    }
+                                    break;
+                                case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
+                                    decl->data.var.data.constant.data.type_implicit = result.type;
+                                    break;
+                            }
+                        } break;
+
+                        case DECLARATION_VAR_MUTABLE: {
+                            symbol_table_resolve_type(table, &decl->data.var.data.mutable.type);
+                            if (decl->data.var.data.mutable.value_exists) {
+                                ExprResult result = symbol_table_check_expr(table, &decl->data.var.data.mutable.value, false);
+                                if (!type_equal(result.type, &decl->data.var.data.mutable.type)) {
+                                    error_exit(decl->location, "The type of this variable and its assigned expression are not the same.");
+                                }
+                            }
+                        } break;
+
                     }
-                    */
                 } break;
 
                 case DECLARATION_ENUM: {
@@ -89,7 +113,6 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
                 case DECLARATION_STRUCT:
                 case DECLARATION_UNION: {
 
-                    decl->state = DECLARATION_STATE_INITIALIZING;
                     for (int i = 0; i < decl->data.struct_union.member_count; i++) {
                         StringId member_id = decl->data.struct_union.members[i].id;
                         for (int j = 0; j < decl->data.struct_union.member_count; j++) {
@@ -107,7 +130,6 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
                             symbol_table_declaration_init(table, decl_member_type);
                         }
                     }
-                    decl->state = DECLARATION_STATE_INITIALIZED;
                 } break;
 
                 case DECLARATION_SUM: {
@@ -116,62 +138,61 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
             } break;
 
         case DECLARATION_STATE_INITIALIZING: 
-            error_exit(decl->location, "This complex type contains a circular reference.");
+            error_exit(decl->location, "This declaration contains a circular reference.");
             break;
 
         case DECLARATION_STATE_INITIALIZED:
             break;
     }
+    decl->state = DECLARATION_STATE_INITIALIZED;
 }
 
-Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, bool is_comptime) {
+ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr, bool is_comptime) {
     switch (expr->type) {
         case EXPR_PAREN:
-            return symbol_table_check_expr(table, expr->data.parenthesized, is_rval, is_comptime);
+            return symbol_table_check_expr(table, expr->data.parenthesized, is_comptime);
         case EXPR_UNARY: {
-            bool rval_discard;
-            Type *type = symbol_table_check_expr(table, expr->data.unary.operand, &rval_discard, is_comptime);
-            *is_rval = false;
-
-            if (type->type != TYPE_PRIMITIVE) {
+            ExprResult result = symbol_table_check_expr(table, expr->data.unary.operand, is_comptime);
+            if (result.type->type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operand of a unary expression must have a primitive type.");
             }
+            result.is_rval = false;
             switch (expr->data.unary.type) {
                 case EXPR_UNARY_LOGICAL_NOT:
-                    if (type->data.primitive != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
-                    return type;
+                    if (result.type->data.primitive != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
+                    return result;
                 default: assert(false);
             }
         } break;
 
         case EXPR_BINARY: { // unfinished
-            bool rval_discard;
-            Type *type_lhs = symbol_table_check_expr(table, expr->data.binary.lhs, &rval_discard, is_comptime);
-            Type *type_rhs = symbol_table_check_expr(table, expr->data.binary.rhs, &rval_discard, is_comptime);
+            ExprResult result_lhs = symbol_table_check_expr(table, expr->data.binary.lhs, is_comptime);
+            ExprResult result_rhs = symbol_table_check_expr(table, expr->data.binary.rhs, is_comptime);
             
-            if (type_lhs->type != TYPE_PRIMITIVE || type_rhs->type != TYPE_PRIMITIVE) {
+            if (result_lhs.type->type != TYPE_PRIMITIVE || result_rhs.type->type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operands of a binary expression must both be of a primitive type.");
             }
-
-            *is_rval = false;
+            
             switch (expr->data.binary.operator) {
                 case TOKEN_OP_LOGICAL_AND:
                 case TOKEN_OP_LOGICAL_OR:
-                    if (type_lhs->data.primitive != TOKEN_KEYWORD_TYPE_BOOL || type_rhs->data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
+                    if (result_lhs.type->data.primitive != TOKEN_KEYWORD_TYPE_BOOL || result_rhs.type->data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
                         error_exit(expr->location, "The operands of a logical operator are both expected to have a boolean type.");
                     }
-                    return type_lhs;
+                    return (ExprResult) {
+                        .type = result_rhs.type,
+                        .is_rval = false,
+                        .is_constant = result_lhs.is_constant && result_rhs.is_constant
+                    };
                 default: assert(false);
             }
         } break;
         
         case EXPR_TYPECAST: {
-            bool rval_discard;
-            Type *type = symbol_table_check_expr(table, expr->data.typecast.operand, &rval_discard, is_comptime);
-            *is_rval = false;
-            switch (type->type) {
+            ExprResult result = symbol_table_check_expr(table, expr->data.typecast.operand, is_comptime);
+            switch (result.type->type) {
                 case TYPE_PRIMITIVE:
-                    if (type->data.primitive == TOKEN_KEYWORD_TYPE_VOID) error_exit(expr->location, "You cannot cast a void expression.");
+                    if (result.type->data.primitive == TOKEN_KEYWORD_TYPE_VOID) error_exit(expr->location, "You cannot cast a void expression.");
                     if (expr->data.typecast.cast_to.type != TYPE_PRIMITIVE) error_exit(expr->location, "You can only cast a primitive type to another primitve type.");
                     break;
 
@@ -187,18 +208,23 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
                     break;
             }
             symbol_table_resolve_type(table, &expr->data.typecast.cast_to);
-            return &expr->data.typecast.cast_to;
+            return (ExprResult) {
+                .type = &expr->data.typecast.cast_to,
+                .is_constant = result.is_constant,
+                .is_rval = false
+            };
         } break;
 
         case EXPR_ACCESS_MEMBER: {
-            Type *type = symbol_table_check_expr(table, expr->data.access_member.operand, is_rval, is_comptime);
-            Type *sub_type = type;
+            ExprResult result = symbol_table_check_expr(table, expr->data.access_member.operand, is_comptime);
+            Type *sub_type = result.type;
             while (sub_type->type == TYPE_PTR || sub_type->type == TYPE_PTR_NULLABLE || sub_type->type == TYPE_ARRAY) {
                 sub_type = sub_type->data.sub_type;
             }
 
             if (sub_type->type == TYPE_PRIMITIVE || sub_type->type == TYPE_FUNCTION) error_exit(expr->location, "Only complex types have members.");
             Declaration *decl = sub_type->data.id.type_declaration;
+            
             switch (decl->type) {
                 case DECLARATION_VAR:
                     assert(false); // Guaranteed not to be a var.
@@ -212,8 +238,12 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
                 case DECLARATION_UNION:
                     for (int i = 0; i < decl->data.struct_union.member_count; i++) {
                         if (decl->data.struct_union.members[i].id.idx == expr->data.access_member.member.idx) {
-                            if (!is_rval) *is_rval = type->type == TYPE_PTR || type->type == TYPE_PTR_NULLABLE || type->type == TYPE_ARRAY;
-                            return type;
+                            return (ExprResult) {
+                                .is_rval = result.is_rval || 
+                                    (result.type->type == TYPE_PTR || result.type->type == TYPE_PTR_NULLABLE || result.type->type == TYPE_ARRAY),
+                                .is_constant = result.is_constant,
+                                .type = &decl->data.struct_union.members[i].type
+                            };
                         }
                     } 
                     error_exit(expr->location, "This complex type does not have a member with this name.");
@@ -226,18 +256,59 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
         } break;
         
         case EXPR_ACCESS_ARRAY: {
-            bool rval_discard;
-            Type *type = symbol_table_check_expr(table, expr->data.access_array.operand, &rval_discard, is_comptime);
-            if (type->type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
-            *is_rval = true;
-            return type->data.sub_type; 
+            ExprResult result = symbol_table_check_expr(table, expr->data.access_array.operand, is_comptime);
+            if (result.type->type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
+            return (ExprResult) {
+                .is_rval = true,
+                .is_constant = result.is_constant, // right now, I'm allowing constness of arrays to propigate to their members.
+                .type = result.type->data.sub_type
+            };
         } break;
 
         case EXPR_FUNCTION: {
             symbol_table_resolve_type(table, &expr->data.function.type);
             symbol_table_check_scope(table, expr->data.function.scope);
-            *is_rval = false;
-            return &expr->data.function.type;
+            return (ExprResult) {
+                .is_rval = false,
+                .is_constant = true,
+                .type = &expr->data.function.type
+            };
+        } break;
+        
+        case EXPR_ID: {
+            Declaration *decl = symbol_table_get(table, expr->data.id);
+            if (!decl) error_exit(expr->location, "This identifier does not exist in the current scope.");
+            if (decl->type != DECLARATION_VAR) {
+                error_exit(expr->location, "This identifier is the name of a type, not a variable.");
+            }
+            symbol_table_declaration_init(table, decl); // Make sure the declaration is initialized if this is in the global scope.
+            
+            Type *type;
+            bool is_constant;
+
+            switch (decl->data.var.type) {
+                case DECLARATION_VAR_CONSTANT:
+                    is_constant = true;
+                    switch (decl->data.var.data.constant.type)  {
+                        case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
+                            type = &decl->data.var.data.constant.data.type_explicit;
+                            break;
+                        case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
+                            type = decl->data.var.data.constant.data.type_implicit;
+                            break;
+                    }
+                    break;
+                case DECLARATION_VAR_MUTABLE:
+                    is_constant = false;
+                    type = &decl->data.var.data.mutable.type;
+                    break;
+            }
+            
+            return (ExprResult) {
+                .is_rval = true,
+                .is_constant = is_constant,
+                .type = type
+            };
         } break;
 
         default: 
@@ -275,10 +346,9 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
                     break;
 
                 case STATEMENT_INCREMENT: {
-                    bool is_rval;
-                    Type *type = symbol_table_check_expr(table, &scope->data.statement.data.increment, &is_rval, false);
-                    if (!is_rval) error_exit(scope->location, "Only rvals can be incremented.");
-                    if (type->type != TYPE_PRIMITIVE || type->data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MIN < type->data.primitive) {
+                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.increment, false);
+                    if (!result.is_rval) error_exit(scope->location, "Only rvals can be incremented.");
+                    if (result.type->type != TYPE_PRIMITIVE || result.type->data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MIN < result.type->data.primitive) {
                         error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
                     }
                 } break;
@@ -310,41 +380,15 @@ void typecheck(SourceFile *file) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
     for (int j = 0; j < table.nodes[i].declaration_count; j++) {
         Declaration *decl = table.nodes[i].declarations[j];
-        if (decl->type != DECLARATION_VAR) {
-            symbol_table_declaration_init(&table, decl);
-        }
+        if (decl->type == DECLARATION_VAR) continue;
+        symbol_table_declaration_init(&table, decl);
     }
 
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
     for (int j = 0; j < table.nodes[i].declaration_count; j++) {
         Declaration *decl = table.nodes[i].declarations[j];
         if (decl->type != DECLARATION_VAR) continue;
-        decl->state = DECLARATION_STATE_INITIALIZING;
-        bool rval_discard;
-        switch (decl->data.var.type) {
-            case DECLARATION_VAR_CONSTANT: {
-                Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.constant.value, &rval_discard, true);
-                switch (decl->data.var.data.constant.type) {
-                    case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
-                        if (!type_equal(value_type, &decl->data.var.data.constant.data.type_explicit)) { 
-                            error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
-                        }
-                        break;
-                    case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
-                        decl->data.var.data.constant.data.type_implicit = value_type;
-                        break;
-                }
-            } break;
-            
-            case DECLARATION_VAR_MUTABLE: {
-                if (decl->data.var.data.mutable.value_exists) {
-                    Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.mutable.value, &rval_discard, true);
-                    if (!type_equal(value_type, &decl->data.var.data.mutable.type)) {
-                        error_exit(decl->location, "The type of this variable and its assigned expression are not the same.");
-                    }
-                }
-            } break;
-        }
+        symbol_table_declaration_init(&table, decl);
     }
     
     symbol_table_free(&table);
