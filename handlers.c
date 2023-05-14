@@ -6,8 +6,6 @@
 #include "string_cache.h"
 #include "symbol_table.h"
 
-SymbolTable * symbol_table;
-
 // TO DO: Figure out how to parse identifier for arrays
 const char * get_complex_type(Type creadz_type, char * c_prim_type) {
     char * c_type;
@@ -124,7 +122,6 @@ void handle_statement(Statement * statement) {
 
 }
 
-// TO DO: Add scope handling
 void handle_scope(Scope * scope) {
     switch(scope->type) {
         case SCOPE_STATEMENT:
@@ -275,10 +272,37 @@ void handle_statement_end() {
     printf(";\n");
 }
 
+// TO DO: Finish declaration handling
 void handle_declaration(Declaration * declaration) {
-
+    switch(declaration->type) {
+        case DECLARATION_VAR:
+            switch (declaration->data.var.type) {
+                case DECLARATION_VAR_CONSTANT:
+                    char * type = get_type(declaration->data.var.data.constant.type);
+                    char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
+                    printf("%s %s", type, id);
+                    handle_expr(&declaration->data.var.data.constant.value);
+                    break;
+                case DECLARATION_VAR_MUTABLE:
+                    char * type = get_type(declaration->data.var.data.constant.type);
+                    char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
+                    printf("%s %s", type, id);
+                    handle_expr(&declaration->data.var.data.constant.value);
+                    if (declaration->data.var.data.mutable.value_exists) {
+                        printf(" %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
+                        handle_expr(&declaration->data.var.data.constant.value);
+                    }
+                    break;
+            }
+            break;
+        case DECLARATION_ENUM:
+        case DECLARATION_STRUCT:
+        case DECLARATION_UNION:
+        case DECLARATION_SUM:
+    }
 }
 
+// TO DO: Have this called somewhere after SourceFile is parsed
 void handle_driver(SourceFile * file) {
     // First pass
     for (int i = 0; i < file->declaration_count; i++) {
@@ -286,7 +310,6 @@ void handle_driver(SourceFile * file) {
             handle_declaration(&file->declarations[i]);
         }
     }
-
     // Second Pass
     for (int j = 0; j < file->declaration_count; j++) {
         if (file->declarations[j].type == DECLARATION_VAR) {
