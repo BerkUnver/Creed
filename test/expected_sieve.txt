@@ -1,0 +1,44 @@
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int * sieve;
+bool * is_prime;
+int * primes;
+int num_primes = 0;
+
+void populate_primes(int upper_bound) {
+    sieve = (int *)calloc(upper_bound, sizeof(int));
+    is_prime = (bool *)malloc(upper_bound * sizeof(bool));
+    memset(is_prime, true, upper_bound);
+    primes = (int *)calloc(upper_bound, sizeof(int));
+    int i = 2;
+    for (; i * i < upper_bound; ++i) {
+        if (is_prime[i]) {
+            for (int j = i * i; j < upper_bound; j += i) {
+                is_prime[j] = false;
+            }
+            primes[num_primes++] = i;
+        }
+    }
+    for (; i < upper_bound; ++i) {
+        if (is_prime[i]) {
+            primes[num_primes++] = i;
+        }
+    }
+}
+
+int main(int argc, char ** argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s \n", argv[0]);
+        exit(EXIT_FAILURE);
+    } 
+    int upper_bound = atoi(argv[1]);
+    populate_primes(upper_bound);
+    for (int i = 0; i < num_primes; ++i) {
+        printf("%d ", primes[i]);
+    }
+    putchar('\n');
+    return EXIT_SUCCESS;
+}
