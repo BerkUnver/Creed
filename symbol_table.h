@@ -16,5 +16,12 @@ typedef struct SymbolTable {
     struct SymbolTable *previous;
 } SymbolTable;
 
+bool symbol_table_insert(SymbolTable *table, Declaration *decl);
+Declaration *symbol_table_get(SymbolTable *table, StringId id);
+void symbol_table_resolve_type(SymbolTable *table, Type *type);
+Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, bool is_comptime);
+void symbol_table_check_scope(SymbolTable *table, Scope *scope);
+void symbol_table_free(SymbolTable *table);
+
 void typecheck(SourceFile *file);
 #endif

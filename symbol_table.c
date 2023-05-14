@@ -226,7 +226,9 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
 
         case EXPR_FUNCTION: {
             symbol_table_resolve_type(table, &expr->data.function.type);
+            // symbol_table_check_scope(table, expr->data.function.scope);
             *is_rval = false;
+            return &expr->data.function.type;
         } break;
 
         default: 
@@ -294,7 +296,6 @@ void typecheck(SourceFile *file) {
         symbol_table_declaration_init(&table, decl);
     }
 
-    /*
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
     for (int j = 0; j < table.nodes[i].declaration_count; j++) {
         Declaration *decl = table.nodes[i].declarations[j];
@@ -304,12 +305,15 @@ void typecheck(SourceFile *file) {
         switch (decl->data.var.type) {
             case DECLARATION_VAR_CONSTANT: {
                 Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.constant.value, &rval_discard, true);
-                if (decl->data.var.data.constant.type_explicit) {
-                    if (!type_equal(value_type, &decl->data.var.data.constant.type)) { 
-                        error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
-                    }
-                } else {
-                    decl->data.var.data.constant.type = type_clone(value_type);
+                switch (decl->data.var.data.constant.type) {
+                    case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
+                        if (!type_equal(value_type, &decl->data.var.data.constant.data.type_explicit)) { 
+                            error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
+                        }
+                        break;
+                    case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
+                        decl->data.var.data.constant.data.type_implicit = value_type;
+                        break;
                 }
             } break;
             
@@ -323,7 +327,6 @@ void typecheck(SourceFile *file) {
             } break;
         }
     }
-    */
 
     symbol_table_free(&table);
 }

@@ -9,7 +9,7 @@ struct Declaration;
 struct FunctionParameter;
 
 typedef struct Type {
-    Location location; // Used only when this type is explicitly declared.
+    Location location;
     
     enum {
         TYPE_PRIMITIVE,
@@ -26,7 +26,7 @@ typedef struct Type {
         struct Type *sub_type;
         
         struct {
-            StringId type_declaration_id; // Used only when this type is explicitly declared.
+            StringId type_declaration_id;
             struct Declaration *type_declaration;
         } id;
 
@@ -164,8 +164,16 @@ typedef struct Declaration {
 
             union {
                 struct {
-                    bool type_explicit;
-                    Type type;
+                    enum {
+                        DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT,
+                        DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT
+                    } type;
+                    
+                    union {
+                        Type type_explicit;
+                        Type *type_implicit; // A pointer to another type.
+                    } data;
+
                     Expr value;
                 } constant;
                 

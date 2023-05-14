@@ -20,6 +20,7 @@ const char * get_complex_type(Type creadz_type, char * c_prim_type) {
 }
 
 const char * get_type(Type creadz_type) {
+    assert(creadz_type.type == TYPE_PRIMITIVE);
     TokenType creadz_prim_type = creadz_type.data.primitive;
     char * c_prim_type;
 
@@ -198,6 +199,7 @@ void handle_expr(Expr * expr) {
 
         case EXPR_TYPECAST:
             putchar(TOKEN_PAREN_OPEN);
+            // Berk: Not guaranteed to be a primitive type, could be a pointer.
             const char * type = get_type(expr->data.typecast.cast_to);
             printf("%s", type);
             putchar(TOKEN_PAREN_CLOSE);
@@ -286,13 +288,18 @@ void handle_declaration(Declaration * declaration) {
         case DECLARATION_VAR:
             switch (declaration->data.var.type) {
                 case DECLARATION_VAR_CONSTANT: {
+                    // Berk comment: TODO: account for type inference of constants.
+                    /*
                     const char * type = get_type(declaration->data.var.data.constant.type);
                     const char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
                     printf("%s %s", type, id);
                     handle_expr(&declaration->data.var.data.constant.value);
+                    */
                 } break;
                 
                 case DECLARATION_VAR_MUTABLE: {
+                    // Berk comment: The type is stored in declaration->data.var.data.mutable.data.type.
+                    /*
                     const char * type = get_type(declaration->data.var.data.constant.type);
                     const char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
                     printf("%s %s", type, id);
@@ -301,6 +308,7 @@ void handle_declaration(Declaration * declaration) {
                         printf(" %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
                         handle_expr(&declaration->data.var.data.constant.value);
                     }
+                    */
                 } break;
             }
             break;
