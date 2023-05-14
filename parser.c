@@ -35,18 +35,29 @@ Type type_parse(Lexer *lexer) {
         case TOKEN_PAREN_OPEN: {
             lexer_token_get(lexer);
             int param_count = 0;
-            Type *params = NULL;
+            FunctionParameter *params = NULL;
             
             if (lexer_token_peek(lexer).type != TOKEN_PAREN_CLOSE) {            
                 int param_count_alloc = 2;
-                params = malloc(param_count_alloc * sizeof(Type));
+                params = malloc(param_count_alloc * sizeof(FunctionParameter));
                 while (true) {
+                    Token token_id = lexer_token_get(lexer);
+                    if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the name of a function parameter to be an identifier.");
+                    if (lexer_token_get(lexer).type != TOKEN_COLON) error_exit(token_id.location, "Expected a semicolon after a function parameter name.");
+                    Type param_type = type_parse(lexer);
+                    
                     param_count++;
                     if (param_count > param_count_alloc) {
                         param_count_alloc *= 2;
-                        params = realloc(params, param_count_alloc * sizeof(Type));
+                        params = realloc(params, param_count_alloc * sizeof(FunctionParameter));
                     }
-                    params[param_count - 1] = type_parse(lexer);
+                    
+                    params[param_count - 1] = (FunctionParameter) {
+                        .location = location_expand(token_id.location, param_type.location),
+                        .id = token_id.data.id,
+                        .type = param_type
+                    };
+                    
                     Token peek = lexer_token_peek(lexer);
                     if (peek.type == TOKEN_COMMA) {
                         lexer_token_get(lexer);
@@ -116,7 +127,7 @@ void type_free(Type *type) {
             break;
 
         case TYPE_FUNCTION:
-            for (int i = 0; i < type->data.function.param_count; i++) type_free(type->data.function.params + i);
+            for (int i = 0; i < type->data.function.param_count; i++) type_free(&type->data.function.params[i].type);
             free(type->data.function.params);
             type_free(type->data.function.result);
             free(type->data.function.result);
@@ -153,50 +164,19 @@ void type_print(Type *type) {
         case TYPE_FUNCTION:
             putchar(TOKEN_PAREN_OPEN);
             if (type->data.function.param_count > 0) {
-                for (int i = 0; i < type->data.function.param_count - 1; i++) {
-                    type_print(type->data.function.params + i);
+                int param_count = type->data.function.param_count;
+                for (int i = 0; i < param_count - 1; i++) {
+                    printf("%s%c ", string_cache_get(type->data.function.params[i].id), TOKEN_COLON);
+                    type_print(&type->data.function.params[i].type);
                     printf("%c ", TOKEN_COMMA);
                 }
-                type_print(type->data.function.params + type->data.function.param_count - 1);
+                printf("%s%c ", string_cache_get(type->data.function.params[param_count - 1].id), TOKEN_COLON);
+                type_print(&type->data.function.params[param_count - 1].type);
             }
             printf("%c ", TOKEN_PAREN_CLOSE);
             type_print(type->data.function.result);
             break;
     }
-}
-
-Type type_clone(Type *type) {
-    switch (type->type) {
-        case TYPE_PRIMITIVE:
-        case TYPE_ID: 
-            return *type;
-
-        case TYPE_PTR:
-        case TYPE_PTR_NULLABLE:
-        case TYPE_ARRAY: {
-            Type *sub_clone = malloc(sizeof(Type));
-            *sub_clone = type_clone(type->data.sub_type);
-            Type clone = *type;
-            clone.data.sub_type = type;
-            return clone;
-        } break;
-        
-        case TYPE_FUNCTION: {
-            int param_count = type->data.function.param_count;
-            Type *params_clone = malloc(sizeof(Type) * param_count);
-            memcpy(params_clone, type->data.function.params, sizeof(Type) * param_count);
-            for (int i = 0; i < param_count; i++) {
-                params_clone[i] = type_clone(type->data.function.params + i);
-            }
-            Type *result_clone = malloc(sizeof(Type));
-            *result_clone = type_clone(type->data.function.result);
-            Type clone = *type;
-            clone.data.function.params = params_clone;
-            clone.data.function.result = result_clone;
-            return clone;
-        } break;
-    }
-    assert(false);
 }
 
 // Assumes declarations have been resolved.
@@ -218,7 +198,7 @@ bool type_equal(Type *lhs, Type *rhs) {
         case TYPE_FUNCTION:
             if (lhs->data.function.param_count != rhs->data.function.param_count) return false;
             for (int i = 0; i < lhs->data.function.param_count; i++) {
-                if (!type_equal(lhs->data.function.params + i, rhs->data.function.params + i)) return false;
+                if (!type_equal(&lhs->data.function.params[i].type, &rhs->data.function.params[i].type)) return false;
             }
             return type_equal(lhs->data.function.result, rhs->data.function.result);
     }
@@ -237,66 +217,22 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
      
         int unary_type;
         case TOKEN_PAREN_OPEN: {
-            Token token_open = lexer_token_get(lexer);
            
             // Le epic hack: You can differenciate function parameter lists from parenthesized expressions as follows.
             // Check if the token after the open parenthesis is a close parenthesis (Empty parameter list)
             // Check if the 2nd token afte the open parenthesis is a colon (One parameter at least)
-
-            if (lexer_token_peek(lexer).type == TOKEN_PAREN_CLOSE) {
-                lexer_token_get(lexer);
-                
-                Type result = type_parse(lexer);
+            
+            if (lexer_token_peek_many(lexer, 2).type == TOKEN_PAREN_CLOSE || lexer_token_peek_many(lexer, 3).type == TOKEN_COLON) {
+                Type type = type_parse(lexer);
+                assert(type.type == TYPE_FUNCTION);
                 Scope *scope = malloc(sizeof(Scope));
                 *scope = scope_parse(lexer);
-
                 expr.type = EXPR_FUNCTION;
-                expr.location = location_expand(token_open.location, scope->location);
-                expr.data.function.params = NULL;
-                expr.data.function.param_count = 0;
-                expr.data.function.result = result;
-                expr.data.function.scope = scope;
-            } else if (lexer_token_peek_2(lexer).type == TOKEN_COLON) {
-                int param_count = 0;
-                int param_count_alloc = 2;
-                FunctionParameter *params = malloc(sizeof(FunctionParameter) * param_count_alloc);
-                while (true) {
-                    Token token_id = lexer_token_get(lexer);
-                    if (token_id.type != TOKEN_ID) error_exit(token_id.location, "Expected the name of a parameter of a function to be an identifier.");
-                    Token token_colon = lexer_token_get(lexer);
-                    if (token_colon.type != TOKEN_COLON) error_exit(token_id.location, "Expected a colon after the name of a function parameter.");
-                    Type type = type_parse(lexer);
-                    
-                    param_count++;
-                    if (param_count > param_count_alloc) {
-                        param_count_alloc *= 2;
-                        params = realloc(params, sizeof(FunctionParameter) * param_count_alloc);
-                    }
-                    
-                    params[param_count - 1] = (FunctionParameter) {
-                        .location = location_expand(token_id.location, type.location),
-                        .id = token_id.data.id,
-                        .type = type
-                    };
-
-                    Token token_end = lexer_token_get(lexer);
-                    if (token_end.type == TOKEN_COLON) lexer_token_get(lexer);
-                    else if (token_end.type == TOKEN_PAREN_CLOSE) break;
-                    else error_exit(params[param_count - 1].location, "Expected a comma or closing parenthesis after a function parameter.");
-                }
-
-                Type result = type_parse(lexer);
-                
-                Scope *scope = malloc(sizeof(Scope));
-                *scope = scope_parse(lexer);
-
-                expr.type = EXPR_FUNCTION;
-                expr.location = location_expand(token_open.location, scope->location);
-                expr.data.function.params = params;
-                expr.data.function.param_count = param_count;
-                expr.data.function.result = result;
+                expr.location = location_expand(type.location, scope->location);
+                expr.data.function.type = type;
                 expr.data.function.scope = scope;
             } else { 
+                Token token_open = lexer_token_get(lexer);
                 Expr *parenthesized = malloc(sizeof(Expr));
                 *parenthesized = expr_parse(lexer);
                 
@@ -526,11 +462,7 @@ void expr_free(Expr *expr) {
             break;
 
         case EXPR_FUNCTION:
-            for (int i = 0; i < expr->data.function.param_count; i++) {
-                type_free(&expr->data.function.params[i].type);
-            }
-            free(expr->data.function.params);
-            type_free(&expr->data.function.result);
+            type_free(&expr->data.function.type);
             scope_free(expr->data.function.scope);
             free(expr->data.function.scope);
             break;
@@ -608,17 +540,8 @@ void expr_print(Expr *expr, int indent) {
             break;
        
         case EXPR_FUNCTION:
-            putchar(TOKEN_PAREN_OPEN);
-            if (expr->data.function.param_count > 0) { 
-                for (int i = 0; i < expr->data.function.param_count - 1; i++) {
-                    printf("%s%c ", string_cache_get(expr->data.function.params[i].id), TOKEN_COLON);
-                    type_print(&expr->data.function.params[i].type);
-                    putchar(TOKEN_COMMA);
-                }
-                printf("%s%c ", string_cache_get(expr->data.function.params[expr->data.function.param_count - 1].id), TOKEN_COLON);
-                type_print(&expr->data.function.params[expr->data.function.param_count - 1].type);
-            }
-            printf("%c ", TOKEN_PAREN_CLOSE);
+            type_print(&expr->data.function.type);
+            putchar(' ');
             scope_print(expr->data.function.scope, indent);
             break;
 
@@ -657,7 +580,7 @@ Declaration declaration_parse(Lexer *lexer) {
                 decl.location = location_expand(token_id.location, value.location);
                 decl.data.var.type = DECLARATION_VAR_CONSTANT;
                 decl.data.var.data.constant.value = value;
-                decl.data.var.data.constant.type_exists = false;
+                decl.data.var.data.constant.type_explicit = false;
             } else {
                 Type type = type_parse(lexer);
                 if (lexer_token_peek(lexer).type == TOKEN_COLON) {
@@ -666,7 +589,7 @@ Declaration declaration_parse(Lexer *lexer) {
                     decl.location = location_expand(token_id.location, value.location);
                     decl.data.var.type = DECLARATION_VAR_CONSTANT;
                     decl.data.var.data.constant.value = value;
-                    decl.data.var.data.constant.type_exists = true;
+                    decl.data.var.data.constant.type_explicit = true;
                     decl.data.var.data.constant.type = type;
                 } else if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
                     lexer_token_get(lexer);
@@ -816,7 +739,7 @@ void declaration_free(Declaration *decl) {
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
                     expr_free(&decl->data.var.data.constant.value);
-                    if (decl->data.var.data.constant.type_exists) {
+                    if (decl->data.var.data.constant.type_explicit|| decl->state == DECLARATION_STATE_INITIALIZED) {
                         type_free(&decl->data.var.data.constant.type);
                     }
                     break;
@@ -854,7 +777,7 @@ void declaration_print(Declaration *decl, int indent) {
         case DECLARATION_VAR:
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
-                    if (decl->data.var.data.constant.type_exists) {
+                    if (decl->data.var.data.constant.type_explicit) {
                         printf("%c ", TOKEN_COLON);
                         type_print(&decl->data.var.data.constant.type);
                         printf(" %c ", TOKEN_COLON);
@@ -919,7 +842,7 @@ void declaration_print(Declaration *decl, int indent) {
 Statement statement_parse(Lexer *lexer) {
     
     // This is a hack to prevent you from parsing a declaration as an assignment.
-    switch (lexer_token_peek_2(lexer).type) {
+    switch (lexer_token_peek_many(lexer, 2).type) {
         case TOKEN_COLON:
         case TOKEN_KEYWORD_ENUM:
         case TOKEN_KEYWORD_STRUCT:
@@ -1135,7 +1058,7 @@ Scope scope_parse(Lexer *lexer) {
         case TOKEN_KEYWORD_FOR: {
             Token token_for = lexer_token_get(lexer);
             
-            if (lexer_token_peek_2(lexer).type == TOKEN_KEYWORD_IN) {
+            if (lexer_token_peek_many(lexer, 2).type == TOKEN_KEYWORD_IN) {
                 Token token_id = lexer_token_peek(lexer);
                 if (token_id.type != TOKEN_ID) {
                     error_exit(token_id.location, "Expected the name of the iteration variable in a for .. in loop.");

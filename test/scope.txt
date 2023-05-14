@@ -83,10 +83,10 @@
     if a > 0 { } else { }
     if a > 0 { } else if a < 0 { } else { }  
     func1: () void;
-    func2: (int) void;
-    func3: (int, int) void;
-    func4: (int, () void) int;
-    func5: (int, () void) (int) (int) void;
+    func2: (i: int) void;
+    func3: (a: int, b: int) void;
+    func4: (a: int, f: () void) int;
+    func5: (a: int, f: () void) (b: int) (j: int) void;
     label label_name;
     goto label_name;
     return a + b;

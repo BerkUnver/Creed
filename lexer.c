@@ -33,7 +33,8 @@ Lexer lexer_new(StringId path) {
         .file_content_ptr = string_cache_get(file_content),
         .idx_line = 0,
         .idx_char = 0,
-        .peeks = 0,
+        .peek_idx = 0,
+        .peek_count = 0
     };
 }
 
@@ -346,31 +347,34 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
 }
 
 Token lexer_token_peek(Lexer *lexer) {
-    if (lexer->peeks < 1) {
-        lexer->peek1 = lexer_token_get_skip_cache(lexer);
-        lexer->peeks = 1;
+    if (lexer->peek_count < 1) {
+        lexer->peeks[lexer->peek_idx] = lexer_token_get_skip_cache(lexer); 
+        lexer->peek_count = 1;
     }
-    return lexer->peek1;
+    return lexer->peeks[lexer->peek_idx];
 }
 
 Token lexer_token_peek_2(Lexer *lexer) {
-    if (lexer->peeks < 1) lexer->peek1 = lexer_token_get_skip_cache(lexer);
-    if (lexer->peeks < 2) lexer->peek2 = lexer_token_get_skip_cache(lexer);
-    lexer->peeks = 2;
-    return lexer->peek2;
+    for (; lexer->peek_count < 2; lexer->peek_count++) {
+        lexer->peeks[(lexer->peek_idx + lexer->peek_count) % LEXER_TOKEN_PEEK_MAX] = lexer_token_get_skip_cache(lexer);
+    }
+    return lexer->peeks[(lexer->peek_idx + 1) % LEXER_TOKEN_PEEK_MAX];
+}
+
+Token lexer_token_peek_many(Lexer *lexer, int count) {
+    assert(0 < count && count <= LEXER_TOKEN_PEEK_MAX);
+    for (; lexer->peek_count < count; lexer->peek_count++) {
+        lexer->peeks[(lexer->peek_idx + lexer->peek_count) % LEXER_TOKEN_PEEK_MAX] = lexer_token_get_skip_cache(lexer);
+    }
+    return lexer->peeks[(lexer->peek_idx + count - 1) % LEXER_TOKEN_PEEK_MAX]; 
 }
 
 Token lexer_token_get(Lexer *lexer) {
-    if (lexer->peeks > 0) {
-        Token token = lexer->peek1;
-        if (lexer->peeks > 1) {
-            lexer->peek1 = lexer->peek2;
-            lexer->peeks = 1;
-        } else {
-            lexer->peeks = 0;
-        }
-        return token;
+    if (lexer->peek_count > 0) {
+        lexer->peek_count--;
+        int idx = lexer->peek_idx;
+        lexer->peek_idx = (lexer->peek_idx + 1) % LEXER_TOKEN_PEEK_MAX;
+        return lexer->peeks[idx];
     }
-
     return lexer_token_get_skip_cache(lexer);
 }

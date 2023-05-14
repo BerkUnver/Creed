@@ -6,6 +6,7 @@
 #include "token.h"
 
 struct Declaration;
+struct FunctionParameter;
 
 typedef struct Type {
     Location location; // Used only when this type is explicitly declared.
@@ -30,26 +31,25 @@ typedef struct Type {
         } id;
 
         struct {
-            struct Type *params;
+            struct FunctionParameter *params;
             int param_count;
             struct Type *result;
         } function;
     } data;
 } Type;
 
-Type type_parse(Lexer *lexer);
-void type_print(Type *type);
-void type_free(Type *type);
-Type type_clone(Type *type);
-bool type_equal(Type *lhs, Type *rhs);
-
-struct Scope;
-
 typedef struct FunctionParameter {
     Location location;
     StringId id;
     Type type;
 } FunctionParameter;
+
+Type type_parse(Lexer *lexer);
+void type_print(Type *type);
+void type_free(Type *type);
+bool type_equal(Type *lhs, Type *rhs);
+
+struct Scope;
 
 typedef struct Expr {
     Location location;
@@ -90,9 +90,7 @@ typedef struct Expr {
         } binary;
 
         struct {
-            FunctionParameter *params;
-            int param_count;
-            Type result;
+            Type type;
             struct Scope *scope; // has to be a ptr because Scope contains expressions.
         } function;
 
@@ -166,7 +164,7 @@ typedef struct Declaration {
 
             union {
                 struct {
-                    bool type_exists;
+                    bool type_explicit;
                     Type type;
                     Expr value;
                 } constant;

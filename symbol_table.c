@@ -60,7 +60,7 @@ void symbol_table_resolve_type(SymbolTable *table, Type *type) {
         case TYPE_FUNCTION: {
             int param_count = type->data.function.param_count;
             for (int i = 0; i < param_count; i++) {
-                symbol_table_resolve_type(table, type->data.function.params + i);
+                symbol_table_resolve_type(table, &type->data.function.params[i].type);
             }
             symbol_table_resolve_type(table, type->data.function.result);
         } break;
@@ -224,6 +224,11 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
             return type->data.sub_type; 
         } break;
 
+        case EXPR_FUNCTION: {
+            symbol_table_resolve_type(table, &expr->data.function.type);
+            *is_rval = false;
+        } break;
+
         default: 
             error_exit(expr->location, "Typechecking this kind of expression hasn't been implemented yet.");
             break;
@@ -299,25 +304,24 @@ void typecheck(SourceFile *file) {
         switch (decl->data.var.type) {
             case DECLARATION_VAR_CONSTANT: {
                 Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.constant.value, &rval_discard, true);
-                if (decl->data.var.data.constant.type_exists) {
+                if (decl->data.var.data.constant.type_explicit) {
                     if (!type_equal(value_type, &decl->data.var.data.constant.type)) { 
                         error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
                     }
                 } else {
-                    decl->data.var.constant.type = type_clone(value_type);
+                    decl->data.var.data.constant.type = type_clone(value_type);
                 }
             } break;
             
             case DECLARATION_VAR_MUTABLE: {
                 if (&decl->data.var.data.mutable.value_exists) {
-                    Type *value_type = symbol_table_check_declaration(table, &decl->data.var.data.mutable.value, &rval_discard, true);
+                    Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.mutable.value, &rval_discard, true);
                     if (!type_equal(value_type, &decl->data.var.data.mutable.type)) {
                         error_exit(decl->location, "The type of this variable and its assigned expression are not the same.");
                     }
                 }
             } break;
         }
-        symbol_table_check_expr(table, &decl->data.expr, rval_discard, 
     }
     */
 

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "token.h"
 
+#define LEXER_TOKEN_PEEK_MAX 3
 typedef struct Lexer {
     StringId file_name;
     StringId file_content;
@@ -12,9 +13,9 @@ typedef struct Lexer {
     int idx_char;
     int idx_line;
 
-    int peeks;
-    Token peek1;
-    Token peek2;
+    int peek_count;
+    int peek_idx;
+    Token peeks[LEXER_TOKEN_PEEK_MAX];
 } Lexer;
 
 Lexer lexer_new(StringId path);
@@ -22,5 +23,6 @@ Lexer lexer_new(StringId path);
 void lexer_free(Lexer *lexer);
 Token lexer_token_get(Lexer *lexer);
 Token lexer_token_peek(Lexer *lexer);
-Token lexer_token_peek_2(Lexer *lexer);
+Token lexer_token_peek_many(Lexer *lexer, int count);
 #endif
+
