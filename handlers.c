@@ -154,7 +154,6 @@ void handle_scope(Scope * scope) {
             
         // TO DO: Get size of array for iteration
         case SCOPE_LOOP_FOR_EACH:
-            // printf("for (int i = 0; i < ");
             break;
             
         case SCOPE_LOOP_WHILE:
@@ -225,22 +224,22 @@ void handle_expr(Expr * expr) {
             // If I'm understanding this correctly you're just translating the function call to look like a c-style function.
             // Because we allow anonymous functions, that doesn't really work because you need to also generate a unique name for each function.
             // I commented this out because I changed how functions are represented in the AST and this gives compilation errors.
-            /*
+            
             putchar(TOKEN_PAREN_OPEN);
-            if (expr->data.function.type.param_count > 0) {
-                for (int i = 0; i < expr->data.function.param_count - 1; i++) {
-                    const char * param_type = get_type(expr->data.function.params[i].type);
+            if (expr->data.function.type.data.function.param_count > 0) {
+                for (int i = 0; i < expr->data.function.type.data.function.param_count - 1; i++) {
+                    const char * param_type = get_type(expr->data.function.type.data.function.params[i].type);
                     printf("%s ", param_type);
-                    printf("%s", string_cache_get(expr->data.function.params[i].id));
+                    printf("%s", string_cache_get(expr->data.function.type.data.function.params[i].id));
                     printf("%c ", TOKEN_COMMA);
                 }
-                const char * param_type = get_type(expr->data.function.params[expr->data.function.param_count - 1].type);
+                const char * param_type = get_type(expr->data.function.type.data.function.params[expr->data.function.type.data.function.param_count - 1].type);
                 printf("%s ", param_type);
-                printf("%s", string_cache_get(expr->data.function.params[expr->data.function.param_count - 1].id));
+                printf("%s", string_cache_get(expr->data.function.type.data.function.params[expr->data.function.type.data.function.param_count - 1].id));
             }
             putchar(TOKEN_PAREN_CLOSE);
             handle_scope(expr->data.function.scope);
-            */
+            
             break;
 
         case EXPR_FUNCTION_CALL:
@@ -276,45 +275,78 @@ void handle_expr(Expr * expr) {
     }   
 }
 
-// TO DO: Only print semicolons after scopes that are declarations??
-// Berk comment: Print semicolons after scopes that are statements.
+// TO DO: Only print semicolons after scopes that are statements
 void handle_statement_end() {
     printf(";\n");
 }
 
-// TO DO: Finish declaration handling
 void handle_declaration(Declaration * declaration) {
     switch(declaration->type) {
+
         case DECLARATION_VAR:
             switch (declaration->data.var.type) {
                 case DECLARATION_VAR_CONSTANT: {
                     // Berk comment: TODO: account for type inference of constants.
-                    /*
-                    const char * type = get_type(declaration->data.var.data.constant.type);
-                    const char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
-                    printf("%s %s", type, id);
+                    const char * type = get_type(*declaration->data.var.data.constant.data.type_implicit);
+                    if (declaration->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
+                        type = get_type(declaration->data.var.data.constant.data.type_explicit);
+                    }
+                    printf("%s ", type);
+                    if (declaration->id.idx) {
+                        const char * id = string_cache_get(declaration->id);
+                        printf("%s", id);
+                    } 
+                    else {
+                        // TO DO: Allow for anonymous functions (declaring functions with no names)?
+                        error_exit(declaration->location, "Function declaration must include an identifier.");
+                    }
                     handle_expr(&declaration->data.var.data.constant.value);
-                    */
-                } break;
-                
+                    break;
+                }
                 case DECLARATION_VAR_MUTABLE: {
-                    // Berk comment: The type is stored in declaration->data.var.data.mutable.data.type.
-                    /*
-                    const char * type = get_type(declaration->data.var.data.constant.type);
-                    const char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
+                    const char * type = get_type(declaration->data.var.data.mutable.type);
+                    const char * id = string_cache_get(declaration->id);
                     printf("%s %s", type, id);
                     handle_expr(&declaration->data.var.data.constant.value);
                     if (declaration->data.var.data.mutable.value_exists) {
                         printf(" %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
                         handle_expr(&declaration->data.var.data.constant.value);
-                    }
-                    */
-                } break;
+                    }                   
+                    break;
+                }
             }
             break;
+
+        // TO DO: Implement assigning a value to an enum?
         case DECLARATION_ENUM:
+            printf("enum %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.enumeration.member_count; i++) {
+                printf("%s%c\n", string_cache_get(declaration->data.enumeration.members[i]), TOKEN_COMMA);
+            }
+            printf("%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
+            break;
+
         case DECLARATION_STRUCT:
+            printf("struct %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.struct_union.member_count; i++) {
+                const char * member_type = get_type(declaration->data.struct_union.members[i].type);
+                char * member_id = string_cache_get(declaration->data.struct_union.members[i].id);
+                printf("%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
+            }
+            printf("%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
+            break;
+
         case DECLARATION_UNION:
+            printf("union %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
+            for (int i = 0; i < declaration->data.struct_union.member_count; i++) {
+                const char * member_type = get_type(declaration->data.struct_union.members[i].type);
+                char * member_id = string_cache_get(declaration->data.struct_union.members[i].id);
+                printf("%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
+            }
+            printf("%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
+            break;
+
+        // TO DO: Implement sum types?
         case DECLARATION_SUM:
             error_exit(declaration->location, "Translating this kind of declaration into C has not been implemented yet.");
             break;
