@@ -67,7 +67,7 @@ void symbol_table_resolve_type(SymbolTable *table, Type *type) {
     }
 }
 
-static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) {
+static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl) {
     switch (decl->state) {
         case DECLARATION_STATE_UNINITIALIZED:
             switch (decl->type) {
@@ -90,26 +90,12 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
                             }
                         }
 
-                        switch (decl->data.struct_union.members[i].type.type) {
-                            case TYPE_PRIMITIVE: 
-                                break;
-                            case TYPE_ID: {
-                                Declaration *decl_member_type = symbol_table_get(&table, decl->data.struct_union.members[i].type.data.id.type_declaration_id);
-                                if (!decl_member_type) {
-                                    error_exit(decl->data.struct_union.members[i].type.location, "This type does not exist in the current scope.");
-                                }
-                                if (decl_member_type->type == DECLARATION_VAR) {
-                                    error_exit(decl->data.struct_union.members[i].type.location, "This is the name of a variable, not a type.");
-                                }
-                                symbol_table_declaration_init(table, decl_member_type);
-                                decl->data.struct_union.members[i].type.data.id.type_declaration = decl_member_type; 
-                            } break;
-
-                            case TYPE_PTR:
-                            case TYPE_PTR_NULLABLE:
-                            case TYPE_ARRAY:
-                            case TYPE_FUNCTION:
-                                assert(false);
+                        symbol_table_resolve_type(table, &decl->data.struct_union.members[i].type);
+                        
+                        if (decl->data.struct_union.members[i].type.type == TYPE_ID) {
+                            Declaration *decl_member_type = symbol_table_get(table, decl->data.struct_union.members[i].type.data.id.type_declaration_id);
+                            assert(decl_member_type && decl_member_type->type != DECLARATION_VAR); // Guaranteed to be true if resolving the type worked correctly.
+                            symbol_table_declaration_init(table, decl_member_type);
                         }
                     }
                     decl->state = DECLARATION_STATE_INITIALIZED;
@@ -202,7 +188,7 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, boo
                 sub_type = sub_type->data.sub_type;
             }
 
-            if (sub_type->type == TYPE_PRIMITIVE) error_exit(expr->location, "Primitive types do not have members.");
+            if (sub_type->type == TYPE_PRIMITIVE || sub_type->type == TYPE_FUNCTION) error_exit(expr->location, "Only complex types have members.");
             Declaration *decl = sub_type->data.id.type_declaration;
             switch (decl->type) {
                 case DECLARATION_VAR:
@@ -300,7 +286,7 @@ void typecheck(SourceFile *file) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
     for (int j = 0; j < table.nodes[i].declaration_count; j++) {
         Declaration *decl = table.nodes[i].declarations[j];
-        symbol_table_declaration_init(table, decl);
+        symbol_table_declaration_init(&table, decl);
     }
 
     /*
