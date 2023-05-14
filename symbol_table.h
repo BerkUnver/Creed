@@ -2,6 +2,7 @@
 #define CREED_SYMBOL_TABLE_H
 
 #include "parser.h"
+#include <stdbool.h>
 
 typedef struct SymbolTableNode {
     Declaration **declarations;
@@ -17,4 +18,5 @@ typedef struct SymbolTable {
 
 void symbol_table_free(SymbolTable *table);
 void typecheck(SourceFile *file);
+bool is_valid_type(SymbolTable *table, Type *type);
 #endif

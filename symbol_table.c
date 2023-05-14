@@ -281,3 +281,32 @@ void typecheck(SourceFile *file) {
 
     symbol_table_free(&table);
 }
+
+// recursively check that a type and its subtypes are valid
+bool is_valid_type(SymbolTable *table, Type *type) {
+    switch (type->type) {
+        case TYPE_PRIMITIVE: return true;
+        case TYPE_ID: {
+            Declaration *decl = symbol_table_get(table, type->data.id.type_declaration_id);
+            if (!decl) {
+                error_exit(type->location, "The type does not exist.");
+            }
+            if (decl->type == DECLARATION_VAR) {
+                error_exit(type->location, "This is the name of a variable, not a type.");
+            }
+            return true;
+        }
+        case TYPE_PTR: 
+        case TYPE_PTR_NULLABLE:
+        case TYPE_ARRAY: return is_valid_type(table, type->data.sub_type);
+        case TYPE_FUNCTION: {
+            int param_count = type->data.function.param_count;
+            for (int j = 0; j < param_count; j++) {
+                if(!is_valid_type(table, &(type->data.function.params[j])))
+                    return false;
+            }
+            return is_valid_type(table, type->data.function.result);
+        }
+    }
+    return false; // should not reach this point
+}
