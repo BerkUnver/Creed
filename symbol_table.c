@@ -288,6 +288,31 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             };
         } break;
         
+        case EXPR_FUNCTION_CALL: {
+            ExprResult function_result = symbol_table_check_expr(table, expr->data.function_call.function);
+            if (function_result.type.type != TYPE_FUNCTION) {
+                error_exit(expr->data.function_call.function->location, "This expression does not have a function type, so it cannot be called.");        
+            }
+            if (function_result.type.data.function.param_count != expr->data.function_call.param_count) {
+                error_exit(expr->location, "The number of parameters in this function call and its type does not match.");
+            }
+            for (int i = 0; i < function_result.type.data.function.param_count; i++) {
+                ExprResult param_result = symbol_table_check_expr(table, expr->data.function_call.params + i);
+                if (!type_equal(&param_result.type, &function_result.type.data.function.params[i].type)) {
+                    error_exit(expr->data.function_call.params[i].location, "The type of expression does not match the type of the function parameter.");
+                }
+            }
+            Type return_type = type_clone(function_result.type.data.function.result);
+            expr_result_free(&function_result); 
+            // Technically instead of freeing this you could transfer the allocation of the function result type and free the parameters,
+            // but I don't want to put that logic here.
+            return (ExprResult) {
+                .is_rval = false,
+                .is_constant = false,
+                .type = return_type
+            };
+        } break;
+        
         case EXPR_ID: {
             Declaration *decl = symbol_table_get(table, expr->data.id);
             if (!decl) error_exit(expr->location, "This identifier does not exist in the current scope.");
@@ -316,10 +341,43 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 .type = type_clone(type)
             };
         } break;
+        
+        case EXPR_LITERAL: {
+            Type type;
+            if (expr->data.literal.type == LITERAL_STRING) {
+                Type *sub_type = malloc(sizeof(Type));
+                *sub_type = (Type) {
+                    .type = TYPE_PRIMITIVE,
+                    .data.primitive = TOKEN_KEYWORD_TYPE_CHAR
+                };
+                type = (Type) { 
+                    .type = TYPE_ARRAY,
+                    .data.sub_type = sub_type
+                };
+            } else {
+                type = (Type) {
+                    .type = TYPE_PRIMITIVE,
+                    .data.primitive = TOKEN_KEYWORD_TYPE_CHAR + expr->data.literal.type - LITERAL_CHAR 
+                };
+            }
 
-        default: 
-            error_exit(expr->location, "Typechecking this kind of expression hasn't been implemented yet.");
-            break;
+            return (ExprResult) {
+                .type = type,
+                .is_rval = false,
+                .is_constant = true
+            };
+        } break;
+        
+        case EXPR_LITERAL_BOOL: {
+            return (ExprResult) {
+                .type = (Type) {
+                    .type = TYPE_PRIMITIVE,
+                    .data.primitive = TOKEN_KEYWORD_TYPE_BOOL
+                },
+                .is_rval = false,
+                .is_constant = true
+            };
+        } break;
     }
     assert(false);
 }
