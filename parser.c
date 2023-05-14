@@ -199,6 +199,32 @@ Type type_clone(Type *type) {
     assert(false);
 }
 
+// Assumes declarations have been resolved.
+bool type_equal(Type *lhs, Type *rhs) {
+    if (lhs->type != rhs->type) return false;
+    switch (lhs->type) {
+        case TYPE_PRIMITIVE: 
+            return lhs->data.primitive == rhs->data.primitive;
+        
+        case TYPE_ID:
+            assert(lhs->data.id.type_declaration && rhs->data.id.type_declaration);
+            return lhs->data.id.type_declaration == rhs->data.id.type_declaration;
+        
+        case TYPE_PTR:
+        case TYPE_PTR_NULLABLE:
+        case TYPE_ARRAY:
+            return type_equal(lhs->data.sub_type, rhs->data.sub_type);
+
+        case TYPE_FUNCTION:
+            if (lhs->data.function.param_count != rhs->data.function.param_count) return false;
+            for (int i = 0; i < lhs->data.function.param_count; i++) {
+                if (!type_equal(lhs->data.function.params + i, rhs->data.function.params + i)) return false;
+            }
+            return type_equal(lhs->data.function.result, rhs->data.function.result);
+    }
+    assert(false);
+}
+
 static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, function calls, and member accesses
     Expr expr;
     switch (lexer_token_peek(lexer).type) {

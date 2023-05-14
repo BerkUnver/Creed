@@ -41,6 +41,8 @@ Type type_parse(Lexer *lexer);
 void type_print(Type *type);
 void type_free(Type *type);
 Type type_clone(Type *type);
+bool type_equal(Type *lhs, Type *rhs);
+
 struct Scope;
 
 typedef struct FunctionParameter {

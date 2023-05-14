@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "lexer.h"
+#include "parser.h"
 #include "symbol_table.h"
 
 bool symbol_table_insert(SymbolTable *table, Declaration *decl) {
@@ -36,6 +37,34 @@ Declaration *symbol_table_get(SymbolTable *table, StringId id) {
 
     if (table->previous) return symbol_table_get(table->previous, id);
     return NULL;
+}
+
+void symbol_table_resolve_type(SymbolTable *table, Type *type) {
+    switch (type->type) {
+        case TYPE_PRIMITIVE:
+            break;
+
+        case TYPE_ID: {
+            Declaration *decl = symbol_table_get(table, type->data.id.type_declaration_id);
+            if (!decl) error_exit(type->location, "This type does not exist in the current scope.");
+            if (decl->type == DECLARATION_VAR) error_exit(type->location, "This is the name of a variable, not a type.");
+            type->data.id.type_declaration = decl;
+        } break;
+
+        case TYPE_PTR:
+        case TYPE_PTR_NULLABLE:
+        case TYPE_ARRAY:
+            symbol_table_resolve_type(table, type->data.sub_type);
+            break;
+
+        case TYPE_FUNCTION: {
+            int param_count = type->data.function.param_count;
+            for (int i = 0; i < param_count; i++) {
+                symbol_table_resolve_type(table, type->data.function.params + i);
+            }
+            symbol_table_resolve_type(table, type->data.function.result);
+        } break;
+    }
 }
 
 static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) {
@@ -100,13 +129,13 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
     }
 }
 
-Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
+Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval, bool is_comptime) {
     switch (expr->type) {
         case EXPR_PAREN:
-            return symbol_table_check_expr(table, expr->data.parenthesized, is_rval);
+            return symbol_table_check_expr(table, expr->data.parenthesized, is_rval, is_comptime);
         case EXPR_UNARY: {
             bool rval_discard;
-            Type *type = symbol_table_check_expr(table, expr->data.unary.operand, &rval_discard);
+            Type *type = symbol_table_check_expr(table, expr->data.unary.operand, &rval_discard, is_comptime);
             *is_rval = false;
 
             if (type->type != TYPE_PRIMITIVE) {
@@ -122,8 +151,8 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
 
         case EXPR_BINARY: { // unfinished
             bool rval_discard;
-            Type *type_lhs = symbol_table_check_expr(table, expr->data.binary.lhs, &rval_discard);
-            Type *type_rhs = symbol_table_check_expr(table, expr->data.binary.rhs, &rval_discard);
+            Type *type_lhs = symbol_table_check_expr(table, expr->data.binary.lhs, &rval_discard, is_comptime);
+            Type *type_rhs = symbol_table_check_expr(table, expr->data.binary.rhs, &rval_discard, is_comptime);
             
             if (type_lhs->type != TYPE_PRIMITIVE || type_rhs->type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operands of a binary expression must both be of a primitive type.");
@@ -143,20 +172,18 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
         
         case EXPR_TYPECAST: {
             bool rval_discard;
-            Type *type = symbol_table_check_expr(table, expr->data.typecast.operand, &rval_discard);
+            Type *type = symbol_table_check_expr(table, expr->data.typecast.operand, &rval_discard, is_comptime);
             *is_rval = false;
             switch (type->type) {
                 case TYPE_PRIMITIVE:
                     if (type->data.primitive == TOKEN_KEYWORD_TYPE_VOID) error_exit(expr->location, "You cannot cast a void expression.");
                     if (expr->data.typecast.cast_to.type != TYPE_PRIMITIVE) error_exit(expr->location, "You can only cast a primitive type to another primitve type.");
-                    return type;
                     break;
 
                 case TYPE_PTR:
-                case TYPE_PTR_NULLABLE: {
+                case TYPE_PTR_NULLABLE:
                     if (expr->data.typecast.cast_to.type != TYPE_PTR) error_exit(expr->location, "Pointers can only be cast to other pointer types.");
-                    // TODO: Need to wire up pointers to typecast cast_to type.
-                } break;
+                    break;
 
                 case TYPE_ARRAY:
                 case TYPE_ID:
@@ -164,10 +191,12 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
                     error_exit(expr->location, "You can only cast to a primitive type or a pointer.");
                     break;
             }
+            symbol_table_resolve_type(table, &expr->data.typecast.cast_to);
+            return &expr->data.typecast.cast_to;
         } break;
 
         case EXPR_ACCESS_MEMBER: {
-            Type *type = symbol_table_check_expr(table, expr->data.access_member.operand, is_rval);
+            Type *type = symbol_table_check_expr(table, expr->data.access_member.operand, is_rval, is_comptime);
             Type *sub_type = type;
             while (sub_type->type == TYPE_PTR || sub_type->type == TYPE_PTR_NULLABLE || sub_type->type == TYPE_ARRAY) {
                 sub_type = sub_type->data.sub_type;
@@ -203,7 +232,7 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
         
         case EXPR_ACCESS_ARRAY: {
             bool rval_discard;
-            Type *type = symbol_table_check_expr(table, expr->data.access_array.operand, &rval_discard);
+            Type *type = symbol_table_check_expr(table, expr->data.access_array.operand, &rval_discard, is_comptime);
             if (type->type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
             *is_rval = true;
             return type->data.sub_type; 
@@ -216,6 +245,8 @@ Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
     assert(false);
 }
 
+// Inserts pointer to declaration to this type if it is an id.
+// Only call this on types that were generated by the parser, not types that were inferred.
 void symbol_table_check_scope(SymbolTable *table, Scope *scope) { 
     switch (scope->type) {
         case SCOPE_BLOCK: {
@@ -235,7 +266,7 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
 
                 case STATEMENT_INCREMENT: {
                     bool is_rval;
-                    Type *type = symbol_table_check_expr(table, &scope->data.statement.data.increment, &is_rval);
+                    Type *type = symbol_table_check_expr(table, &scope->data.statement.data.increment, &is_rval, false);
                     if (!is_rval) error_exit(scope->location, "Only rvals can be incremented.");
                     if (type->type != TYPE_PRIMITIVE || type->data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MIN < type->data.primitive) {
                         error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
@@ -276,37 +307,33 @@ void typecheck(SourceFile *file) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
     for (int j = 0; j < table.nodes[i].declaration_count; j++) {
         Declaration *decl = table.nodes[i].declarations[j];
+        if (decl->type != DECLARATION_VAR) continue;
+        decl->state = DECLARATION_STATE_INITIALIZING;
+        bool rval_discard;
+        switch (decl->data.var.type) {
+            case DECLARATION_VAR_CONSTANT: {
+                Type *value_type = symbol_table_check_expr(&table, &decl->data.var.data.constant.value, &rval_discard, true);
+                if (decl->data.var.data.constant.type_exists) {
+                    if (!type_equal(value_type, &decl->data.var.data.constant.type)) { 
+                        error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
+                    }
+                } else {
+                    decl->data.var.constant.type = type_clone(value_type);
+                }
+            } break;
+            
+            case DECLARATION_VAR_MUTABLE: {
+                if (&decl->data.var.data.mutable.value_exists) {
+                    Type *value_type = symbol_table_check_declaration(table, &decl->data.var.data.mutable.value, &rval_discard, true);
+                    if (!type_equal(value_type, &decl->data.var.data.mutable.type)) {
+                        error_exit(decl->location, "The type of this variable and its assigned expression are not the same.");
+                    }
+                }
+            } break;
+        }
+        symbol_table_check_expr(table, &decl->data.expr, rval_discard, 
     }
     */
 
     symbol_table_free(&table);
-}
-
-// recursively check that a type and its subtypes are valid
-bool is_valid_type(SymbolTable *table, Type *type) {
-    switch (type->type) {
-        case TYPE_PRIMITIVE: return true;
-        case TYPE_ID: {
-            Declaration *decl = symbol_table_get(table, type->data.id.type_declaration_id);
-            if (!decl) {
-                error_exit(type->location, "The type does not exist.");
-            }
-            if (decl->type == DECLARATION_VAR) {
-                error_exit(type->location, "This is the name of a variable, not a type.");
-            }
-            return true;
-        }
-        case TYPE_PTR: 
-        case TYPE_PTR_NULLABLE:
-        case TYPE_ARRAY: return is_valid_type(table, type->data.sub_type);
-        case TYPE_FUNCTION: {
-            int param_count = type->data.function.param_count;
-            for (int j = 0; j < param_count; j++) {
-                if(!is_valid_type(table, &(type->data.function.params[j])))
-                    return false;
-            }
-            return is_valid_type(table, type->data.function.result);
-        }
-    }
-    return false; // should not reach this point
 }

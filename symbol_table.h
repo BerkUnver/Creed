@@ -16,7 +16,5 @@ typedef struct SymbolTable {
     struct SymbolTable *previous;
 } SymbolTable;
 
-void symbol_table_free(SymbolTable *table);
 void typecheck(SourceFile *file);
-bool is_valid_type(SymbolTable *table, Type *type);
 #endif
