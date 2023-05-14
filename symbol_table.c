@@ -84,18 +84,15 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
                             ExprResult result = symbol_table_check_expr(table, &decl->data.var.data.constant.value);
                             if (!result.is_constant) error_exit(decl->location, "The value of a constant must itself be derivable from constants.");
                             
-                            switch (decl->data.var.data.constant.type) {
-                                case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
-                                    symbol_table_resolve_type(table, &decl->data.var.data.constant.data.type_explicit); 
-                                    if (!type_equal(&result.type, &decl->data.var.data.constant.data.type_explicit)) {
-                                        error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
-                                    }
-                                    expr_result_free(&result);
-                                    break;
-                                case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
-                                    decl->data.var.data.constant.data.type_implicit = result.type;
-                                    // Do not free the result here because its type is used here.
-                                    break;
+                            if (decl->data.var.data.constant.type_explicit) {
+                                symbol_table_resolve_type(table, &decl->data.var.data.constant.type); 
+                                if (!type_equal(&result.type, &decl->data.var.data.constant.type)) {
+                                    error_exit(decl->location, "The type of this constant and its assigned expression are not the same.");
+                                }
+                                expr_result_free(&result);
+                            } else {
+                                decl->data.var.data.constant.type = result.type;
+                                // Do not free the result here because its type is used here.
                             }
                         } break;
 
@@ -305,14 +302,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
                     is_constant = true;
-                    switch (decl->data.var.data.constant.type)  {
-                        case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
-                            type = &decl->data.var.data.constant.data.type_explicit;
-                            break;
-                        case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
-                            type = &decl->data.var.data.constant.data.type_implicit;
-                            break;
-                    }
+                    type = &decl->data.var.data.constant.type;
                     break;
                 case DECLARATION_VAR_MUTABLE:
                     is_constant = false;

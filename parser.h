@@ -165,16 +165,8 @@ typedef struct Declaration {
 
             union {
                 struct {
-                    enum {
-                        DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT,
-                        DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT
-                    } type;
-                    
-                    union {
-                        Type type_explicit;
-                        Type type_implicit; // A pointer to another type.
-                    } data;
-
+                    bool type_explicit;
+                    Type type;
                     Expr value;
                 } constant;
                 

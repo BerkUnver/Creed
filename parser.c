@@ -614,7 +614,7 @@ Declaration declaration_parse(Lexer *lexer) {
                 decl.location = location_expand(token_id.location, value.location);
                 decl.data.var.type = DECLARATION_VAR_CONSTANT;
                 decl.data.var.data.constant.value = value;
-                decl.data.var.data.constant.type = DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT;
+                decl.data.var.data.constant.type_explicit = false;
             } else {
                 Type type = type_parse(lexer);
                 if (lexer_token_peek(lexer).type == TOKEN_COLON) {
@@ -623,8 +623,8 @@ Declaration declaration_parse(Lexer *lexer) {
                     decl.location = location_expand(token_id.location, value.location);
                     decl.data.var.type = DECLARATION_VAR_CONSTANT;
                     decl.data.var.data.constant.value = value;
-                    decl.data.var.data.constant.type = DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT;
-                    decl.data.var.data.constant.data.type_explicit = type;
+                    decl.data.var.data.constant.type_explicit = true;;
+                    decl.data.var.data.constant.type = type;
                 } else if (lexer_token_peek(lexer).type == TOKEN_ASSIGN) {
                     lexer_token_get(lexer);
                     Expr value = expr_parse(lexer);
@@ -772,21 +772,10 @@ void declaration_free(Declaration *decl) {
         case DECLARATION_VAR:
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
-                    switch (decl->data.var.data.constant.type) {
-                        case DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT:
-                            type_free(&decl->data.var.data.constant.data.type_explicit);
-                            break;
-                        
-                        case DECLARATION_VAR_CONSTANT_TYPE_IMPLICIT:
-                            if (decl->state == DECLARATION_STATE_INITIALIZED) {
-                                type_free(&decl->data.var.data.constant.data.type_implicit);
-                            }
-                            break;
+                    if (decl->data.var.data.constant.type_explicit || decl->state == DECLARATION_STATE_INITIALIZED) {
+                        type_free(&decl->data.var.data.constant.type);
                     }
                     expr_free(&decl->data.var.data.constant.value);
-                    if (decl->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
-                        type_free(&decl->data.var.data.constant.data.type_explicit);
-                    }
                     break;
                 case DECLARATION_VAR_MUTABLE:
                     type_free(&decl->data.var.data.mutable.type);
@@ -822,9 +811,9 @@ void declaration_print(Declaration *decl, int indent) {
         case DECLARATION_VAR:
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
-                    if (decl->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
+                    if (decl->data.var.data.constant.type_explicit) {
                         printf("%c ", TOKEN_COLON);
-                        type_print(&decl->data.var.data.constant.data.type_explicit);
+                        type_print(&decl->data.var.data.constant.type);
                         printf(" %c ", TOKEN_COLON);
                     } else {
                         printf(" %c%c ", TOKEN_COLON, TOKEN_COLON);

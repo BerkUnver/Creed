@@ -286,7 +286,9 @@ void handle_declaration(Declaration * declaration) {
         case DECLARATION_VAR:
             switch (declaration->data.var.type) {
                 case DECLARATION_VAR_CONSTANT: {
-                    // Berk comment: TODO: account for type inference of constants.
+                   
+                    // TODO: update to reflect that type inference changed.
+                    /*
                     const char * type = get_type(declaration->data.var.data.constant.data.type_implicit);
                     if (declaration->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
                         type = get_type(declaration->data.var.data.constant.data.type_explicit);
@@ -301,6 +303,7 @@ void handle_declaration(Declaration * declaration) {
                         error_exit(declaration->location, "Function declaration must include an identifier.");
                     }
                     handle_expr(&declaration->data.var.data.constant.value);
+                    */
                     break;
                 }
                 case DECLARATION_VAR_MUTABLE: {
