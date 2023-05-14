@@ -6,68 +6,74 @@
 #include "string_cache.h"
 #include "symbol_table.h"
 
+int indent;
+
 // TO DO: Figure out how to parse identifier for arrays
-const char * get_complex_type(Type creadz_type, char * c_prim_type) {
-    char * c_type;
+const char * get_complex_type(Type creadz_type) {
+    const char * c_prim_type = get_type(*creadz_type.data.sub_type);
+    char * c_type = "";
+
     if (creadz_type.type == (TYPE_PTR | TYPE_PTR_NULLABLE)) {
-        c_type = c_prim_type;
+        strcpy(c_type, c_prim_type);
         strcat(c_type, " *");
     }
     else {
-        c_type = c_prim_type;
+        return c_prim_type;
     }
     return c_type;
 }
 
 const char * get_type(Type creadz_type) {
-    assert(creadz_type.type == TYPE_PRIMITIVE);
-    TokenType creadz_prim_type = creadz_type.data.primitive;
-    char * c_prim_type;
+    if (creadz_type.type == TYPE_PRIMITIVE) {
+        TokenType creadz_prim_type = creadz_type.data.primitive;
+        char * c_prim_type;
 
-    switch(creadz_prim_type) {
-        case TOKEN_KEYWORD_TYPE_VOID:
-        case TOKEN_KEYWORD_TYPE_CHAR:
-        case TOKEN_KEYWORD_TYPE_INT:
-        case TOKEN_KEYWORD_TYPE_FLOAT:
-            c_prim_type = (string_keywords[creadz_prim_type - TOKEN_KEYWORD_MIN]);
-            break;
+        switch(creadz_prim_type) {
+            case TOKEN_KEYWORD_TYPE_VOID:
+            case TOKEN_KEYWORD_TYPE_CHAR:
+            case TOKEN_KEYWORD_TYPE_INT:
+            case TOKEN_KEYWORD_TYPE_FLOAT:
+                c_prim_type = (string_keywords[creadz_prim_type - TOKEN_KEYWORD_MIN]);
+                break;
 
-        case TOKEN_KEYWORD_TYPE_INT8:
-            c_prim_type = "char";
-            break;
-        case TOKEN_KEYWORD_TYPE_INT16:
-            c_prim_type = "short";
-            break;
-        case TOKEN_KEYWORD_TYPE_INT64:
-            c_prim_type = "long long";
-            break;
-        case TOKEN_KEYWORD_TYPE_UINT8:
-            c_prim_type = "unsigned char";
-            break;
-        case TOKEN_KEYWORD_TYPE_UINT16:
-            c_prim_type = "unsigned short";
-            break;
-        case TOKEN_KEYWORD_TYPE_UINT:
-            c_prim_type = "unsigned int";
-            break;
-        case TOKEN_KEYWORD_TYPE_UINT64:
-            c_prim_type = "unsigned long long";
-            break;
-        case TOKEN_KEYWORD_TYPE_FLOAT64:
-            c_prim_type = "double";
-            break;
-        case TOKEN_KEYWORD_TYPE_BOOL:
-            c_prim_type = "int";
-            break;
-        default:
-            assert(false);
+            case TOKEN_KEYWORD_TYPE_INT8:
+                c_prim_type = "char";
+                break;
+            case TOKEN_KEYWORD_TYPE_INT16:
+                c_prim_type = "short";
+                break;
+            case TOKEN_KEYWORD_TYPE_INT64:
+                c_prim_type = "long long";
+                break;
+            case TOKEN_KEYWORD_TYPE_UINT8:
+                c_prim_type = "unsigned char";
+                break;
+            case TOKEN_KEYWORD_TYPE_UINT16:
+                c_prim_type = "unsigned short";
+                break;
+            case TOKEN_KEYWORD_TYPE_UINT:
+                c_prim_type = "unsigned int";
+                break;
+            case TOKEN_KEYWORD_TYPE_UINT64:
+                c_prim_type = "unsigned long long";
+                break;
+            case TOKEN_KEYWORD_TYPE_FLOAT64:
+                c_prim_type = "double";
+                break;
+            case TOKEN_KEYWORD_TYPE_BOOL:
+                c_prim_type = "int";
+                break;
+            default:
+                assert(false);
+        }
+        return c_prim_type;
     }
-
-    if (creadz_type.type != TYPE_PRIMITIVE) {
-        return get_complex_type(creadz_type, c_prim_type);
+    else if (creadz_type.type == (TYPE_ARRAY | TYPE_PTR | TYPE_PTR_NULLABLE)) {
+        return get_complex_type(creadz_type);
     }
-
-    return c_prim_type;
+    else {
+        return "";
+    }
 }
 
 void handle_literals(Literal * literal) {
@@ -118,12 +124,48 @@ void handle_literals(Literal * literal) {
     }
 }
 
-// TO DO: Add statement handling
 void handle_statement(Statement * statement) {
+    switch (statement->type) {
+        case STATEMENT_DECLARATION:
+            handle_declaration(&statement->data.declaration);
+            break;
 
+        case STATEMENT_INCREMENT:
+            printf("++");
+            handle_expr(&statement->data.increment);
+            break;
+
+        case STATEMENT_DEINCREMENT:
+            printf("--");
+            handle_expr(&statement->data.deincrement);
+            break;
+
+        case STATEMENT_ASSIGN:
+            handle_expr(&statement->data.assign.assignee);
+            printf(" %s ", string_assigns[statement->data.assign.type - TOKEN_ASSIGN_MIN]);
+            handle_expr(&statement->data.assign.value);
+            break;
+
+        case STATEMENT_EXPR:
+            handle_expr(&statement->data.expr);
+            break;
+
+        case STATEMENT_LABEL:
+            printf("%s%c\n", string_cache_get(statement->data.label), TOKEN_COLON);
+            break;
+
+        case STATEMENT_LABEL_GOTO:
+            printf("goto %s%c", string_cache_get(statement->data.label_goto), TOKEN_SEMICOLON);
+            break;
+
+        case STATEMENT_RETURN:
+            printf("return ");
+            handle_expr(&statement->data.return_expr);
+    }
 }
 
 void handle_scope(Scope * scope) {
+    print_indent(indent);
     switch(scope->type) {
         case SCOPE_STATEMENT:
             handle_statement(&scope->data.statement);
@@ -165,10 +207,11 @@ void handle_scope(Scope * scope) {
 
         case SCOPE_BLOCK:
             printf(" {\n");
+            indent++;
             for (int i = 0; i < scope->data.block.scope_count; i++) {
                 handle_scope(&scope->data.block.scopes[i]);
-                putchar('\n');
             }
+            indent--;
             putchar(TOKEN_CURLY_BRACE_CLOSE);
 
         // TO DO: Handle match statements?
@@ -275,35 +318,27 @@ void handle_expr(Expr * expr) {
     }   
 }
 
-// TO DO: Only print semicolons after scopes that are statements
-void handle_statement_end() {
-    printf(";\n");
-}
-
 void handle_declaration(Declaration * declaration) {
     switch(declaration->type) {
 
         case DECLARATION_VAR:
             switch (declaration->data.var.type) {
                 case DECLARATION_VAR_CONSTANT: {
-                   
-                    // TODO: update to reflect that type inference changed.
-                    /*
-                    const char * type = get_type(declaration->data.var.data.constant.data.type_implicit);
-                    if (declaration->data.var.data.constant.type == DECLARATION_VAR_CONSTANT_TYPE_EXPLICIT) {
-                        type = get_type(declaration->data.var.data.constant.data.type_explicit);
+                    Type type = declaration->data.var.data.constant.type;
+                    if (!type.type) {
+                        error_exit(declaration->location, "Declaration must include a type.");
                     }
-                    printf("%s ", type);
+                    const char * type_str = get_type(type);
+                    printf("%s ", type_str);
                     if (declaration->id.idx) {
                         const char * id = string_cache_get(declaration->id);
                         printf("%s", id);
                     } 
                     else {
                         // TO DO: Allow for anonymous functions (declaring functions with no names)?
-                        error_exit(declaration->location, "Function declaration must include an identifier.");
+                        error_exit(declaration->location, "Declaration must include an identifier.");
                     }
                     handle_expr(&declaration->data.var.data.constant.value);
-                    */
                     break;
                 }
                 case DECLARATION_VAR_MUTABLE: {
@@ -323,29 +358,38 @@ void handle_declaration(Declaration * declaration) {
         // TO DO: Implement assigning a value to an enum?
         case DECLARATION_ENUM:
             printf("enum %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
+            indent++;
             for (int i = 0; i < declaration->data.enumeration.member_count; i++) {
+                print_indent(indent);
                 printf("%s%c\n", string_cache_get(declaration->data.enumeration.members[i]), TOKEN_COMMA);
             }
+            indent--;
             printf("%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
             break;
 
         case DECLARATION_STRUCT:
             printf("struct %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
+            indent++;
             for (int i = 0; i < declaration->data.struct_union.member_count; i++) {
                 const char * member_type = get_type(declaration->data.struct_union.members[i].type);
                 char * member_id = string_cache_get(declaration->data.struct_union.members[i].id);
+                print_indent(indent);
                 printf("%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
             }
+            indent--;
             printf("%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
             break;
 
         case DECLARATION_UNION:
             printf("union %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
+            indent++;
             for (int i = 0; i < declaration->data.struct_union.member_count; i++) {
                 const char * member_type = get_type(declaration->data.struct_union.members[i].type);
                 char * member_id = string_cache_get(declaration->data.struct_union.members[i].id);
+                print_indent(indent);
                 printf("%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
             }
+            indent--;
             printf("%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
             break;
 
@@ -356,8 +400,13 @@ void handle_declaration(Declaration * declaration) {
     }
 }
 
+void handle_statement_end() {
+    printf(";\n");
+}
+
 // TO DO: Have this called somewhere after SourceFile is parsed
 void handle_driver(SourceFile * file) {
+    indent = 0;
     // First pass
     for (int i = 0; i < file->declaration_count; i++) {
         if (file->declarations[i].type != DECLARATION_VAR) {

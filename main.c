@@ -8,21 +8,17 @@
 #include "parser.h"
 #include "string_cache.h"
 #include "symbol_table.h"
+#include "handlers.h"
 
 int main(int argc, char **argv) {
     string_cache_init();
     
     if (argc >= 2) {
-        Lexer lexer = lexer_new(string_cache_insert_static(argv[1]));
-        while (lexer_token_peek(&lexer).type != TOKEN_NULL) {
-            Statement statement = statement_parse(&lexer);
-            if (lexer_token_get(&lexer).type != TOKEN_SEMICOLON) {
-                error_exit(statement.location, "Expected a semicolon after a top-level statement.");
-            }
-            statement_print(&statement, 0);
-            statement_free(&statement);
-            putchar('\n');
-        }
+        SourceFile file = source_file_parse(string_cache_insert_static(argv[1]));
+        source_file_print(&file);
+        typecheck(&file);
+        // handle_driver(&file);
+        source_file_free(&file);
     } else {
 
         { // test lexer getting tokens
