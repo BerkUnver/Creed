@@ -5,20 +5,6 @@
 #include "lexer.h"
 #include "symbol_table.h"
 
-void expr_type_free(ExprType *type) {
-    switch (type->type) {
-        case EXPR_TYPE_PRIMITIVE:
-        case EXPR_TYPE_DECLARATION:
-            break;
-        case EXPR_TYPE_PTR:
-        case EXPR_TYPE_PTR_NULLABLE:
-        case EXPR_TYPE_ARRAY:
-            expr_type_free(type->data.sub_type);
-            free(type->data.sub_type);
-            break;
-    }
-}
-
 bool symbol_table_insert(SymbolTable *table, Declaration *decl) {
     int idx = decl->id.idx % SYMBOL_TABLE_NODE_COUNT;
     for (int i = 0; i < table->nodes[idx].declaration_count; i++) {
@@ -114,36 +100,120 @@ static void symbol_table_declaration_init(SymbolTable table, Declaration *decl) 
     }
 }
 
-/*
-ExprType symbol_table_check_expr(SymbolTable *table, Expr *expr) {
+Type *symbol_table_check_expr(SymbolTable *table, Expr *expr, bool *is_rval) {
     switch (expr->type) {
         case EXPR_PAREN:
-            return symbol_table_check_expr(table, expr->data.parenthesized);
+            return symbol_table_check_expr(table, expr->data.parenthesized, is_rval);
         case EXPR_UNARY: {
-            ExprType expr_type = symbol_table_check_expr(table, expr->data.unary.operand);
-            if (expr_type.type != EXPR_TYPE_PRIMITIVE) {
+            bool rval_discard;
+            Type *type = symbol_table_check_expr(table, expr->data.unary.operand, &rval_discard);
+            *is_rval = false;
+
+            if (type->type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operand of a unary expression must have a primitive type.");
             }
-            TokenType type = expr_type.data.primitive;
             switch (expr->data.unary.type) {
                 case EXPR_UNARY_LOGICAL_NOT:
-                    if (type != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
-                    return expr_type;
+                    if (type->data.primitive != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
+                    return type;
                 default: assert(false);
             }
         } break;
 
-        case EXPR_BINARY: {
-            ExprType expr_type_lhs = symbol_table_check_expr(table, expr->data.binary.lhs);
-            ExprType expr_type_rhs = symbol_table_check_expr(table, expr->data.binary.rhs);
-            if (expr_type_lhs.type != EXPR_TYPE_PRIMITIVE || expr_type_rhs.type != EXPR_TYPE_PRIMITIVE) {
+        case EXPR_BINARY: { // unfinished
+            bool rval_discard;
+            Type *type_lhs = symbol_table_check_expr(table, expr->data.binary.lhs, &rval_discard);
+            Type *type_rhs = symbol_table_check_expr(table, expr->data.binary.rhs, &rval_discard);
+            
+            if (type_lhs->type != TYPE_PRIMITIVE || type_rhs->type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operands of a binary expression must both be of a primitive type.");
             }
-            // unfinished
+
+            *is_rval = false;
+            switch (expr->data.binary.operator) {
+                case TOKEN_OP_LOGICAL_AND:
+                case TOKEN_OP_LOGICAL_OR:
+                    if (type_lhs->data.primitive != TOKEN_KEYWORD_TYPE_BOOL || type_rhs->data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
+                        error_exit(expr->location, "The operands of a logical operator are both expected to have a boolean type.");
+                    }
+                    return type_lhs;
+                default: assert(false);
+            }
+        } break;
+        
+        case EXPR_TYPECAST: {
+            bool rval_discard;
+            Type *type = symbol_table_check_expr(table, expr->data.typecast.operand, &rval_discard);
+            *is_rval = false;
+            switch (type->type) {
+                case TYPE_PRIMITIVE:
+                    if (type->data.primitive == TOKEN_KEYWORD_TYPE_VOID) error_exit(expr->location, "You cannot cast a void expression.");
+                    if (expr->data.typecast.cast_to.type != TYPE_PRIMITIVE) error_exit(expr->location, "You can only cast a primitive type to another primitve type.");
+                    return type;
+                    break;
+
+                case TYPE_PTR:
+                case TYPE_PTR_NULLABLE: {
+                    if (expr->data.typecast.cast_to.type != TYPE_PTR) error_exit(expr->location, "Pointers can only be cast to other pointer types.");
+                    // TODO: Need to wire up pointers to typecast cast_to type.
+                } break;
+
+                case TYPE_ARRAY:
+                case TYPE_ID:
+                case TYPE_FUNCTION: // You actually might want to be able to cast a function pointer.
+                    error_exit(expr->location, "You can only cast to a primitive type or a pointer.");
+                    break;
+            }
         } break;
 
-        default: assert(false);
+        case EXPR_ACCESS_MEMBER: {
+            Type *type = symbol_table_check_expr(table, expr->data.access_member.operand, is_rval);
+            Type *sub_type = type;
+            while (sub_type->type == TYPE_PTR || sub_type->type == TYPE_PTR_NULLABLE || sub_type->type == TYPE_ARRAY) {
+                sub_type = sub_type->data.sub_type;
+            }
+
+            if (sub_type->type == TYPE_PRIMITIVE) error_exit(expr->location, "Primitive types do not have members.");
+            Declaration *decl = sub_type->data.id.type_declaration;
+            switch (decl->type) {
+                case DECLARATION_VAR:
+                    assert(false); // Guaranteed not to be a var.
+                    break;
+                
+                case DECLARATION_ENUM:
+                    error_exit(expr->location, "Enum types do not have members.");
+                    break;
+                
+                case DECLARATION_STRUCT:
+                case DECLARATION_UNION:
+                    for (int i = 0; i < decl->data.struct_union.member_count; i++) {
+                        if (decl->data.struct_union.members[i].id.idx == expr->data.access_member.member.idx) {
+                            if (!is_rval) *is_rval = type->type == TYPE_PTR || type->type == TYPE_PTR_NULLABLE || type->type == TYPE_ARRAY;
+                            return type;
+                        }
+                    } 
+                    error_exit(expr->location, "This complex type does not have a member with this name.");
+                    break;
+
+                case DECLARATION_SUM: 
+                    error_exit(expr->location, "We haven't decided what to do if you try to directly access the member of a sum type yet.");
+                    break;
+            }
+        } break;
+        
+        case EXPR_ACCESS_ARRAY: {
+            bool rval_discard;
+            Type *type = symbol_table_check_expr(table, expr->data.access_array.operand, &rval_discard);
+            if (type->type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
+            *is_rval = true;
+            return type->data.sub_type; 
+        } break;
+
+        default: 
+            error_exit(expr->location, "Typechecking this kind of expression hasn't been implemented yet.");
+            break;
     }
+    assert(false);
 }
 
 void symbol_table_check_scope(SymbolTable *table, Scope *scope) { 
@@ -159,16 +229,27 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
 
         case SCOPE_STATEMENT: {
             switch (scope->data.statement.type) {
-                case STATEMENT_DECLARATION: assert(false);
+                case STATEMENT_DECLARATION: 
+                    assert(false);
+                    break;
+
                 case STATEMENT_INCREMENT: {
-                    Declaration *decl = symbol_table_get(table, scope->data.statement.data.increment);
-                } break; 
-                case STATEMENT_DEINCREMENT:
+                    bool is_rval;
+                    Type *type = symbol_table_check_expr(table, &scope->data.statement.data.increment, &is_rval);
+                    if (!is_rval) error_exit(scope->location, "Only rvals can be incremented.");
+                    if (type->type != TYPE_PRIMITIVE || type->data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MIN < type->data.primitive) {
+                        error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
+                    }
+                } break;
+
+                default: assert(false);
             }
         } break;
+
+        default: 
+            error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
     }
 }
-*/
 
 void symbol_table_free(SymbolTable *table) {
     for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
@@ -190,6 +271,13 @@ void typecheck(SourceFile *file) {
         Declaration *decl = table.nodes[i].declarations[j];
         symbol_table_declaration_init(table, decl);
     }
+
+    /*
+    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++)
+    for (int j = 0; j < table.nodes[i].declaration_count; j++) {
+        Declaration *decl = table.nodes[i].declarations[j];
+    }
+    */
 
     symbol_table_free(&table);
 }

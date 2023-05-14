@@ -3,26 +3,6 @@
 
 #include "parser.h"
 
-typedef struct ExprType {
-    bool is_rval;
-    
-    enum {
-        EXPR_TYPE_PRIMITIVE,
-        EXPR_TYPE_DECLARATION,
-        EXPR_TYPE_PTR,
-        EXPR_TYPE_PTR_NULLABLE,
-        EXPR_TYPE_ARRAY,
-    } type;
-
-    union {
-        TokenType primitive;
-        Declaration *declaration;
-        struct ExprType *sub_type;
-    } data;
-} ExprType;
-
-void expr_type_free(ExprType *type);
-
 typedef struct SymbolTableNode {
     Declaration **declarations;
     int declaration_count;

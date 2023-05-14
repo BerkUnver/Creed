@@ -8,8 +8,8 @@
 struct Declaration;
 
 typedef struct Type {
-    Location location;
-
+    Location location; // Used only when this type is explicitly declared.
+    
     enum {
         TYPE_PRIMITIVE,
         TYPE_ID,
@@ -25,7 +25,7 @@ typedef struct Type {
         struct Type *sub_type;
         
         struct {
-            StringId type_declaration_id;
+            StringId type_declaration_id; // Used only when this type is explicitly declared.
             struct Declaration *type_declaration;
         } id;
 
@@ -40,7 +40,7 @@ typedef struct Type {
 Type type_parse(Lexer *lexer);
 void type_print(Type *type);
 void type_free(Type *type);
-
+Type type_clone(Type *type);
 struct Scope;
 
 typedef struct FunctionParameter {

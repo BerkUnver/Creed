@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "lexer.h"
 #include "parser.h"
@@ -162,6 +163,40 @@ void type_print(Type *type) {
             type_print(type->data.function.result);
             break;
     }
+}
+
+Type type_clone(Type *type) {
+    switch (type->type) {
+        case TYPE_PRIMITIVE:
+        case TYPE_ID: 
+            return *type;
+
+        case TYPE_PTR:
+        case TYPE_PTR_NULLABLE:
+        case TYPE_ARRAY: {
+            Type *sub_clone = malloc(sizeof(Type));
+            *sub_clone = type_clone(type->data.sub_type);
+            Type clone = *type;
+            clone.data.sub_type = type;
+            return clone;
+        } break;
+        
+        case TYPE_FUNCTION: {
+            int param_count = type->data.function.param_count;
+            Type *params_clone = malloc(sizeof(Type) * param_count);
+            memcpy(params_clone, type->data.function.params, sizeof(Type) * param_count);
+            for (int i = 0; i < param_count; i++) {
+                params_clone[i] = type_clone(type->data.function.params + i);
+            }
+            Type *result_clone = malloc(sizeof(Type));
+            *result_clone = type_clone(type->data.function.result);
+            Type clone = *type;
+            clone.data.function.params = params_clone;
+            clone.data.function.result = result_clone;
+            return clone;
+        } break;
+    }
+    assert(false);
 }
 
 static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, function calls, and member accesses

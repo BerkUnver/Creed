@@ -268,6 +268,7 @@ void handle_expr(Expr * expr) {
 }
 
 // TO DO: Only print semicolons after scopes that are declarations??
+// Berk comment: Print semicolons after scopes that are statements.
 void handle_statement_end() {
     printf(";\n");
 }
@@ -277,28 +278,31 @@ void handle_declaration(Declaration * declaration) {
     switch(declaration->type) {
         case DECLARATION_VAR:
             switch (declaration->data.var.type) {
-                case DECLARATION_VAR_CONSTANT:
-                    char * type = get_type(declaration->data.var.data.constant.type);
-                    char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
+                case DECLARATION_VAR_CONSTANT: {
+                    const char * type = get_type(declaration->data.var.data.constant.type);
+                    const char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
                     printf("%s %s", type, id);
                     handle_expr(&declaration->data.var.data.constant.value);
-                    break;
-                case DECLARATION_VAR_MUTABLE:
-                    char * type = get_type(declaration->data.var.data.constant.type);
-                    char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
+                } break;
+                
+                case DECLARATION_VAR_MUTABLE: {
+                    const char * type = get_type(declaration->data.var.data.constant.type);
+                    const char * id = string_cache_get(declaration->data.var.data.constant.type.data.id.type_declaration_id);
                     printf("%s %s", type, id);
                     handle_expr(&declaration->data.var.data.constant.value);
                     if (declaration->data.var.data.mutable.value_exists) {
                         printf(" %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
                         handle_expr(&declaration->data.var.data.constant.value);
                     }
-                    break;
+                } break;
             }
             break;
         case DECLARATION_ENUM:
         case DECLARATION_STRUCT:
         case DECLARATION_UNION:
         case DECLARATION_SUM:
+            error_exit(declaration->location, "Translating this kind of declaration into C has not been implemented yet.");
+            break;
     }
 }
 

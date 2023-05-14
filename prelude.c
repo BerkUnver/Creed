@@ -7,6 +7,7 @@
 void print_indent(int count) {
     for (int i = 0; i < count; i++) print("    ");
 }
+
 Location location_expand(Location begin, Location end) {
     assert(begin.file_name.idx == end.file_name.idx);
     assert(begin.file_content.idx == end.file_content.idx);
