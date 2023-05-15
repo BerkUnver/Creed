@@ -177,7 +177,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     return result;
                 
                 case EXPR_UNARY_BITWISE_NOT:
-                    if (result.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN && TOKEN_KEYWORD_TYPE_UINT_MAX < result.type.data.primitive) {
+                    if (result.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN || TOKEN_KEYWORD_TYPE_UINT_MAX < result.type.data.primitive) {
                         error_exit(expr->location, "The operand of a bitwise not expression must have a unsigned integer type.");
                     }
                     return result;
