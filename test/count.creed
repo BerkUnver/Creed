@@ -1,0 +1,13 @@
+main :: () int{
+	count : int = 0; 
+
+	if ((count > 10)){
+		return 0; 
+
+	}else
+	{
+		++count; 
+	}
+
+
+};
