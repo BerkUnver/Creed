@@ -1,9 +1,7 @@
-main (args: [][]char) int {
-	var : int; 
-	
-	x = var/0;
-
-	printf(x);
-
-}
+main :: () int {
+        var : int;
+        x : int;
+        x = var/0;
+        return x;
+};
 
