@@ -114,6 +114,7 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
                                 if (!type_equal(&result.type, &decl->data.var.data.mutable.type)) {
                                     error_exit(decl->location, "The type of this variable and its assigned expression are not the same.");
                                 }
+                                expr_result_free(&result);
                             }
                         } break;
 
@@ -400,15 +401,20 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
         } break;
         
         case EXPR_ACCESS_ARRAY: {
-            ExprResult result = symbol_table_check_expr(table, expr->data.access_array.operand);
-            if (result.type.type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
+            error_exit(expr->location, "Array access expressions are currently not implemented.");
+            /*
+            ExprResult operand_result = symbol_table_check_expr(table, expr->data.access_array.operand);
+            if (operand_result.type.type != TYPE_ARRAY) {
+                error_exit(expr->location, "The operand of this array access is not an array.");
+            }
             
             ExprResult item = {
-                .type = type_clone(result.type.data.sub_type),
-                .state = result.state == EXPR_RESULT_CONSTANT ? EXPR_RESULT_CONSTANT : EXPR_RESULT_LVAL
+                .type = type_clone(operand_result.type.data.sub_type),
+                .state = operand_result.state == EXPR_RESULT_CONSTANT ? EXPR_RESULT_CONSTANT : EXPR_RESULT_LVAL
             };
-            expr_result_free(&result);
+            expr_result_free(&operand_result);
             return item;
+            */
         } break;
 
         case EXPR_FUNCTION: {
@@ -588,7 +594,7 @@ void symbol_table_check_statement(SymbolTable *table, Statement *statement, Type
         } break;
 
         default: 
-            error_exit(statement->location, "Typehecking this kind of statement hasn't been implemented yet.");
+            error_exit(statement->location, "Typechecking this kind of statement hasn't been implemented yet.");
             break;
     }
 }
@@ -618,8 +624,7 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
             if (scope->data.conditional.scope_else) symbol_table_check_scope(table, scope->data.conditional.scope_else, return_type);
         } break;
 
-        default:
-            error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
+
 
         case SCOPE_LOOP_FOR: {
             SymbolTable table_scope;
@@ -627,13 +632,26 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
             symbol_table_check_statement(&table_scope, &scope->data.loop_for.init, return_type);
             ExprResult result = symbol_table_check_expr(&table_scope, &scope->data.loop_for.expr);
             if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
-                error_exit(scope->data.loop_for.expr.location, "The expression of a for loop is expected to be a boolean.");
+                error_exit(scope->data.loop_for.expr.location, "The expression of a for loop is expected to be of a boolean type.");
             }
             expr_result_free(&result);
             symbol_table_check_statement(&table_scope, &scope->data.loop_for.step, return_type);
             symbol_table_check_scope(&table_scope, scope->data.loop_for.scope, return_type);
             symbol_table_free(&table_scope);
         } break;
+
+        case SCOPE_LOOP_WHILE: {
+            ExprResult result = symbol_table_check_expr(table, &scope->data.loop_while.expr);
+            if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
+                error_exit(scope->data.loop_while.expr.location, "The expression of a while loop is expected to be of a boolean type.");
+            }
+            expr_result_free(&result);
+            symbol_table_check_scope(table, scope->data.loop_while.scope, return_type);
+        } break;
+        
+        default:
+            error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
+            break;
     }
 }
 
