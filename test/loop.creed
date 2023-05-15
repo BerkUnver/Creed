@@ -1,9 +1,10 @@
-main (args: [][]char) int {
-	
-	var : int = 1;
-	while i>var{
-	   i++;
-	   printf("%d\n", i);
-	}
-	retunr 0;
-}
+main :: () int {
+
+        var : int = 1;
+        i : int;
+        while i>var{
+           ++i;
+        }
+        return 0;
+};
+~ 

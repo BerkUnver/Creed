@@ -1,0 +1,15 @@
+addFunc :: (x: int, y: int) int{
+	x: int; 
+	y: int; 
+	return x+y; 
+
+};
+
+
+main :: () int{
+	
+	x: int = 1;
+	y: int = 1;
+	z: int = addFunc(x, y);
+
+};
