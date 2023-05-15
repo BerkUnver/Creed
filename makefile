@@ -12,4 +12,4 @@ run:
 
 
 clean:
-	rm -f ${APP_NAME} file.c
+	rm -f ${APP_NAME}

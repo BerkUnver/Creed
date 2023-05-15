@@ -90,4 +90,5 @@
     label label_name;
     goto label_name;
     return a + b;
+    return;
 } 

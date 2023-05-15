@@ -6,8 +6,11 @@
 
 typedef struct ExprResult {
     Type type;
-    bool is_lval;
-    bool is_constant;
+    enum {
+        EXPR_RESULT_CONSTANT,
+        EXPR_RESULT_LVAL,
+        EXPR_RESULT_RVAL
+    } state;
 } ExprResult;
 
 void expr_result_free(ExprResult *result);

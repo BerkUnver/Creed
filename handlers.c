@@ -169,7 +169,9 @@ void handle_statement(Statement * statement, FILE * outfile) {
 
         case STATEMENT_RETURN:
             fprintf(outfile, "return ");
+            /*
             handle_expr(&statement->data.return_expr, outfile);
+            */
     }
 }
 

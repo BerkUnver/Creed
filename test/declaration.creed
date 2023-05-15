@@ -23,5 +23,6 @@ bool1 :: false;
 bool2 :: !bool1;
 
 main :: () void {
-    i: int = 1 + 1;
+    local_var: int = 1;
+    ++local_var;
 };
