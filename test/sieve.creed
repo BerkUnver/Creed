@@ -1,52 +1,41 @@
-sieve : int; 
-is_prime : bool; 
-primes : int; 
+sieve : int *; 
+is_prime : bool *; 
+primes : int *; 
 num_primes : int = 0; 
 
-populate_primes (upper_bound : int) bool{
-	
-	sieve = 
-	is_prime = 
-	memset(is_prime, true, upper_boune);
-	primes = 
-	i : int = 2; 
-	for(i*i < upper_bound; ++i){
-		if(is_prime[i]) {
-		for (int j = i * i; j < upper_bound; j += i){
-			is_prime[j] = false; 
-
+populate_primes :: (upper_bound : int) void {	
+	sieve = [100 int];
+	is_prime = [100 bool];
+	memset(is_prime, true, upper_bound);
+	primes = [100 int];
+    i: int = 2
+	for(; i * i < upper_bound; ++i) {
+		if (is_prime[i]) {
+            for (int j = i * i; j < upper_bound; j += i) {
+                is_prime[j] = false; 
+	        }
+            primes[num_primes++] = i;
+	    }	
 	}
-
-	}
-	
-	}
-	for (; i < upper_bound; ++i){
-
-		if (is+prime[i]) {
-
-			primes[num_primes++] = i 
+	for (; i < upper_bound; ++i) {
+		if (is_prime[i]) {
+			primes[num_primes++] = i;
 		}
-
 	}
+};
 
 
-}
-
-
-main :: (args: char[][]) -> void{
+main :: (args: char[][]) int {
 	if (args < 2) {
 		fprintf(stderr, "Usage: %s \n", argv[0]);
-		exit(EXIT_FAILURE);
+		exit(0);
 	}
 
 	upper_bound : int = atoi(argv[1]);
 	populate_primes(upper_bound);
-	for (i : int = 0; i < num_primesl ++i){
+	for (i : int = 0; i < num_primes; ++i) {
 		printf("%d ", primes[i]);
 	}
-
 	putchar("\n");
-	return EXIT_SUCCESS; 
-
-
+	return 1; 
 }

@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
         SourceFile file = source_file_parse(string_cache_insert_static(argv[1]));
         source_file_print(&file);
         typecheck(&file);
-        // handle_driver(&file);
+        handle_driver(&file);
         source_file_free(&file);
     } else {
 

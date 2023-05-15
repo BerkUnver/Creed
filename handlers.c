@@ -20,16 +20,16 @@ void write_indent(int count, FILE * outfile) {
 // TO DO: Figure out how to parse identifier for arrays
 const char * get_complex_type(Type creadz_type) {
     const char * c_prim_type = get_type(*creadz_type.data.sub_type);
-    char * c_type = "";
 
-    if (creadz_type.type == (TYPE_PTR | TYPE_PTR_NULLABLE)) {
-        strcpy(c_type, c_prim_type);
-        strcat(c_type, " *");
+    if (creadz_type.type == TYPE_PTR || creadz_type.type == TYPE_PTR_NULLABLE) {
+        char c_type[16];
+        sprintf(c_type, "%s *", c_prim_type);
+        const char * c_type_out = c_type;
+        return c_type_out;
     }
     else {
         return c_prim_type;
     }
-    return c_type;
 }
 
 const char * get_type(Type creadz_type) {
@@ -77,7 +77,7 @@ const char * get_type(Type creadz_type) {
         }
         return c_prim_type;
     }
-    else if (creadz_type.type == (TYPE_ARRAY | TYPE_PTR | TYPE_PTR_NULLABLE)) {
+    else if (creadz_type.type == TYPE_ARRAY || creadz_type.type == TYPE_PTR || creadz_type.type ==  TYPE_PTR_NULLABLE) {
         return get_complex_type(creadz_type);
     }
     else {
@@ -168,10 +168,11 @@ void handle_statement(Statement * statement, FILE * outfile) {
             break;
 
         case STATEMENT_RETURN:
-            fprintf(outfile, "return ");
-            /*
-            handle_expr(&statement->data.return_expr, outfile);
-            */
+            fprintf(outfile, "return");
+            if (statement->data.return_value.exists) {
+                fputc(' ', outfile);
+                handle_expr(&statement->data.return_value.expr, outfile);
+            }
     }
 }
 
@@ -223,7 +224,7 @@ void handle_scope(Scope * scope, FILE * outfile) {
                 handle_scope(&scope->data.block.scopes[i], outfile);
             }
             indent--;
-            fputc(TOKEN_CURLY_BRACE_CLOSE, outfile);
+            fprintf(outfile, "}\n\n");
 
         // TO DO: Handle match statements?
         case SCOPE_MATCH:
@@ -252,7 +253,6 @@ void handle_expr(Expr * expr, FILE * outfile) {
 
         case EXPR_TYPECAST:
             fputc(TOKEN_PAREN_OPEN, outfile);
-            // Berk: Not guaranteed to be a primitive type, could be a pointer.
             const char * type = get_type(expr->data.typecast.cast_to);
             fprintf(outfile, "%s", type);
             fputc(TOKEN_PAREN_CLOSE, outfile);
@@ -326,8 +326,18 @@ void handle_expr(Expr * expr, FILE * outfile) {
                 fprintf(outfile, "%d", 1);
             }
             break;
+
         case EXPR_LITERAL_ARRAY:
-            error_exit(expr->location, "Handling not implemented for arrays");
+            fputc(TOKEN_CURLY_BRACE_OPEN, outfile);
+            if (expr->data.literal_array.allocated_count) {
+                for (int i = 0; i < expr->data.literal_array.allocated_count-1; i++) {
+                    handle_expr(&expr->data.literal_array.members[i], outfile);
+                    fprintf(outfile, ", ");
+                }
+                handle_expr(&expr->data.literal_array.members[expr->data.literal_array.allocated_count-1], outfile);
+            }
+
+            fputc(TOKEN_CURLY_BRACE_CLOSE, outfile);
             break;
     }   
 }
@@ -350,10 +360,7 @@ void handle_declaration(Declaration * declaration, FILE * outfile) {
                     }
                     else {
                         if (declaration->data.var.data.constant.value.type == EXPR_FUNCTION) {
-                            Type type = declaration->data.var.data.constant.value.data.function.type;
-                            if (!type.type) {
-                                error_exit(declaration->location, "Function must include a type.");
-                            }
+                            Type type = *declaration->data.var.data.constant.value.data.function.type.data.function.result;
                             const char * type_str = get_type(type);
                             fprintf(outfile, "%s ", type_str);
                         }
@@ -366,11 +373,22 @@ void handle_declaration(Declaration * declaration, FILE * outfile) {
                 case DECLARATION_VAR_MUTABLE: {
                     const char * type = get_type(declaration->data.var.data.mutable.type);
                     const char * id = string_cache_get(declaration->id);
-                    fprintf(outfile, "%s %s", type, id);
-                    handle_expr(&declaration->data.var.data.constant.value, outfile);
+                    if (declaration->data.var.data.mutable.type.type == TYPE_ARRAY) {
+                        if (declaration->data.var.data.mutable.value.data.literal_array.count != NULL) {
+                            fprintf(outfile, "%s %s[", type, id);
+                            handle_expr(declaration->data.var.data.mutable.value.data.literal_array.count, outfile);
+                            fprintf(outfile, "]");
+                        }
+                        else {
+                            fprintf(outfile, "%s %s[]", type, id);
+                        }
+                    }
+                    else {
+                        fprintf(outfile, "%s %s", type, id);
+                    }
                     if (declaration->data.var.data.mutable.value_exists) {
                         fprintf(outfile, " %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
-                        handle_expr(&declaration->data.var.data.constant.value, outfile);
+                        handle_expr(&declaration->data.var.data.mutable.value, outfile);
                     }                   
                     break;
                 }
@@ -426,13 +444,14 @@ void handle_statement_end(FILE * outfile) {
     fprintf(outfile, ";\n");
 }
 
-// TO DO: Have this called somewhere after SourceFile is parsed
 void handle_driver(SourceFile * file) {
+    remove("file.c");
     FILE * outfile = fopen("file.c", "w");
     if (outfile == NULL) {
         perror("Failed to open output file.");
         exit(EXIT_FAILURE);
     }
+
     indent = 0;
     // First pass
     for (int i = 0; i < file->declaration_count; i++) {
