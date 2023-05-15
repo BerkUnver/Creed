@@ -27,6 +27,16 @@ main :: () void {
     local_var: int = 1;
     ++local_var;
     --local_var;
+    
+    i :: 1;
+    j :: 2;
+    k :: i + 1;
+    l: int = i + j % k;
+
+    bool1 :: i == j && k == 3 || 1 == 2;
+    float1 :: 25f;
+    float2 :: 33f;
+    float3 :: float1 + float2 / float1 * float2;
 
     local_condition_if:: true;
     local_condition_else_if :: false;

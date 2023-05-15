@@ -225,6 +225,8 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 error_exit(expr->location, "The operands of a binary expression must both be of a primitive type.");
             }
             
+            int state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT ? EXPR_RESULT_CONSTANT : EXPR_RESULT_RVAL;
+            
             switch (expr->data.binary.operator) {
                 case TOKEN_OP_LOGICAL_AND:
                 case TOKEN_OP_LOGICAL_OR:
@@ -232,63 +234,80 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                         error_exit(expr->location, "The operands of a logical operator are both expected to have a boolean type.");
                     }
 
-                    result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
+                    result_lhs.state = state;
                     expr_result_free(&result_rhs);
                     return result_lhs;
+                
                 case TOKEN_OP_GE:
                 case TOKEN_OP_LE:
                 case TOKEN_OP_GT:
                 case TOKEN_OP_LT:
-                    if (result_lhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_NUMERIC_MIN && result_lhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_NUMERIC_MAX) {
-                        if (result_rhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_NUMERIC_MIN && result_rhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_NUMERIC_MAX) {
-                            result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
-                            expr_result_free(&result_rhs);
-                            return result_lhs;
-                        }
-                        error_exit(expr->location, "RHS operand must be a numeric.");
+                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) {
+                        error_exit(expr->location, "The operands of a binary comparison operator must be the same type.");
                     }
-                    error_exit(expr->location, "LHS operand must be a numeric.");
+                    if (result_lhs.type.data.primitive < TOKEN_KEYWORD_TYPE_NUMERIC_MIN || TOKEN_KEYWORD_TYPE_NUMERIC_MAX < result_lhs.type.data.primitive) {
+                        error_exit(expr->location, "The operands of a binary comparison operator must be numeric types.");
+                    }
+                    result_lhs.state = state;
+                    expr_result_free(&result_rhs);
+                    return result_lhs;
+
                 case TOKEN_OP_EQ:
                 case TOKEN_OP_NE:
-                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) error_exit(expr->location, "Operands must be of the same type.");
-                    result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;                   
+                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) {
+                        error_exit(expr->location, "The operands of an equality check must be of the same type.");
+                    }
+                    expr_result_free(&result_lhs);
                     expr_result_free(&result_rhs);
+                    
                     return (ExprResult) {
-                        .state = EXPR_RESULT_CONSTANT,
-                        .type.type = TYPE_PRIMITIVE,
-                        .type.data.primitive = TOKEN_KEYWORD_TYPE_BOOL
+                        .state = state,
+                        .type = (Type) {
+                            .type = TYPE_PRIMITIVE,
+                            .data.primitive = TOKEN_KEYWORD_TYPE_BOOL
+                        }
                     };
-                    // return result_lhs;
+
                 case TOKEN_OP_SHIFT_LEFT:
                 case TOKEN_OP_SHIFT_RIGHT:
-                    if (result_lhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_UINT_MIN && result_lhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_UINT_MAX) {
-                        if (result_rhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_UINT_MIN && result_rhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_UINT_MAX) {
-                            result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
-                            expr_result_free(&result_rhs);
-                            return result_lhs;
-                        }
-                        error_exit(expr->location, "RHS operand must be an unsigned integer.");
+
+                    if (result_lhs.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN || TOKEN_KEYWORD_TYPE_UINT_MAX < result_lhs.type.data.primitive) {
+                        error_exit(expr->location, "The left operand of a bit shift expression must be of an unsigned integer type.");
                     }
-                    error_exit(expr->location, "LHS operand must be an unsigned integer.");
+                    if (result_rhs.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN || TOKEN_KEYWORD_TYPE_UINT_MAX < result_rhs.type.data.primitive) {
+                        error_exit(expr->location, "The right operand of a bit shift expression must be of an unsigned integer type.");
+                    }
+                    
+                    expr_result_free(&result_rhs);
+                    result_lhs.state = state;
+                    return result_lhs;
 
                 case TOKEN_OP_MODULO:
-                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) error_exit(expr->location, "Operands must be of the same type.");
-                    if (result_lhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_INTEGER_MIN && result_lhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_INTEGER_MAX) {
-                        result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
-                        expr_result_free(&result_rhs);
-                        return result_lhs;
+                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) {
+                        error_exit(expr->location, "The operands of a modulo expression must be of the same type.");
                     }
+                    if (result_lhs.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MAX < result_lhs.type.data.primitive) {
+                        error_exit(expr->location, "The operands of a modulo expression must of an integer type.");
+                    }
+
+                    expr_result_free(&result_rhs);
+                    result_lhs.state = state;
+                    return result_lhs;
+                
                 case TOKEN_OP_PLUS:
                 case TOKEN_OP_MINUS:
                 case TOKEN_OP_MULTIPLY:
                 case TOKEN_OP_DIVIDE:
-                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) error_exit(expr->location, "Operands must be of the same type.");
-                    if (result_lhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_NUMERIC_MIN && result_lhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_NUMERIC_MAX) {
-                        result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
-                        expr_result_free(&result_rhs);
-                        return result_lhs;
+                    if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) { 
+                        error_exit(expr->location, "The operands of an arithmetic expression must be of the same type.");
                     }
-                    error_exit(expr->location, "Operands of arithmatic operations must be numerics.");
+                    if (result_lhs.type.data.primitive < TOKEN_KEYWORD_TYPE_NUMERIC_MIN || TOKEN_KEYWORD_TYPE_NUMERIC_MAX < result_lhs.type.data.primitive) {
+                        error_exit(expr->location, "The operands of an arithmetic expression must be of a numeric type.");
+                    }
+                    expr_result_free(&result_rhs);
+                    result_lhs.state = state;
+                    return result_lhs;
+                
                 default: 
                     error_exit(expr->location, "Typechecking this binary operator is not implemented yet.");
                     assert(false);
