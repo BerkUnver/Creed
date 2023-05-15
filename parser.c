@@ -331,6 +331,53 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
             }
         }
 
+        case TOKEN_BRACKET_OPEN: {
+            Token bracket_open = lexer_token_get(lexer);
+            Expr array_size = expr_parse(lexer);
+            Type array_type = type_parse(lexer);
+            if (lexer_token_peek(lexer).type == TOKEN_COLON) { // initialize the array members
+                lexer_token_get(lexer);
+                int capacity = 1;
+                int member_count = 0;
+                Expr *members = malloc(sizeof(Expr) * capacity);
+                while (true) {
+                    Expr member = expr_parse(lexer);
+                    member_count++;
+                    if (member_count > capacity) { 
+                        capacity *= 2;
+                        members = realloc(members, sizeof(Expr) * capacity);
+                    }
+                    members[member_count - 1] = member;
+                    if (lexer_token_peek(lexer).type == TOKEN_BRACKET_CLOSE) break;
+                    if (lexer_token_peek(lexer).type == TOKEN_COMMA) {
+                        lexer_token_get(lexer);
+                    } else {
+                        error_exit(member.location, "Expected a comma after a array member.");
+                    }
+                }  
+                Token bracket_close = lexer_token_get(lexer);
+                return (Expr) {
+                    .type = EXPR_LITERAL_ARRAY,
+                    .location = location_expand(bracket_open.location, bracket_close.location),
+                    .data.literal_array.count = &array_size,
+                    .data.literal_array.allocated_count = member_count,
+                    .data.literal_array.members = members,
+                    .data.literal_array.type = array_type,
+                };
+            } else { // do not init array members
+                if(lexer_token_peek(lexer).type != TOKEN_BRACKET_CLOSE) error_exit(lexer_token_get(lexer).location, "Expected an close bracket here.");
+                Token bracket_close = lexer_token_get(lexer);
+                return (Expr) {
+                    .type = EXPR_LITERAL_ARRAY,
+                    .location = location_expand(bracket_open.location, bracket_close.location),
+                    .data.literal_array.count = &array_size,
+                    .data.literal_array.allocated_count = 0,
+                    .data.literal_array.members = NULL,
+                    .data.literal_array.type = array_type
+                };
+            }
+        }
+
         default: error_exit(lexer_token_get(lexer).location, "Expected an expression here.");
     }
     
@@ -510,6 +557,12 @@ void expr_free(Expr *expr) {
             free(expr->data.function_call.function);
             break;
 
+        case EXPR_LITERAL_ARRAY:
+            for (int i = 0; i < expr->data.literal_array.allocated_count; i++) {
+                expr_free(&expr->data.literal_array.members[i]);
+            }
+            type_free(&expr->data.literal_array.type);
+            expr_free(expr->data.literal_array.count);
         case EXPR_ID:
         case EXPR_LITERAL:
         case EXPR_LITERAL_BOOL:
@@ -592,6 +645,18 @@ void expr_print(Expr *expr, int indent) {
             }
             putchar(TOKEN_PAREN_CLOSE);
             break;
+        case EXPR_LITERAL_ARRAY:
+            putchar(TOKEN_BRACKET_OPEN);
+            expr_print(expr->data.literal_array.count, indent);
+            type_print(&expr->data.literal_array.type);
+            putchar(TOKEN_COLON);
+            if( expr->data.literal_array.allocated_count > 0) {
+                for(int i = 0; i < expr->data.literal_array.allocated_count; i++) {
+                    expr_print(&expr->data.literal_array.members[i], indent);
+                    putchar(TOKEN_COMMA);
+                }
+            }
+            putchar(TOKEN_BRACKET_CLOSE);
     }
 }
 

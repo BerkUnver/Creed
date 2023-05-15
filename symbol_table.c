@@ -431,6 +431,9 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 .is_constant = true
             };
         } break;
+        case EXPR_LITERAL_ARRAY:
+            error_exit(expr->location, "Type checking not implemented for array");
+        break;
     }
     assert(false);
 }

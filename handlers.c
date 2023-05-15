@@ -323,6 +323,9 @@ void handle_expr(Expr * expr) {
                 fprintf(outfile, "%d", 1);
             }
             break;
+        case EXPR_LITERAL_ARRAY:
+            error_exit(expr->location, "Handling not implemented for arrays");
+            break;
     }   
 }
 

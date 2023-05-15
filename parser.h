@@ -66,7 +66,8 @@ typedef struct Expr {
         EXPR_FUNCTION_CALL,
         EXPR_ID,
         EXPR_LITERAL,
-        EXPR_LITERAL_BOOL
+        EXPR_LITERAL_BOOL,
+        EXPR_LITERAL_ARRAY,
     } type;
 
     union {
@@ -115,6 +116,13 @@ typedef struct Expr {
             struct Expr *operand;
             struct Expr *index;
         } access_array;
+
+        struct {
+            int allocated_count;
+            struct Expr *count;
+            struct Expr *members;
+            Type type;
+        } literal_array;
 
         Literal literal;
         bool literal_bool;

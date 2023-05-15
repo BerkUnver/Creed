@@ -1,1 +1,1 @@
-*&~!-function().member[a + b].member[1].function(a, b, c).bruh as [][]*?*?[]float + c.member >> 89 + "str"
+*&~!-function().member[a + b].member[1].function(a, b, c).bruh as [][]*?*?[]float + c.member >> 89 + "str" + [3 int] + [4 bool : true, false, foo(), bar()]
