@@ -10,6 +10,17 @@ void expr_result_free(ExprResult *result) {
     type_free(&result->type);
 }
 
+void symbol_table_new(SymbolTable *out, SymbolTable *previous) {
+    memset(&out->nodes, 0, sizeof(SymbolTableNode) * SYMBOL_TABLE_NODE_COUNT);
+    out->previous = previous;
+}
+
+void symbol_table_free(SymbolTable *table) {
+    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
+        free(table->nodes[i].declarations);
+    }
+}
+
 bool symbol_table_insert(SymbolTable *table, Declaration *decl) {
     int idx = decl->id.idx % SYMBOL_TABLE_NODE_COUNT;
     for (int i = 0; i < table->nodes[idx].declaration_count; i++) {
@@ -154,7 +165,6 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
     switch (expr->type) {
         case EXPR_PAREN:
             return symbol_table_check_expr(table, expr->data.parenthesized);
-        
         case EXPR_UNARY: {
             ExprResult result = symbol_table_check_expr(table, expr->data.unary.operand);
             if (result.type.type != TYPE_PRIMITIVE) {
@@ -165,33 +175,37 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 case EXPR_UNARY_LOGICAL_NOT:
                     if (result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
                     return result;
-
+                
                 case EXPR_UNARY_BITWISE_NOT:
-                    if (result.type.data.primitive >= TOKEN_KEYWORD_TYPE_UINT_MIN && result.type.data.primitive <= TOKEN_KEYWORD_TYPE_UINT_MAX) return result;
-                    error_exit(expr->location, "The operand of a bitwise not expression must have a unsigned integer type.");
+                    if (result.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN && TOKEN_KEYWORD_TYPE_UINT_MAX < result.type.data.primitive) {
+                        error_exit(expr->location, "The operand of a bitwise not expression must have a unsigned integer type.");
+                    }
+                    return result;
 
                 case EXPR_UNARY_REF:
-                    if (result.is_lval) {
-                        return (ExprResult) {
-                            .type = (Type) {
-                                .location = result.type.location,
-                                .type = TYPE_PTR,
-                                .data = result.type.data
-                            },
-                            .is_lval = false,
-                            .is_constant = true,
-                        };
+                    if (!result.is_lval) {
+                        error_exit(expr->location, "The operand of a reference must be an lval.");
                     }
-                    error_exit(expr->location, "The operand of a reference must be an lval.");
-
+                    return (ExprResult) {
+                        .type = (Type) {
+                            .location = result.type.location,
+                            .type = TYPE_PTR,
+                            .data.sub_type = result
+                        },
+                        .is_lval = false,
+                        .is_constant = result.is_constant,
+                    };
+                
                 case EXPR_UNARY_DEREF:
-                    if (result.type.type == TYPE_PTR || result.type.type == TYPE_PTR_NULLABLE) 
-                        return (ExprResult) { 
-                            .type = *result.type.data.sub_type,
-                            .is_lval = true,
-                            .is_constant = true };
-                    error_exit(expr->location, "The operand of a dereference must be a pointer.");
-                    
+                    if (result.type.type != TYPE_PTR && result.type.type != TYPE_PTR_NULLABLE) { 
+                        error_exit(expr->location, "The operand of a dereference must be a pointer.");
+                    }
+                    return (ExprResult) { 
+                        .type = *result.type.data.sub_type,
+                        .is_lval = true,
+                        .is_constant = true 
+                    };
+
                 case EXPR_UNARY_NEGATE: // TODO: what is this operator?
                 default: 
                     error_exit(expr->location, "Typechecking this unary operator is not implemented yet.");
@@ -309,7 +323,13 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
 
         case EXPR_FUNCTION: {
             symbol_table_resolve_type(table, &expr->data.function.type);
-            symbol_table_check_scope(table, expr->data.function.scope);
+            SymbolTable *table_global = table;
+            while (table_global->previous) table_global = table_global->previous; // Fetch the global symbol table
+           
+            SymbolTable table_function;
+            symbol_table_new(&table_function, table_global);
+            // TODO: Add function parameters.
+            symbol_table_check_scope(table, expr->data.function.scope, expr->data.function.type.data.function.result);
             return (ExprResult) {
                 .is_lval = false,
                 .is_constant = true,
@@ -413,15 +433,15 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
 
 // Inserts pointer to declaration to this type if it is an id.
 // Only call this on types that were generated by the parser, not types that were inferred.
-void symbol_table_check_scope(SymbolTable *table, Scope *scope) { 
+void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_type) { 
     switch (scope->type) {
         case SCOPE_BLOCK: {
             SymbolTable table_scope;
-            memset(&table_scope, 0, sizeof(SymbolTable));
-            table_scope.previous = table;
+            symbol_table_new(&table_scope, table);
             for (int i = 0; i < scope->data.block.scope_count; i++) {
-                symbol_table_check_scope(&table_scope, scope->data.block.scopes + i);
+                symbol_table_check_scope(&table_scope, scope->data.block.scopes + i, return_type);
             }
+            symbol_table_free(&table_scope);
         } break;
 
         case SCOPE_STATEMENT: {
@@ -447,7 +467,44 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
                     expr_result_free(&result);
                 } break;
 
-                default: assert(false);
+                case STATEMENT_ASSIGN: {
+                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.assign.assignee);
+                    if (!result.is_lval) error_exit(scope->data.statement.location, "You can only assign to lvals.");
+                    ExprResult value_result = symbol_table_check_expr(table, &scope->data.statement.data.assign.value);
+                    if (!type_equal(&result.type, &value_result.type)) {
+                        error_exit(scope->location, "The assignee and assigned value in an assignment statement must be of the same type.");
+                    }
+                    switch (scope->data.statement.data.assign.type) {
+                        case TOKEN_ASSIGN: 
+                            break;
+                        default:
+                            error_exit(scope->data.statement.location, "Typechecking this type of assignment statement is not yet implemented.");
+                            break;
+                    }
+                    expr_result_free(&result);
+                    expr_result_free(&value_result);
+                } break;
+
+                case STATEMENT_EXPR: {
+                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.expr);
+                    if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
+                        error_exit(scope->data.statement.location, "You cannot implicitly discard the value of an expression.");                        
+                    }
+                    expr_result_free(&result);
+                } break;
+
+
+                case STATEMENT_RETURN: {
+                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.expr);
+                    if (!type_equal(&result.type, return_type)) {
+                        error_exit(scope->data.statement.location, "The return type of this statement does not match the return type of this function.");
+                    }
+                    expr_result_free(&result);
+                } break;
+
+                default: 
+                    error_exit(scope->data.statement.location, "Typehecking this kind of statement hasn't been implemented yet.");
+                    break;
             }
         } break;
 
@@ -456,15 +513,9 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
     }
 }
 
-void symbol_table_free(SymbolTable *table) {
-    for (int i = 0; i < SYMBOL_TABLE_NODE_COUNT; i++) {
-        free(table->nodes[i].declarations);
-    }
-}
-
 void typecheck(SourceFile *file) {
     SymbolTable table;
-    memset(&table, 0, sizeof(SymbolTable));
+    symbol_table_new(&table, NULL);
    
     for (int i = 0; i < file->declaration_count; i++) {
         if (symbol_table_insert(&table, file->declarations + i)) continue;

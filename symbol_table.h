@@ -24,12 +24,14 @@ typedef struct SymbolTable {
     struct SymbolTable *previous;
 } SymbolTable;
 
+void symbol_table_new(SymbolTable *out, SymbolTable *previous);
+void symbol_table_free(SymbolTable *table);
+
 bool symbol_table_insert(SymbolTable *table, Declaration *decl);
 Declaration *symbol_table_get(SymbolTable *table, StringId id);
 void symbol_table_resolve_type(SymbolTable *table, Type *type);
 ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr);
-void symbol_table_check_scope(SymbolTable *table, Scope *scope);
-void symbol_table_free(SymbolTable *table);
+void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_type);
 
 void typecheck(SourceFile *file);
 #endif

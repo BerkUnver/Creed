@@ -16,6 +16,12 @@ StructPostDeclare struct {
     member: StructSimple;
 };
 
+i :: 1;
+j :: i;
+
+bool1 :: false;
+bool2 :: !bool1;
+
 main :: () void {
     i: int = 1 + 1;
 };
