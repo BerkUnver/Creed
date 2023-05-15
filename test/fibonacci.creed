@@ -1,0 +1,14 @@
+main :: () int {
+    n_upto : int = 5;
+    last_fib : int = 0;
+    current_fib : int = 1;
+    tmp : int = 0;
+
+    for i : int = 0; i < n_upto - 1; ++i {
+        tmp = current_fib;
+        current_fib = current_fib + last_fib;
+        last_fib = tmp;
+    }
+
+    return current_fib;
+};
