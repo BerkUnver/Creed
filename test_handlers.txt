@@ -1,0 +1,28 @@
+calc :: (num: float) int {
+    i: []int = [2 int: 1, 2];
+    num: float;
+    num_i: int = num as int;
+    if num == 0.0 {
+        num_i = (num_i + 8) * 10;
+    }
+    ret: int = num as int;
+
+    type struct {
+        member1: int;
+        member2: * char;
+    };
+
+    var: type;
+    p: int = var.member1;
+
+    num_arr: int = i[0];
+
+    return ret;
+};
+
+main :: () int {
+    input: float = 5.0;
+    result: int = calc(input);
+    return result;
+};
+

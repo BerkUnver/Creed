@@ -235,6 +235,7 @@ void handle_scope(Scope * scope, FILE * outfile) {
                 handle_scope(&scope->data.block.scopes[i], outfile);
             }
             indent--;
+            write_indent(indent, outfile);
             fprintf(outfile, "}\n\n");
 
         // TO DO: Handle match statements?
@@ -409,7 +410,8 @@ void handle_declaration(Declaration * declaration, FILE * outfile) {
                 fprintf(outfile, "%s%c\n", string_cache_get(declaration->data.enumeration.members[i]), TOKEN_COMMA);
             }
             indent--;
-            fprintf(outfile, "%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
+            write_indent(indent, outfile);
+            fprintf(outfile, "%c", TOKEN_CURLY_BRACE_CLOSE);
             break;
 
         case DECLARATION_STRUCT:
@@ -422,7 +424,8 @@ void handle_declaration(Declaration * declaration, FILE * outfile) {
                 fprintf(outfile, "%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
             }
             indent--;
-            fprintf(outfile, "%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
+            write_indent(indent, outfile);
+            fprintf(outfile, "%c", TOKEN_CURLY_BRACE_CLOSE);
             break;
 
         case DECLARATION_UNION:
@@ -435,7 +438,8 @@ void handle_declaration(Declaration * declaration, FILE * outfile) {
                 fprintf(outfile, "%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
             }
             indent--;
-            fprintf(outfile, "%c%c", TOKEN_CURLY_BRACE_CLOSE, TOKEN_SEMICOLON);
+            write_indent(indent, outfile);
+            fprintf(outfile, "%c", TOKEN_CURLY_BRACE_CLOSE);
             break;
 
         // TO DO: Implement sum types?
