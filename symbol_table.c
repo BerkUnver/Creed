@@ -154,16 +154,45 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
     switch (expr->type) {
         case EXPR_PAREN:
             return symbol_table_check_expr(table, expr->data.parenthesized);
+        
         case EXPR_UNARY: {
             ExprResult result = symbol_table_check_expr(table, expr->data.unary.operand);
             if (result.type.type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operand of a unary expression must have a primitive type.");
             }
-            result.is_rval = false;
+            result.is_lval = false;
             switch (expr->data.unary.type) {
                 case EXPR_UNARY_LOGICAL_NOT:
                     if (result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
                     return result;
+
+                case EXPR_UNARY_BITWISE_NOT:
+                    if (result.type.data.primitive >= TOKEN_KEYWORD_TYPE_UINT_MIN && result.type.data.primitive <= TOKEN_KEYWORD_TYPE_UINT_MAX) return result;
+                    error_exit(expr->location, "The operand of a bitwise not expression must have a unsigned integer type.");
+
+                case EXPR_UNARY_REF:
+                    if (result.is_lval) {
+                        return (ExprResult) {
+                            .type = (Type) {
+                                .location = result.type.location,
+                                .type = TYPE_PTR,
+                                .data = result.type.data
+                            },
+                            .is_lval = false,
+                            .is_constant = true,
+                        };
+                    }
+                    error_exit(expr->location, "The operand of a reference must be an lval.");
+
+                case EXPR_UNARY_DEREF:
+                    if (result.type.type == TYPE_PTR || result.type.type == TYPE_PTR_NULLABLE) 
+                        return (ExprResult) { 
+                            .type = *result.type.data.sub_type,
+                            .is_lval = true,
+                            .is_constant = true };
+                    error_exit(expr->location, "The operand of a dereference must be a pointer.");
+                    
+                case EXPR_UNARY_NEGATE: // TODO: what is this operator?
                 default: 
                     error_exit(expr->location, "Typechecking this unary operator is not implemented yet.");
             }
@@ -183,7 +212,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     if (result_lhs.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL || result_rhs.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
                         error_exit(expr->location, "The operands of a logical operator are both expected to have a boolean type.");
                     }
-                    result_lhs.is_rval = false;
+                    result_lhs.is_lval = false;
                     result_lhs.is_constant = result_lhs.is_constant && result_rhs.is_constant;
                     expr_result_free(&result_rhs);
                     return result_lhs;
@@ -217,7 +246,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             ExprResult cast = {
                 .type = type_clone(&expr->data.typecast.cast_to),
                 .is_constant = result.is_constant,
-                .is_rval = false
+                .is_lval = false
             };
             expr_result_free(&result);
             return cast;
@@ -247,7 +276,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     for (int i = 0; i < decl->data.struct_union.member_count; i++) {
                         if (decl->data.struct_union.members[i].id.idx == expr->data.access_member.member.idx) {
                             ExprResult member = {
-                                .is_rval = result.is_rval || 
+                                .is_lval = result.is_lval || 
                                     (result.type.type == TYPE_PTR || result.type.type == TYPE_PTR_NULLABLE || result.type.type == TYPE_ARRAY),
                                 .is_constant = result.is_constant,
                                 .type = type_clone(&decl->data.struct_union.members[i].type)
@@ -270,7 +299,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             if (result.type.type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
             
             ExprResult item =  {
-                .is_rval = true,
+                .is_lval = true,
                 .is_constant = result.is_constant, // right now, I'm allowing constness of arrays to propigate to their members.
                 .type = type_clone(result.type.data.sub_type)
             };
@@ -282,7 +311,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             symbol_table_resolve_type(table, &expr->data.function.type);
             symbol_table_check_scope(table, expr->data.function.scope);
             return (ExprResult) {
-                .is_rval = false,
+                .is_lval = false,
                 .is_constant = true,
                 .type = type_clone(&expr->data.function.type)
             };
@@ -307,7 +336,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             // Technically instead of freeing this you could transfer the allocation of the function result type and free the parameters,
             // but I don't want to put that logic here.
             return (ExprResult) {
-                .is_rval = false,
+                .is_lval = false,
                 .is_constant = false,
                 .type = return_type
             };
@@ -336,7 +365,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             }
             
             return (ExprResult) {
-                .is_rval = true,
+                .is_lval = true,
                 .is_constant = is_constant,
                 .type = type_clone(type)
             };
@@ -363,7 +392,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
 
             return (ExprResult) {
                 .type = type,
-                .is_rval = false,
+                .is_lval = false,
                 .is_constant = true
             };
         } break;
@@ -374,7 +403,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     .type = TYPE_PRIMITIVE,
                     .data.primitive = TOKEN_KEYWORD_TYPE_BOOL
                 },
-                .is_rval = false,
+                .is_lval = false,
                 .is_constant = true
             };
         } break;
@@ -411,7 +440,7 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope) {
 
                 case STATEMENT_INCREMENT: {
                     ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.increment);
-                    if (!result.is_rval) error_exit(scope->location, "Only rvals can be incremented.");
+                    if (!result.is_lval) error_exit(scope->location, "Only rvals can be incremented.");
                     if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MIN < result.type.data.primitive) {
                         error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
                     }

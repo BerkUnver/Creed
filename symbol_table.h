@@ -6,7 +6,7 @@
 
 typedef struct ExprResult {
     Type type;
-    bool is_rval;
+    bool is_lval;
     bool is_constant;
 } ExprResult;
 
