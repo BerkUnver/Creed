@@ -277,7 +277,7 @@ static Token lexer_token_get_skip_cache(Lexer *lexer) {
                         token.data.literal.type = LITERAL_INT16;
                         token.data.literal.data.l_int16 = (short) literal_uint64;
                     } else if (!strcmp(string, "i")) {
-                        token.data.literal.type = LITERAL_INT8;
+                        token.data.literal.type = LITERAL_INT;
                         token.data.literal.data.l_int = (int) literal_uint64;
                     } else if (!strcmp(string, "i64")) {
                         token.data.literal.type = LITERAL_INT64;

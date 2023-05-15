@@ -48,7 +48,7 @@ void token_print(Token *token) {
         literal_print(&token->data.literal);
     else if (token->type == TOKEN_ID)
         print(string_cache_get(token->data.id));
-    else if (token->type == TOKEN_NULL) // TOKEN_EOF is a single char token type so return here so it does not try to print it out.
+    else if (token->type == TOKEN_NULL) // TOKEN_NULL is a single char token type so return here so it does not try to print it out.
         print("NULL");
     else if (token->type == TOKEN_UNARY_LOGICAL_NOT)
         putchar('!');

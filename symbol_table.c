@@ -493,11 +493,17 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
 
 
                 case STATEMENT_RETURN: {
-                    ExprResult result = symbol_table_check_expr(table, &statement->data.expr);
-                    if (!type_equal(&result.type, return_type)) {
-                        error_exit(statement->location, "The return type of this statement does not match the return type of this function.");
+                    if (!statement->data.return_value.exists) {
+                        if (return_type->type != TYPE_PRIMITIVE || return_type->data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
+                            error_exit(statement->location, "Missing return value.");
+                        }
+                    } else {
+                        ExprResult result = symbol_table_check_expr(table, &statement->data.return_value.expr);
+                        if (!type_equal(&result.type, return_type)) {
+                            error_exit(statement->location, "The return type of this statement does not match the return type of this function.");
+                        }
+                        expr_result_free(&result);
                     }
-                    expr_result_free(&result);
                 } break;
 
                 default: 
