@@ -501,18 +501,21 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
                 } break;
 
                 default: 
-                    error_exit(scope->data.statement.location, "Typehecking this kind of statement hasn't been implemented yet.");
+                    error_exit(statement->location, "Typehecking this kind of statement hasn't been implemented yet.");
                     break;
             }
         } break;
         
-        /*
         case SCOPE_CONDITIONAL: {
-            ExprResult result = symbol_table_check_expr(table, scope->data.conditional.condition);
+            ExprResult result = symbol_table_check_expr(table, &scope->data.conditional.condition);
+            if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
+                error_exit(scope->data.conditional.condition.location, "The type of the condition of an if statement is expected to be a boolean.");                
+            }
+            symbol_table_check_scope(table, scope->data.conditional.scope_if, return_type);
+            if (scope->data.conditional.scope_else) symbol_table_check_scope(table, scope->data.conditional.scope_else, return_type);
         } break;
-        */
 
-        default: 
+        default:
             error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
     }
 }

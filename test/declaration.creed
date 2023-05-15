@@ -27,4 +27,11 @@ main :: () void {
     local_var: int = 1;
     ++local_var;
     --local_var;
+
+    local_condition_if:: true;
+    local_condition_else_if :: false;
+    if local_condition_if { 
+    } else if !local_condition_else_if {
+    } else {
+    }
 };
