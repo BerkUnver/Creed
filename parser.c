@@ -333,11 +333,13 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
 
         case TOKEN_BRACKET_OPEN: {
             Token bracket_open = lexer_token_get(lexer);
-            Expr array_size = expr_parse(lexer);
+            Expr *array_size = malloc(sizeof(Expr));
+            *array_size = expr_parse(lexer);
+            
             Type array_type = type_parse(lexer);
             if (lexer_token_peek(lexer).type == TOKEN_COLON) { // initialize the array members
                 lexer_token_get(lexer);
-                int capacity = 1;
+                int capacity = 2;
                 int member_count = 0;
                 Expr *members = malloc(sizeof(Expr) * capacity);
                 while (true) {
@@ -359,7 +361,7 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
                 return (Expr) {
                     .type = EXPR_LITERAL_ARRAY,
                     .location = location_expand(bracket_open.location, bracket_close.location),
-                    .data.literal_array.count = &array_size,
+                    .data.literal_array.count = array_size,
                     .data.literal_array.allocated_count = member_count,
                     .data.literal_array.members = members,
                     .data.literal_array.type = array_type,
@@ -370,7 +372,7 @@ static Expr expr_parse_modifiers(Lexer *lexer) { // parse unary operators, funct
                 return (Expr) {
                     .type = EXPR_LITERAL_ARRAY,
                     .location = location_expand(bracket_open.location, bracket_close.location),
-                    .data.literal_array.count = &array_size,
+                    .data.literal_array.count = array_size,
                     .data.literal_array.allocated_count = 0,
                     .data.literal_array.members = NULL,
                     .data.literal_array.type = array_type
@@ -550,7 +552,7 @@ void expr_free(Expr *expr) {
 
         case EXPR_FUNCTION_CALL:
             for (int i = 0; i < expr->data.function_call.param_count; i++) {
-                expr_free(&expr->data.function_call.params[i]);
+                expr_free(expr->data.function_call.params + i);
             }
             free(expr->data.function_call.params);
             expr_free(expr->data.function_call.function);
@@ -559,10 +561,14 @@ void expr_free(Expr *expr) {
 
         case EXPR_LITERAL_ARRAY:
             for (int i = 0; i < expr->data.literal_array.allocated_count; i++) {
-                expr_free(&expr->data.literal_array.members[i]);
+                expr_free(expr->data.literal_array.members + i);
             }
+            free(expr->data.literal_array.members);
             type_free(&expr->data.literal_array.type);
             expr_free(expr->data.literal_array.count);
+            free(expr->data.literal_array.count);
+            break;
+
         case EXPR_ID:
         case EXPR_LITERAL:
         case EXPR_LITERAL_BOOL:
@@ -645,18 +651,23 @@ void expr_print(Expr *expr, int indent) {
             }
             putchar(TOKEN_PAREN_CLOSE);
             break;
+        
         case EXPR_LITERAL_ARRAY:
             putchar(TOKEN_BRACKET_OPEN);
             expr_print(expr->data.literal_array.count, indent);
+            putchar(' ');
             type_print(&expr->data.literal_array.type);
-            putchar(TOKEN_COLON);
-            if( expr->data.literal_array.allocated_count > 0) {
-                for(int i = 0; i < expr->data.literal_array.allocated_count; i++) {
+            int member_count = expr->data.literal_array.allocated_count;
+            if (member_count > 0) {
+                printf("%c ", TOKEN_COLON);
+                for (int i = 0; i < member_count - 1; i++) {
                     expr_print(&expr->data.literal_array.members[i], indent);
-                    putchar(TOKEN_COMMA);
+                    printf("%c ", TOKEN_COMMA);
                 }
+                expr_print(&expr->data.literal_array.members[member_count - 1], indent);
             }
             putchar(TOKEN_BRACKET_CLOSE);
+            break;
     }
 }
 
