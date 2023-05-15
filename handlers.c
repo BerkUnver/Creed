@@ -9,6 +9,7 @@
 #include "symbol_table.h"
 
 int indent;
+int array_count;
 
 // Prints the appropriate number of 4-space indents
 void write_indent(int count, FILE * outfile) {
@@ -26,6 +27,10 @@ const char * get_complex_type(Type creadz_type) {
         sprintf(c_type, "%s *", c_prim_type);
         const char * c_type_out = c_type;
         return c_type_out;
+    }
+    else if (creadz_type.type == TYPE_ARRAY) {
+
+        return c_prim_type;
     }
     else {
         return c_prim_type;
@@ -83,6 +88,10 @@ const char * get_type(Type creadz_type) {
     else {
         return "";
     }
+}
+
+void handle_arrays(Type * type) {
+
 }
 
 void handle_literals(Literal * literal, FILE * outfile) {
@@ -177,7 +186,9 @@ void handle_statement(Statement * statement, FILE * outfile) {
 }
 
 void handle_scope(Scope * scope, FILE * outfile) {
-    write_indent(indent, outfile);
+    if (scope->type != SCOPE_BLOCK) {
+        write_indent(indent, outfile);
+    }
     switch(scope->type) {
         case SCOPE_STATEMENT:
             handle_statement(&scope->data.statement, outfile);
@@ -187,7 +198,7 @@ void handle_scope(Scope * scope, FILE * outfile) {
         case SCOPE_CONDITIONAL:
             fprintf(outfile, "if (");
             handle_expr(&scope->data.conditional.condition, outfile);
-            fprintf(outfile, ") ");
+            fprintf(outfile, ")");
             handle_scope(scope->data.conditional.scope_if, outfile);
             if (scope->data.conditional.scope_else) {
                 fprintf(outfile, "\nelse ");

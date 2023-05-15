@@ -251,9 +251,14 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 case TOKEN_OP_EQ:
                 case TOKEN_OP_NE:
                     if (result_lhs.type.data.primitive != result_rhs.type.data.primitive) error_exit(expr->location, "Operands must be of the same type.");
-                    result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
+                    result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;                   
                     expr_result_free(&result_rhs);
-                    return result_lhs;
+                    return (ExprResult) {
+                        .state = EXPR_RESULT_CONSTANT,
+                        .type.type = TYPE_PRIMITIVE,
+                        .type.data.primitive = TOKEN_KEYWORD_TYPE_BOOL
+                    };
+                    // return result_lhs;
                 case TOKEN_OP_SHIFT_LEFT:
                 case TOKEN_OP_SHIFT_RIGHT:
                     if (result_lhs.type.data.primitive >= TOKEN_KEYWORD_TYPE_UINT_MIN && result_lhs.type.data.primitive <= TOKEN_KEYWORD_TYPE_UINT_MAX) {
