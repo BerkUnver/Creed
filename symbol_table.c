@@ -186,11 +186,15 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     if (!result.is_lval) {
                         error_exit(expr->location, "The operand of a reference must be an lval.");
                     }
+
+                    Type *sub_type = malloc(sizeof(Type));
+                    *sub_type = result.type;
+
                     return (ExprResult) {
                         .type = (Type) {
                             .location = result.type.location,
                             .type = TYPE_PTR,
-                            .data.sub_type = result
+                            .data.sub_type = sub_type
                         },
                         .is_lval = false,
                         .is_constant = result.is_constant,
