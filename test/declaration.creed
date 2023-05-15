@@ -44,4 +44,8 @@ main :: () void {
     } else if !local_condition_else_if {
     } else {
     }
+
+    for i: int = 0; i < 10; ++i { 
+        i:int = 0;
+    }
 };

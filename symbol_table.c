@@ -248,9 +248,17 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     if (result_lhs.type.data.primitive < TOKEN_KEYWORD_TYPE_NUMERIC_MIN || TOKEN_KEYWORD_TYPE_NUMERIC_MAX < result_lhs.type.data.primitive) {
                         error_exit(expr->location, "The operands of a binary comparison operator must be numeric types.");
                     }
-                    result_lhs.state = state;
+                    
+                    expr_result_free(&result_lhs);
                     expr_result_free(&result_rhs);
-                    return result_lhs;
+
+                    return (ExprResult) {
+                        .state = state,
+                        .type = (Type) {
+                            .type = TYPE_PRIMITIVE,
+                            .data.primitive = TOKEN_KEYWORD_TYPE_BOOL
+                        }
+                    };
 
                 case TOKEN_OP_EQ:
                 case TOKEN_OP_NE:
@@ -498,18 +506,16 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 .state = EXPR_RESULT_CONSTANT
             };
         } break;
+
         case EXPR_LITERAL_ARRAY: {
-            if (expr->data.literal_array.type.type != TYPE_PRIMITIVE) {
-                for (int i = 0; i < expr->data.literal_array.allocated_count; i++) {
-                    if (expr->data.literal_array.members[i].type != expr->data.literal_array.type.type) {
-                        error_exit(expr->data.literal_array.members[i].location, "Array member has incompatible type.");
-                    }
-                }
-            }
+            // TODO: typecheck members and check to make sure member count is a constant.
+            Type *sub_type = malloc(sizeof(Type));
+            *sub_type = type_clone(&expr->data.literal_array.type);
+            
             return (ExprResult) {
                 .type = (Type) {
                     .type = TYPE_ARRAY,
-                    .data.sub_type = &expr->data.literal_array.type
+                    .data.sub_type = sub_type
                 },
                 .state = EXPR_RESULT_CONSTANT
             };
@@ -518,6 +524,74 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
     assert(false);
 }
 
+
+void symbol_table_check_statement(SymbolTable *table, Statement *statement, Type *return_type) {
+    switch (statement->type) {
+        case STATEMENT_DECLARATION: {
+            Declaration *decl = &statement->data.declaration;
+            if (!symbol_table_insert(table, decl)) {
+                error_exit(decl->location, "A declaration with this name already exists in this scope.");
+            }
+            symbol_table_declaration_init(table, decl);
+        } break;
+
+        case STATEMENT_INCREMENT:
+        case STATEMENT_DEINCREMENT: {
+            Expr *increment = statement->type == STATEMENT_INCREMENT ? &statement->data.increment : &statement->data.deincrement;
+            ExprResult result = symbol_table_check_expr(table, increment);
+            if (result.state != EXPR_RESULT_LVAL) error_exit(statement->location, "Only lvals can be incremented.");
+            if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MAX < result.type.data.primitive) {
+                error_exit(statement->location, "An incremented variable must be of an integer numeric type.");
+            }
+            expr_result_free(&result);
+        } break;
+
+        case STATEMENT_ASSIGN: {
+            ExprResult result = symbol_table_check_expr(table, &statement->data.assign.assignee);
+            if (result.state != EXPR_RESULT_LVAL) error_exit(statement->location, "You can only assign to lvals.");
+            ExprResult value_result = symbol_table_check_expr(table, &statement->data.assign.value);
+            if (!type_equal(&result.type, &value_result.type)) {
+                error_exit(statement->location, "The assignee and assigned value in an assignment statement must be of the same type.");
+            }
+            switch (statement->data.assign.type) {
+                case TOKEN_ASSIGN: 
+                    break;
+                default:
+                    error_exit(statement->location, "Typechecking this type of assignment statement is not yet implemented.");
+                    break;
+            }
+            expr_result_free(&result);
+            expr_result_free(&value_result);
+        } break;
+
+        case STATEMENT_EXPR: {
+            ExprResult result = symbol_table_check_expr(table, &statement->data.expr);
+            if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
+                error_exit(statement->location, "You cannot implicitly discard the value of an expression.");                        
+            }
+            expr_result_free(&result);
+        } break;
+
+
+        case STATEMENT_RETURN: {
+            if (!statement->data.return_value.exists) {
+                if (return_type->type != TYPE_PRIMITIVE || return_type->data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
+                    error_exit(statement->location, "Missing return value.");
+                }
+            } else {
+                ExprResult result = symbol_table_check_expr(table, &statement->data.return_value.expr);
+                if (!type_equal(&result.type, return_type)) {
+                    error_exit(statement->location, "The return type of this statement does not match the return type of this function.");
+                }
+                expr_result_free(&result);
+            }
+        } break;
+
+        default: 
+            error_exit(statement->location, "Typehecking this kind of statement hasn't been implemented yet.");
+            break;
+    }
+}
 // Inserts pointer to declaration to this type if it is an id.
 // Only call this on types that were generated by the parser, not types that were inferred.
 void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_type) { 
@@ -532,72 +606,7 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
         } break;
 
         case SCOPE_STATEMENT: {
-            Statement *statement = &scope->data.statement;
-            switch (statement->type) {
-                case STATEMENT_DECLARATION: {
-                    Declaration *decl = &statement->data.declaration;
-                    if (!symbol_table_insert(table, decl)) {
-                        error_exit(decl->location, "This scope already has a declaration with this name.");
-                    }
-                    symbol_table_declaration_init(table, decl);
-                } break;
-
-                case STATEMENT_INCREMENT:
-                case STATEMENT_DEINCREMENT: {
-                    Expr *increment = statement->type == STATEMENT_INCREMENT ? &statement->data.increment : &statement->data.deincrement;
-                    ExprResult result = symbol_table_check_expr(table, increment);
-                    if (result.state != EXPR_RESULT_LVAL) error_exit(scope->location, "Only lvals can be incremented.");
-                    if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MAX < result.type.data.primitive) {
-                        error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
-                    }
-                    expr_result_free(&result);
-                } break;
-
-                case STATEMENT_ASSIGN: {
-                    ExprResult result = symbol_table_check_expr(table, &statement->data.assign.assignee);
-                    if (result.state != EXPR_RESULT_LVAL) error_exit(statement->location, "You can only assign to lvals.");
-                    ExprResult value_result = symbol_table_check_expr(table, &statement->data.assign.value);
-                    if (!type_equal(&result.type, &value_result.type)) {
-                        error_exit(scope->location, "The assignee and assigned value in an assignment statement must be of the same type.");
-                    }
-                    switch (statement->data.assign.type) {
-                        case TOKEN_ASSIGN: 
-                            break;
-                        default:
-                            error_exit(statement->location, "Typechecking this type of assignment statement is not yet implemented.");
-                            break;
-                    }
-                    expr_result_free(&result);
-                    expr_result_free(&value_result);
-                } break;
-
-                case STATEMENT_EXPR: {
-                    ExprResult result = symbol_table_check_expr(table, &statement->data.expr);
-                    if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
-                        error_exit(statement->location, "You cannot implicitly discard the value of an expression.");                        
-                    }
-                    expr_result_free(&result);
-                } break;
-
-
-                case STATEMENT_RETURN: {
-                    if (!statement->data.return_value.exists) {
-                        if (return_type->type != TYPE_PRIMITIVE || return_type->data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
-                            error_exit(statement->location, "Missing return value.");
-                        }
-                    } else {
-                        ExprResult result = symbol_table_check_expr(table, &statement->data.return_value.expr);
-                        if (!type_equal(&result.type, return_type)) {
-                            error_exit(statement->location, "The return type of this statement does not match the return type of this function.");
-                        }
-                        expr_result_free(&result);
-                    }
-                } break;
-
-                default: 
-                    error_exit(statement->location, "Typehecking this kind of statement hasn't been implemented yet.");
-                    break;
-            }
+            symbol_table_check_statement(table, &scope->data.statement, return_type);
         } break;
         
         case SCOPE_CONDITIONAL: {
@@ -611,6 +620,20 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
 
         default:
             error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
+
+        case SCOPE_LOOP_FOR: {
+            SymbolTable table_scope;
+            symbol_table_new(&table_scope, table);
+            symbol_table_check_statement(&table_scope, &scope->data.loop_for.init, return_type);
+            ExprResult result = symbol_table_check_expr(&table_scope, &scope->data.loop_for.expr);
+            if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
+                error_exit(scope->data.loop_for.expr.location, "The expression of a for loop is expected to be a boolean.");
+            }
+            expr_result_free(&result);
+            symbol_table_check_statement(&table_scope, &scope->data.loop_for.step, return_type);
+            symbol_table_check_scope(&table_scope, scope->data.loop_for.scope, return_type);
+            symbol_table_free(&table_scope);
+        } break;
     }
 }
 
