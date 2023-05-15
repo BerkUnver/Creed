@@ -284,12 +284,6 @@ void handle_expr(Expr * expr, FILE * outfile) {
             break;
 
         case EXPR_FUNCTION:
-            // Berk comment
-            //
-            // If I'm understanding this correctly you're just translating the function call to look like a c-style function.
-            // Because we allow anonymous functions, that doesn't really work because you need to also generate a unique name for each function.
-            // I commented this out because I changed how functions are represented in the AST and this gives compilation errors.
-            
             fputc(TOKEN_PAREN_OPEN, outfile);
             if (expr->data.function.type.data.function.param_count > 0) {
                 for (int i = 0; i < expr->data.function.type.data.function.param_count - 1; i++) {

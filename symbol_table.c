@@ -498,9 +498,22 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 .state = EXPR_RESULT_CONSTANT
             };
         } break;
-        case EXPR_LITERAL_ARRAY:
-            error_exit(expr->location, "Type checking not implemented for array");
-        break;
+        case EXPR_LITERAL_ARRAY: {
+            if (expr->data.literal_array.type.type != TYPE_PRIMITIVE) {
+                for (int i = 0; i < expr->data.literal_array.allocated_count; i++) {
+                    if (expr->data.literal_array.members[i].type != expr->data.literal_array.type.type) {
+                        error_exit(expr->data.literal_array.members[i].location, "Array member has incompatible type.");
+                    }
+                }
+            }
+            return (ExprResult) {
+                .type = (Type) {
+                    .type = TYPE_ARRAY,
+                    .data.sub_type = &expr->data.literal_array.type
+                },
+                .state = EXPR_RESULT_CONSTANT
+            };
+        } break;
     }
     assert(false);
 }
