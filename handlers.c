@@ -1,18 +1,19 @@
 #include <assert.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "handlers.h"
 #include "parser.h"
 #include "string_cache.h"
 #include "symbol_table.h"
 
 int indent;
-FILE * outfile;
 
 // Prints the appropriate number of 4-space indents
-void write_indent(int count) {
+void write_indent(int count, FILE * outfile) {
     for (int i = 0; i < count; i++) {
-        print("    ");     
+        fprintf(outfile, "    ");     
     }
 }
 
@@ -84,7 +85,7 @@ const char * get_type(Type creadz_type) {
     }
 }
 
-void handle_literals(Literal * literal) {
+void handle_literals(Literal * literal, FILE * outfile) {
     switch (literal->type) {
         case LITERAL_STRING:
             fputc('"', outfile);
@@ -132,30 +133,30 @@ void handle_literals(Literal * literal) {
     }
 }
 
-void handle_statement(Statement * statement) {
+void handle_statement(Statement * statement, FILE * outfile) {
     switch (statement->type) {
         case STATEMENT_DECLARATION:
-            handle_declaration(&statement->data.declaration);
+            handle_declaration(&statement->data.declaration, outfile);
             break;
 
         case STATEMENT_INCREMENT:
             fprintf(outfile, "++");
-            handle_expr(&statement->data.increment);
+            handle_expr(&statement->data.increment, outfile);
             break;
 
         case STATEMENT_DEINCREMENT:
             fprintf(outfile, "--");
-            handle_expr(&statement->data.deincrement);
+            handle_expr(&statement->data.deincrement, outfile);
             break;
 
         case STATEMENT_ASSIGN:
-            handle_expr(&statement->data.assign.assignee);
+            handle_expr(&statement->data.assign.assignee, outfile);
             fprintf(outfile, " %s ", string_assigns[statement->data.assign.type - TOKEN_ASSIGN_MIN]);
-            handle_expr(&statement->data.assign.value);
+            handle_expr(&statement->data.assign.value, outfile);
             break;
 
         case STATEMENT_EXPR:
-            handle_expr(&statement->data.expr);
+            handle_expr(&statement->data.expr, outfile);
             break;
 
         case STATEMENT_LABEL:
@@ -168,38 +169,40 @@ void handle_statement(Statement * statement) {
 
         case STATEMENT_RETURN:
             fprintf(outfile, "return ");
-            handle_expr(&statement->data.return_expr);
+            /*
+            handle_expr(&statement->data.return_expr, outfile);
+            */
     }
 }
 
-void handle_scope(Scope * scope) {
-    write_indent(indent);
+void handle_scope(Scope * scope, FILE * outfile) {
+    write_indent(indent, outfile);
     switch(scope->type) {
         case SCOPE_STATEMENT:
-            handle_statement(&scope->data.statement);
-            handle_statement_end();
+            handle_statement(&scope->data.statement, outfile);
+            handle_statement_end(outfile);
             break;
 
         case SCOPE_CONDITIONAL:
             fprintf(outfile, "if (");
-            handle_expr(&scope->data.conditional.condition);
+            handle_expr(&scope->data.conditional.condition, outfile);
             fprintf(outfile, ") ");
-            handle_scope(scope->data.conditional.scope_if);
+            handle_scope(scope->data.conditional.scope_if, outfile);
             if (scope->data.conditional.scope_else) {
                 fprintf(outfile, "\nelse ");
-                handle_scope(scope->data.conditional.scope_else);
+                handle_scope(scope->data.conditional.scope_else, outfile);
             }
             break;
             
         case SCOPE_LOOP_FOR:
             fprintf(outfile, "for (");
-            handle_statement(&scope->data.loop_for.init);
+            handle_statement(&scope->data.loop_for.init, outfile);
             fprintf(outfile, "%c ", TOKEN_SEMICOLON);
-            handle_expr(&scope->data.loop_for.expr);
+            handle_expr(&scope->data.loop_for.expr, outfile);
             fprintf(outfile, "%c ", TOKEN_SEMICOLON);
-            handle_statement(&scope->data.loop_for.step);
+            handle_statement(&scope->data.loop_for.step, outfile);
             fprintf(outfile, ") ");
-            handle_scope(scope->data.loop_for.scope);
+            handle_scope(scope->data.loop_for.scope, outfile);
             break;
             
         // TO DO: Get size of array for iteration
@@ -208,16 +211,16 @@ void handle_scope(Scope * scope) {
             
         case SCOPE_LOOP_WHILE:
             fprintf(outfile, "while (");
-            handle_expr(&scope->data.loop_while.expr);
+            handle_expr(&scope->data.loop_while.expr, outfile);
             fprintf(outfile, ")");
-            handle_scope(scope->data.loop_while.scope);
+            handle_scope(scope->data.loop_while.scope, outfile);
             break;
 
         case SCOPE_BLOCK:
             fprintf(outfile, " {\n");
             indent++;
             for (int i = 0; i < scope->data.block.scope_count; i++) {
-                handle_scope(&scope->data.block.scopes[i]);
+                handle_scope(&scope->data.block.scopes[i], outfile);
             }
             indent--;
             fputc(TOKEN_CURLY_BRACE_CLOSE, outfile);
@@ -228,23 +231,23 @@ void handle_scope(Scope * scope) {
     }
 }   
 
-void handle_expr(Expr * expr) {
+void handle_expr(Expr * expr, FILE * outfile) {
     switch(expr->type) {
         case EXPR_PAREN:
             fputc(TOKEN_PAREN_OPEN, outfile);
-            handle_expr(expr->data.parenthesized);
+            handle_expr(expr->data.parenthesized, outfile);
             fputc(TOKEN_PAREN_CLOSE, outfile);
             break;
         
         case EXPR_UNARY:
             fputc(expr->data.unary.type, outfile);
-            handle_expr(expr->data.unary.operand);
+            handle_expr(expr->data.unary.operand, outfile);
             break;
 
         case EXPR_BINARY:
-            handle_expr(expr->data.binary.lhs);
+            handle_expr(expr->data.binary.lhs, outfile);
             fprintf(outfile, " %s ", string_operators[expr->data.binary.operator - TOKEN_OP_MIN]);
-            handle_expr(expr->data.binary.rhs);
+            handle_expr(expr->data.binary.rhs, outfile);
             break;
 
         case EXPR_TYPECAST:
@@ -253,19 +256,19 @@ void handle_expr(Expr * expr) {
             const char * type = get_type(expr->data.typecast.cast_to);
             fprintf(outfile, "%s", type);
             fputc(TOKEN_PAREN_CLOSE, outfile);
-            handle_expr(expr->data.typecast.operand);
+            handle_expr(expr->data.typecast.operand, outfile);
             break;
 
         case EXPR_ACCESS_MEMBER:
-            handle_expr(expr->data.access_member.operand);
+            handle_expr(expr->data.access_member.operand, outfile);
             fputc(TOKEN_DOT, outfile);
             fprintf(outfile, "%s", string_cache_get(expr->data.access_member.member));
             break;
 
         case EXPR_ACCESS_ARRAY:
-            handle_expr(expr->data.access_array.operand);
+            handle_expr(expr->data.access_array.operand, outfile);
             fputc(TOKEN_BRACKET_OPEN, outfile);
-            handle_expr(expr->data.access_array.index);
+            handle_expr(expr->data.access_array.index, outfile);
             fputc(TOKEN_BRACKET_CLOSE, outfile);
             break;
 
@@ -289,20 +292,20 @@ void handle_expr(Expr * expr) {
                 fprintf(outfile, "%s", string_cache_get(expr->data.function.type.data.function.params[expr->data.function.type.data.function.param_count - 1].id));
             }
             fputc(TOKEN_PAREN_CLOSE, outfile);
-            handle_scope(expr->data.function.scope);
+            handle_scope(expr->data.function.scope, outfile);
             
             break;
 
         case EXPR_FUNCTION_CALL:
-            handle_expr(expr->data.function_call.function);
+            handle_expr(expr->data.function_call.function, outfile);
             fputc(TOKEN_PAREN_OPEN, outfile);
             if (expr->data.function_call.param_count > 0) {
                 int last_param_idx = expr->data.function_call.param_count - 1;
                 for (int i = 0; i < last_param_idx; i++) {
-                    handle_expr(&expr->data.function_call.params[i]);
+                    handle_expr(&expr->data.function_call.params[i], outfile);
                     fprintf(outfile, "%c ", TOKEN_COMMA);
                 }
-                handle_expr(&expr->data.function_call.params[last_param_idx]);
+                handle_expr(&expr->data.function_call.params[last_param_idx], outfile);
             }
             fputc(TOKEN_PAREN_CLOSE, outfile);
             break;
@@ -312,7 +315,7 @@ void handle_expr(Expr * expr) {
             break;
 
         case EXPR_LITERAL:
-            handle_literals(&expr->data.literal);
+            handle_literals(&expr->data.literal, outfile);
             break;
 
         case EXPR_LITERAL_BOOL:
@@ -329,36 +332,45 @@ void handle_expr(Expr * expr) {
     }   
 }
 
-void handle_declaration(Declaration * declaration) {
+void handle_declaration(Declaration * declaration, FILE * outfile) {
     switch(declaration->type) {
         case DECLARATION_VAR:
             switch (declaration->data.var.type) {
                 case DECLARATION_VAR_CONSTANT: {
-                    Type type = declaration->data.var.data.constant.type;
-                    if (!type.type) {
-                        error_exit(declaration->location, "Declaration must include a type.");
-                    }
-                    const char * type_str = get_type(type);
-                    fprintf(outfile, "%s ", type_str);
-                    if (declaration->id.idx) {
-                        const char * id = string_cache_get(declaration->id);
-                        fprintf(outfile, "%s", id);
-                    } 
-                    else {
-                        // TO DO: Allow for anonymous functions (declaring functions with no names)?
+                    if (!declaration->id.idx) {
                         error_exit(declaration->location, "Declaration must include an identifier.");
+                    } 
+                    if (declaration->data.var.data.constant.type_explicit) {
+                        Type type = declaration->data.var.data.constant.type;
+                        if (!type.type) {
+                            error_exit(declaration->location, "Declaration must include a type.");
+                        }
+                        const char * type_str = get_type(type);
+                        fprintf(outfile, "%s ", type_str);
                     }
-                    handle_expr(&declaration->data.var.data.constant.value);
+                    else {
+                        if (declaration->data.var.data.constant.value.type == EXPR_FUNCTION) {
+                            Type type = declaration->data.var.data.constant.value.data.function.type;
+                            if (!type.type) {
+                                error_exit(declaration->location, "Function must include a type.");
+                            }
+                            const char * type_str = get_type(type);
+                            fprintf(outfile, "%s ", type_str);
+                        }
+                    }
+                    const char * id = string_cache_get(declaration->id);
+                    fprintf(outfile, "%s", id);
+                    handle_expr(&declaration->data.var.data.constant.value, outfile);
                     break;
                 }
                 case DECLARATION_VAR_MUTABLE: {
                     const char * type = get_type(declaration->data.var.data.mutable.type);
                     const char * id = string_cache_get(declaration->id);
                     fprintf(outfile, "%s %s", type, id);
-                    handle_expr(&declaration->data.var.data.constant.value);
+                    handle_expr(&declaration->data.var.data.constant.value, outfile);
                     if (declaration->data.var.data.mutable.value_exists) {
                         fprintf(outfile, " %s ", string_assigns[TOKEN_ASSIGN - TOKEN_ASSIGN_MIN]);
-                        handle_expr(&declaration->data.var.data.constant.value);
+                        handle_expr(&declaration->data.var.data.constant.value, outfile);
                     }                   
                     break;
                 }
@@ -370,7 +382,7 @@ void handle_declaration(Declaration * declaration) {
             fprintf(outfile, "enum %s %c\n", string_cache_get(declaration->id), TOKEN_CURLY_BRACE_OPEN);
             indent++;
             for (int i = 0; i < declaration->data.enumeration.member_count; i++) {
-                write_indent(indent);
+                write_indent(indent, outfile);
                 fprintf(outfile, "%s%c\n", string_cache_get(declaration->data.enumeration.members[i]), TOKEN_COMMA);
             }
             indent--;
@@ -383,7 +395,7 @@ void handle_declaration(Declaration * declaration) {
             for (int i = 0; i < declaration->data.struct_union.member_count; i++) {
                 const char * member_type = get_type(declaration->data.struct_union.members[i].type);
                 char * member_id = string_cache_get(declaration->data.struct_union.members[i].id);
-                write_indent(indent);
+                write_indent(indent, outfile);
                 fprintf(outfile, "%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
             }
             indent--;
@@ -396,7 +408,7 @@ void handle_declaration(Declaration * declaration) {
             for (int i = 0; i < declaration->data.struct_union.member_count; i++) {
                 const char * member_type = get_type(declaration->data.struct_union.members[i].type);
                 char * member_id = string_cache_get(declaration->data.struct_union.members[i].id);
-                write_indent(indent);
+                write_indent(indent, outfile);
                 fprintf(outfile, "%s %s%c\n", member_type, member_id, TOKEN_SEMICOLON);
             }
             indent--;
@@ -410,24 +422,28 @@ void handle_declaration(Declaration * declaration) {
     }
 }
 
-void handle_statement_end() {
+void handle_statement_end(FILE * outfile) {
     fprintf(outfile, ";\n");
 }
 
 // TO DO: Have this called somewhere after SourceFile is parsed
 void handle_driver(SourceFile * file) {
-    outfile = fopen("file.c", "w");
+    FILE * outfile = fopen("file.c", "w");
+    if (outfile == NULL) {
+        perror("Failed to open output file.");
+        exit(EXIT_FAILURE);
+    }
     indent = 0;
     // First pass
     for (int i = 0; i < file->declaration_count; i++) {
         if (file->declarations[i].type != DECLARATION_VAR) {
-            handle_declaration(&file->declarations[i]);
+            handle_declaration(&file->declarations[i], outfile);
         }
     }
     // Second Pass
     for (int j = 0; j < file->declaration_count; j++) {
         if (file->declarations[j].type == DECLARATION_VAR) {
-            handle_declaration(&file->declarations[j]);
+            handle_declaration(&file->declarations[j], outfile);
         }
     }
     fclose(outfile);

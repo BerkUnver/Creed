@@ -1006,12 +1006,23 @@ Statement statement_parse(Lexer *lexer) {
 
         case TOKEN_KEYWORD_RETURN: {
             Token token_return = lexer_token_get(lexer);
-            Expr expr = expr_parse(lexer);
-            return (Statement) {
-                .location = location_expand(token_return.location, expr.location),
-                .type = STATEMENT_RETURN,
-                .data.return_expr = expr, 
-            };
+
+            // TODO: this is a hack. This will break if you try to parse the return type in, say, the last statement of a for loop. 
+            if (lexer_token_peek(lexer).type == TOKEN_SEMICOLON) {
+                return (Statement) {
+                    .location = token_return.location,
+                    .type = STATEMENT_RETURN,
+                    .data.return_value.exists = false
+                };
+            } else {
+                Expr expr = expr_parse(lexer);
+                return (Statement) {
+                    .location = location_expand(token_return.location, expr.location),
+                    .type = STATEMENT_RETURN,
+                    .data.return_value.exists = true,
+                    .data.return_value.expr = expr
+                };
+            }
         }
 
         default: {
@@ -1063,7 +1074,7 @@ void statement_free(Statement *statement) {
             break;
 
         case STATEMENT_RETURN:
-            expr_free(&statement->data.return_expr);
+            if (statement->data.return_value.exists) expr_free(&statement->data.return_value.expr);
             break;
     }
 }
@@ -1096,8 +1107,11 @@ void statement_print(Statement *statement, int indent) {
             printf("%s %s", string_keywords[TOKEN_KEYWORD_GOTO - TOKEN_KEYWORD_MIN], string_cache_get(statement->data.label_goto));
             break;
         case STATEMENT_RETURN:
-            printf("%s ", string_keywords[TOKEN_KEYWORD_RETURN - TOKEN_KEYWORD_MIN]);
-            expr_print(&statement->data.return_expr, indent);
+            printf("%s", string_keywords[TOKEN_KEYWORD_RETURN - TOKEN_KEYWORD_MIN]);
+            if (statement->data.return_value.exists) {
+                putchar(' ');
+                expr_print(&statement->data.return_value.expr, indent);
+            }
             break;
     }  
 }

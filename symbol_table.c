@@ -93,7 +93,7 @@ static void symbol_table_declaration_init(SymbolTable *table, Declaration *decl)
                     switch (decl->data.var.type) {
                         case DECLARATION_VAR_CONSTANT: {
                             ExprResult result = symbol_table_check_expr(table, &decl->data.var.data.constant.value);
-                            if (!result.is_constant) error_exit(decl->location, "The value of a constant must itself be derivable from constants.");
+                            if (result.state != EXPR_RESULT_CONSTANT) error_exit(decl->location, "The value of a constant must itself be derivable from constants.");
                             
                             if (decl->data.var.data.constant.type_explicit) {
                                 symbol_table_resolve_type(table, &decl->data.var.data.constant.type); 
@@ -170,7 +170,6 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             if (result.type.type != TYPE_PRIMITIVE) {
                 error_exit(expr->location, "The operand of a unary expression must have a primitive type.");
             }
-            result.is_lval = false;
             switch (expr->data.unary.type) {
                 case EXPR_UNARY_LOGICAL_NOT:
                     if (result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) error_exit(expr->location, "The operand of a negation expression must have a boolean type.");
@@ -183,7 +182,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     return result;
 
                 case EXPR_UNARY_REF:
-                    if (!result.is_lval) {
+                    if (result.state != EXPR_RESULT_LVAL) {
                         error_exit(expr->location, "The operand of a reference must be an lval.");
                     }
 
@@ -196,19 +195,21 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                             .type = TYPE_PTR,
                             .data.sub_type = sub_type
                         },
-                        .is_lval = false,
-                        .is_constant = result.is_constant,
+                        .state = EXPR_RESULT_RVAL,
                     };
                 
                 case EXPR_UNARY_DEREF:
                     if (result.type.type != TYPE_PTR && result.type.type != TYPE_PTR_NULLABLE) { 
                         error_exit(expr->location, "The operand of a dereference must be a pointer.");
                     }
-                    return (ExprResult) { 
-                        .type = *result.type.data.sub_type,
-                        .is_lval = true,
-                        .is_constant = true 
+                    
+                    ExprResult deref_result = { 
+                        .type = type_clone(result.type.data.sub_type),
+                        .state = result.state == EXPR_RESULT_CONSTANT ? EXPR_RESULT_CONSTANT : EXPR_RESULT_LVAL
                     };
+
+                    expr_result_free(&result);
+                    return deref_result;
 
                 case EXPR_UNARY_NEGATE: // TODO: what is this operator?
                 default: 
@@ -230,8 +231,8 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     if (result_lhs.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL || result_rhs.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
                         error_exit(expr->location, "The operands of a logical operator are both expected to have a boolean type.");
                     }
-                    result_lhs.is_lval = false;
-                    result_lhs.is_constant = result_lhs.is_constant && result_rhs.is_constant;
+
+                    result_lhs.state = result_lhs.state == EXPR_RESULT_CONSTANT && result_rhs.state == EXPR_RESULT_CONSTANT;
                     expr_result_free(&result_rhs);
                     return result_lhs;
                 
@@ -263,8 +264,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             symbol_table_resolve_type(table, &expr->data.typecast.cast_to);
             ExprResult cast = {
                 .type = type_clone(&expr->data.typecast.cast_to),
-                .is_constant = result.is_constant,
-                .is_lval = false
+                .state = result.state == EXPR_RESULT_CONSTANT ? EXPR_RESULT_CONSTANT : EXPR_RESULT_RVAL,
             };
             expr_result_free(&result);
             return cast;
@@ -293,10 +293,17 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                 case DECLARATION_UNION:
                     for (int i = 0; i < decl->data.struct_union.member_count; i++) {
                         if (decl->data.struct_union.members[i].id.idx == expr->data.access_member.member.idx) {
+                            int state;
+                            if (result.state == EXPR_RESULT_CONSTANT) state = EXPR_RESULT_CONSTANT;
+                            else if (result.state == EXPR_RESULT_LVAL
+                                    || result.type.type == TYPE_PTR 
+                                    || result.type.type == TYPE_PTR_NULLABLE 
+                                    || result.type.type == TYPE_ARRAY) 
+                                    state = EXPR_RESULT_LVAL;
+                            else state = EXPR_RESULT_RVAL;
+
                             ExprResult member = {
-                                .is_lval = result.is_lval || 
-                                    (result.type.type == TYPE_PTR || result.type.type == TYPE_PTR_NULLABLE || result.type.type == TYPE_ARRAY),
-                                .is_constant = result.is_constant,
+                                .state = state,
                                 .type = type_clone(&decl->data.struct_union.members[i].type)
                             };
                             expr_result_free(&result);
@@ -316,10 +323,9 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             ExprResult result = symbol_table_check_expr(table, expr->data.access_array.operand);
             if (result.type.type != TYPE_ARRAY) error_exit(expr->location, "The operand of this array access is not an array.");
             
-            ExprResult item =  {
-                .is_lval = true,
-                .is_constant = result.is_constant, // right now, I'm allowing constness of arrays to propigate to their members.
-                .type = type_clone(result.type.data.sub_type)
+            ExprResult item = {
+                .type = type_clone(result.type.data.sub_type),
+                .state = result.state == EXPR_RESULT_CONSTANT ? EXPR_RESULT_CONSTANT : EXPR_RESULT_LVAL
             };
             expr_result_free(&result);
             return item;
@@ -335,8 +341,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             // TODO: Add function parameters.
             symbol_table_check_scope(table, expr->data.function.scope, expr->data.function.type.data.function.result);
             return (ExprResult) {
-                .is_lval = false,
-                .is_constant = true,
+                .state = EXPR_RESULT_CONSTANT,
                 .type = type_clone(&expr->data.function.type)
             };
         } break;
@@ -360,8 +365,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             // Technically instead of freeing this you could transfer the allocation of the function result type and free the parameters,
             // but I don't want to put that logic here.
             return (ExprResult) {
-                .is_lval = false,
-                .is_constant = false,
+                .state = EXPR_RESULT_RVAL,
                 .type = return_type
             };
         } break;
@@ -374,25 +378,18 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
             }
             symbol_table_declaration_init(table, decl); // Make sure the declaration is initialized if this is in the global scope.
             
-            Type *type;
-            bool is_constant;
-
             switch (decl->data.var.type) {
                 case DECLARATION_VAR_CONSTANT:
-                    is_constant = true;
-                    type = &decl->data.var.data.constant.type;
-                    break;
+                    return (ExprResult) {
+                        .state = EXPR_RESULT_CONSTANT,
+                        .type = type_clone(&decl->data.var.data.constant.type)
+                    };
                 case DECLARATION_VAR_MUTABLE:
-                    is_constant = false;
-                    type = &decl->data.var.data.mutable.type;
-                    break;
+                    return (ExprResult) {
+                        .state = EXPR_RESULT_LVAL,
+                        .type = type_clone(&decl->data.var.data.mutable.type)
+                    };
             }
-            
-            return (ExprResult) {
-                .is_lval = true,
-                .is_constant = is_constant,
-                .type = type_clone(type)
-            };
         } break;
         
         case EXPR_LITERAL: {
@@ -416,8 +413,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
 
             return (ExprResult) {
                 .type = type,
-                .is_lval = false,
-                .is_constant = true
+                .state = EXPR_RESULT_CONSTANT
             };
         } break;
         
@@ -427,8 +423,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     .type = TYPE_PRIMITIVE,
                     .data.primitive = TOKEN_KEYWORD_TYPE_BOOL
                 },
-                .is_lval = false,
-                .is_constant = true
+                .state = EXPR_RESULT_CONSTANT
             };
         } break;
         case EXPR_LITERAL_ARRAY:
@@ -452,40 +447,39 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
         } break;
 
         case SCOPE_STATEMENT: {
-            switch (scope->data.statement.type) {
-                case STATEMENT_DECLARATION:
-                    if (scope->data.statement.data.declaration.type == DECLARATION_VAR) {
-
-                    } else {
-
-                        if (!symbol_table_insert(table, &scope->data.statement.data.declaration)) {
-                            error_exit(scope->data.statement.location, "This scope already has a declaration with this name.");
-                        }
-                        symbol_table_declaration_init(table, &scope->data.statement.data.declaration);
+            Statement *statement = &scope->data.statement;
+            switch (statement->type) {
+                case STATEMENT_DECLARATION: {
+                    Declaration *decl = &statement->data.declaration;
+                    if (!symbol_table_insert(table, decl)) {
+                        error_exit(decl->location, "This scope already has a declaration with this name.");
                     }
-                    break;
+                    symbol_table_declaration_init(table, decl);
+                } break;
 
-                case STATEMENT_INCREMENT: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.increment);
-                    if (!result.is_lval) error_exit(scope->location, "Only rvals can be incremented.");
-                    if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MIN < result.type.data.primitive) {
+                case STATEMENT_INCREMENT:
+                case STATEMENT_DEINCREMENT: {
+                    Expr *increment = statement->type == STATEMENT_INCREMENT ? &statement->data.increment : &statement->data.deincrement;
+                    ExprResult result = symbol_table_check_expr(table, increment);
+                    if (result.state != EXPR_RESULT_LVAL) error_exit(scope->location, "Only lvals can be incremented.");
+                    if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MAX < result.type.data.primitive) {
                         error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
                     }
                     expr_result_free(&result);
                 } break;
 
                 case STATEMENT_ASSIGN: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.assign.assignee);
-                    if (!result.is_lval) error_exit(scope->data.statement.location, "You can only assign to lvals.");
-                    ExprResult value_result = symbol_table_check_expr(table, &scope->data.statement.data.assign.value);
+                    ExprResult result = symbol_table_check_expr(table, &statement->data.assign.assignee);
+                    if (result.state != EXPR_RESULT_LVAL) error_exit(statement->location, "You can only assign to lvals.");
+                    ExprResult value_result = symbol_table_check_expr(table, &statement->data.assign.value);
                     if (!type_equal(&result.type, &value_result.type)) {
                         error_exit(scope->location, "The assignee and assigned value in an assignment statement must be of the same type.");
                     }
-                    switch (scope->data.statement.data.assign.type) {
+                    switch (statement->data.assign.type) {
                         case TOKEN_ASSIGN: 
                             break;
                         default:
-                            error_exit(scope->data.statement.location, "Typechecking this type of assignment statement is not yet implemented.");
+                            error_exit(statement->location, "Typechecking this type of assignment statement is not yet implemented.");
                             break;
                     }
                     expr_result_free(&result);
@@ -493,29 +487,44 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
                 } break;
 
                 case STATEMENT_EXPR: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.expr);
+                    ExprResult result = symbol_table_check_expr(table, &statement->data.expr);
                     if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
-                        error_exit(scope->data.statement.location, "You cannot implicitly discard the value of an expression.");                        
+                        error_exit(statement->location, "You cannot implicitly discard the value of an expression.");                        
                     }
                     expr_result_free(&result);
                 } break;
 
 
                 case STATEMENT_RETURN: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.expr);
-                    if (!type_equal(&result.type, return_type)) {
-                        error_exit(scope->data.statement.location, "The return type of this statement does not match the return type of this function.");
+                    if (!statement->data.return_value.exists) {
+                        if (return_type->type != TYPE_PRIMITIVE || return_type->data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
+                            error_exit(statement->location, "Missing return value.");
+                        }
+                    } else {
+                        ExprResult result = symbol_table_check_expr(table, &statement->data.return_value.expr);
+                        if (!type_equal(&result.type, return_type)) {
+                            error_exit(statement->location, "The return type of this statement does not match the return type of this function.");
+                        }
+                        expr_result_free(&result);
                     }
-                    expr_result_free(&result);
                 } break;
 
                 default: 
-                    error_exit(scope->data.statement.location, "Typehecking this kind of statement hasn't been implemented yet.");
+                    error_exit(statement->location, "Typehecking this kind of statement hasn't been implemented yet.");
                     break;
             }
         } break;
+        
+        case SCOPE_CONDITIONAL: {
+            ExprResult result = symbol_table_check_expr(table, &scope->data.conditional.condition);
+            if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_BOOL) {
+                error_exit(scope->data.conditional.condition.location, "The type of the condition of an if statement is expected to be a boolean.");                
+            }
+            symbol_table_check_scope(table, scope->data.conditional.scope_if, return_type);
+            if (scope->data.conditional.scope_else) symbol_table_check_scope(table, scope->data.conditional.scope_else, return_type);
+        } break;
 
-        default: 
+        default:
             error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
     }
 }

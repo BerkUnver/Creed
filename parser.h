@@ -236,7 +236,11 @@ typedef struct Statement {
 
         StringId label;
         StringId label_goto;
-        Expr return_expr;
+        
+        struct {
+            bool exists;
+            Expr expr;
+        } return_value;
     } data;
 } Statement;
 

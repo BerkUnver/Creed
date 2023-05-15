@@ -23,5 +23,15 @@ bool1 :: false;
 bool2 :: !bool1;
 
 main :: () void {
-    i: int = 1 + 1;
+    local_bitwise_not: uint = ~1u;
+    local_var: int = 1;
+    ++local_var;
+    --local_var;
+
+    local_condition_if:: true;
+    local_condition_else_if :: false;
+    if local_condition_if { 
+    } else if !local_condition_else_if {
+    } else {
+    }
 };
