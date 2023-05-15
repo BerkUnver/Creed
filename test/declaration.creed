@@ -23,6 +23,8 @@ bool1 :: false;
 bool2 :: !bool1;
 
 main :: () void {
+    local_bitwise_not: uint = ~1u;
     local_var: int = 1;
     ++local_var;
+    --local_var;
 };

@@ -176,7 +176,7 @@ ExprResult symbol_table_check_expr(SymbolTable *table, Expr *expr) {
                     return result;
                 
                 case EXPR_UNARY_BITWISE_NOT:
-                    if (result.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN && TOKEN_KEYWORD_TYPE_UINT_MAX < result.type.data.primitive) {
+                    if (result.type.data.primitive < TOKEN_KEYWORD_TYPE_UINT_MIN || TOKEN_KEYWORD_TYPE_UINT_MAX < result.type.data.primitive) {
                         error_exit(expr->location, "The operand of a bitwise not expression must have a unsigned integer type.");
                     }
                     return result;
@@ -444,17 +444,20 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
         } break;
 
         case SCOPE_STATEMENT: {
-            switch (scope->data.statement.type) {
+            Statement *statement = &scope->data.statement;
+            switch (statement->type) {
                 case STATEMENT_DECLARATION: {
-                    Declaration *decl = &scope->data.statement.data.declaration;
+                    Declaration *decl = &statement->data.declaration;
                     if (!symbol_table_insert(table, decl)) {
                         error_exit(decl->location, "This scope already has a declaration with this name.");
                     }
                     symbol_table_declaration_init(table, decl);
                 } break;
 
-                case STATEMENT_INCREMENT: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.increment);
+                case STATEMENT_INCREMENT:
+                case STATEMENT_DEINCREMENT: {
+                    Expr *increment = statement->type == STATEMENT_INCREMENT ? &statement->data.increment : &statement->data.deincrement;
+                    ExprResult result = symbol_table_check_expr(table, increment);
                     if (result.state != EXPR_RESULT_LVAL) error_exit(scope->location, "Only lvals can be incremented.");
                     if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive < TOKEN_KEYWORD_TYPE_INTEGER_MIN || TOKEN_KEYWORD_TYPE_INTEGER_MAX < result.type.data.primitive) {
                         error_exit(scope->location, "An incremented variable must be of an integer numeric type.");
@@ -463,17 +466,17 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
                 } break;
 
                 case STATEMENT_ASSIGN: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.assign.assignee);
-                    if (result.state != EXPR_RESULT_LVAL) error_exit(scope->data.statement.location, "You can only assign to lvals.");
-                    ExprResult value_result = symbol_table_check_expr(table, &scope->data.statement.data.assign.value);
+                    ExprResult result = symbol_table_check_expr(table, &statement->data.assign.assignee);
+                    if (result.state != EXPR_RESULT_LVAL) error_exit(statement->location, "You can only assign to lvals.");
+                    ExprResult value_result = symbol_table_check_expr(table, &statement->data.assign.value);
                     if (!type_equal(&result.type, &value_result.type)) {
                         error_exit(scope->location, "The assignee and assigned value in an assignment statement must be of the same type.");
                     }
-                    switch (scope->data.statement.data.assign.type) {
+                    switch (statement->data.assign.type) {
                         case TOKEN_ASSIGN: 
                             break;
                         default:
-                            error_exit(scope->data.statement.location, "Typechecking this type of assignment statement is not yet implemented.");
+                            error_exit(statement->location, "Typechecking this type of assignment statement is not yet implemented.");
                             break;
                     }
                     expr_result_free(&result);
@@ -481,18 +484,18 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
                 } break;
 
                 case STATEMENT_EXPR: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.expr);
+                    ExprResult result = symbol_table_check_expr(table, &statement->data.expr);
                     if (result.type.type != TYPE_PRIMITIVE || result.type.data.primitive != TOKEN_KEYWORD_TYPE_VOID) {
-                        error_exit(scope->data.statement.location, "You cannot implicitly discard the value of an expression.");                        
+                        error_exit(statement->location, "You cannot implicitly discard the value of an expression.");                        
                     }
                     expr_result_free(&result);
                 } break;
 
 
                 case STATEMENT_RETURN: {
-                    ExprResult result = symbol_table_check_expr(table, &scope->data.statement.data.expr);
+                    ExprResult result = symbol_table_check_expr(table, &statement->data.expr);
                     if (!type_equal(&result.type, return_type)) {
-                        error_exit(scope->data.statement.location, "The return type of this statement does not match the return type of this function.");
+                        error_exit(statement->location, "The return type of this statement does not match the return type of this function.");
                     }
                     expr_result_free(&result);
                 } break;
@@ -502,6 +505,12 @@ void symbol_table_check_scope(SymbolTable *table, Scope *scope, Type *return_typ
                     break;
             }
         } break;
+        
+        /*
+        case SCOPE_CONDITIONAL: {
+            ExprResult result = symbol_table_check_expr(table, scope->data.conditional.condition);
+        } break;
+        */
 
         default: 
             error_exit(scope->location, "Typechecking this kind of scope hasn't been implemented yet.");
